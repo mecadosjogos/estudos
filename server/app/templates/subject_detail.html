@@ -13,7 +13,7 @@
 		<li>
 			<time>{{ lesson.data.strftime("%d/%m/%Y") }}</time>
 			<a href="/lessons/{{ lesson.id }}">{{ lesson.titulo }}</a>
-			{% if not lesson.google_doc_url %}<span class="badge muted">sem áudio</span>{% endif %}
+			{% if not lesson.audio_segments %}<span class="badge muted">sem áudio</span>{% endif %}
 			{% if lesson.google_doc_url %}<a class="button" href="{{ lesson.google_doc_url }}" target="_blank">Abrir no Docs</a>{% endif %}
 		</li>
 		{% else %}
@@ -24,7 +24,7 @@
 
 <div class="card">
 	<h2>Nova aula</h2>
-	<p class="muted">Pode ficar sem áudio — seminário, aula de slides, ou o dia em que você esqueceu de gravar. O upload entra na fase 3.</p>
+	<p class="muted">Pode ficar sem áudio — seminário, aula de slides, ou o dia em que você esqueceu de gravar. Para subir áudio, use a <a href="/upload">página de upload</a>.</p>
 	<form method="post" action="/subjects/{{ subject.id }}/lessons">
 		<p><label>Título<br><input type="text" name="titulo" required></label></p>
 		<p><label>Data<br><input type="date" name="data" required></label></p>

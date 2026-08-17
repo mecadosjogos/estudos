@@ -23,6 +23,14 @@ DATABASE_PATH = _resolve(os.environ.get("DATABASE_PATH", "data/estudos.db"))
 BACKUP_DIR = _resolve(os.environ.get("BACKUP_DIR", "backups"))
 BACKUP_RETENTION = int(os.environ.get("BACKUP_RETENTION", "14"))
 
+# Ciclo de vida do áudio (PLANO.md): o original fica aqui só até um worker
+# processar (fase 4); o mp3 comprimido fica em MEDIA_WEB_DIR para tocar no app.
+MEDIA_ORIGINAL_DIR = _resolve(os.environ.get("MEDIA_ORIGINAL_DIR", "data/media/original"))
+MEDIA_WEB_DIR = _resolve(os.environ.get("MEDIA_WEB_DIR", "data/media/web"))
+UPLOAD_STAGING_DIR = _resolve(os.environ.get("UPLOAD_STAGING_DIR", "data/uploads"))
+UPLOAD_CHUNK_MAX_BYTES = int(os.environ.get("UPLOAD_CHUNK_MAX_BYTES", str(8 * 1024 * 1024)))
+UPLOAD_ALLOWED_EXTENSIONS = {".m4a", ".mp3", ".wav"}
+
 BUSY_TIMEOUT_MS = int(os.environ.get("BUSY_TIMEOUT_MS", "30000"))
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

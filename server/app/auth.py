@@ -37,6 +37,18 @@ def require_session(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Sessão inválida — acesse com ?k=<token>")
 
 
+def require_session_or_token(request: Request) -> None:
+    """Para endpoints chamados por clientes sem navegador (Atalho do iOS): aceita
+    o cookie de sessão normal ou o cabeçalho `Authorization: Bearer <ACCESS_TOKEN>`,
+    que o Atalho consegue enviar sem passar pela troca de cookie."""
+    if has_valid_session(request):
+        return
+    header = request.headers.get("authorization", "")
+    if config.ACCESS_TOKEN and header == f"Bearer {config.ACCESS_TOKEN}":
+        return
+    raise HTTPException(status_code=401, detail="Sessão inválida")
+
+
 async def session_middleware(request: Request, call_next):
     """Troca `?k=<TOKEN>` por cookie e redireciona limpando a URL.
 

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Upload{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Upload</h1>
+<p class="muted">
+	Escolha um ou mais arquivos (.m4a, .mp3, .wav). Cada um vira uma aula própria por padrão —
+	para juntar dois arquivos como uma aula única (o caso do intervalo), dê o mesmo número de
+	<strong>grupo</strong> a eles e ajuste a <strong>ordem</strong>. O envio continua em segundo
+	plano mesmo se a rede cair no meio — ele retoma sozinho de onde parou. Se a aba fechar antes
+	de terminar, escolher os mesmos arquivos de novo pula o que já foi enviado.
+</p>
+
+<div class="card">
+	<input type="file" id="file-input" accept=".m4a,.mp3,.wav" multiple>
+</div>
+
+<div id="file-rows"></div>
+<div id="group-boxes"></div>
+
+<div class="card" id="submit-card" style="display:none">
+	<button type="button" id="submit-button">Enviar tudo</button>
+	<div id="overall-status" class="muted"></div>
+</div>
+
+<script src="/static/upload.js"></script>
+<script>
+	initUploadPage({
+		subjects: {{ subjects | map(attribute="id") | list | tojson }},
+		subjectLabels: {{ subjects | map(attribute="sigla") | list | tojson }},
+	});
+</script>
+{% endblock %}

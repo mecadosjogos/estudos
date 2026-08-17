@@ -5,6 +5,24 @@
 <h1>{{ lesson.titulo }}</h1>
 
 <div class="card">
+	<h2>Áudio</h2>
+	{% if lesson.audio_segments %}
+	<ul class="timeline">
+		{% for segment in lesson.audio_segments %}
+		<li>
+			<span class="badge">{{ segment.ordem }}</span>
+			<span>{{ segment.original_filename }}</span>
+			<span class="muted">{{ (segment.size_bytes / 1024 / 1024) | round(1) }} MB</span>
+			<span class="badge muted" style="margin-left:auto">aguardando worker</span>
+		</li>
+		{% endfor %}
+	</ul>
+	{% else %}
+	<p class="muted">Sem áudio ainda. <a href="/upload">Subir áudio</a> para esta aula.</p>
+	{% endif %}
+</div>
+
+<div class="card">
 	<h2>Editar</h2>
 	<form method="post" action="/lessons/{{ lesson.id }}">
 		<p><label>Título<br><input type="text" name="titulo" value="{{ lesson.titulo }}" required></label></p>
