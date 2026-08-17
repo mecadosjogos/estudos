@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Backups{% endblock %}
+{% block content %}
+<h1>Backups</h1>
+
+{% if request.query_params.get("restored_from_safety") %}
+<div class="card">Restauração concluída. Cópia de segurança do estado anterior: <code>{{ request.query_params.get("restored_from_safety") }}</code></div>
+{% endif %}
+
+<form method="post" action="/admin/backups">
+	<button type="submit">Fazer backup agora</button>
+</form>
+
+<div class="card">
+	<h2>Restaurar de um arquivo</h2>
+	<form method="post" action="/admin/restore/stage" enctype="multipart/form-data">
+		<input type="file" name="file" accept=".db" required>
+		<button type="submit">Comparar antes de restaurar</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Backups na VPS</h2>
+	<ul class="subject-list">
+		{% for b in backups %}
+		<li>{{ b.name }}</li>
+		{% else %}
+		<li class="muted">Nenhum backup ainda.</li>
+		{% endfor %}
+	</ul>
+</div>
+{% endblock %}

@@ -5,3 +5,4 @@ alembic
 jinja2
 python-multipart
 itsdangerous
+python-dotenv

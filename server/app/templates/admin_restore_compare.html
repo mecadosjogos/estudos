@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Confirmar restauração{% endblock %}
+{% block content %}
+<h1>Confirmar restauração</h1>
+<p class="muted">Restaurar um backup errado é o erro provável aqui — confira antes de confirmar.</p>
+
+<div class="card">
+	<h2>No ar agora</h2>
+	<p>{{ current.subjects_count }} matérias · {{ (current.size_bytes / 1024) | round(1) }} KB</p>
+</div>
+
+<div class="card">
+	<h2>Vai entrar</h2>
+	<p>{{ incoming.subjects_count }} matérias · {{ (incoming.size_bytes / 1024) | round(1) }} KB</p>
+	<p class="muted">Arquivo: {{ staged_filename }}</p>
+</div>
+
+{% if job_in_progress %}
+<div class="card">Há um job de transcrição em andamento — restauração bloqueada até ele terminar.</div>
+{% else %}
+<p>Uma cópia de segurança do estado atual será criada automaticamente antes de sobrescrever.</p>
+<form method="post" action="/admin/restore/confirm">
+	<input type="hidden" name="staged_filename" value="{{ staged_filename }}">
+	<button type="submit">Confirmar restauração</button>
+</form>
+{% endif %}
+{% endblock %}
