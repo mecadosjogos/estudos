@@ -158,6 +158,10 @@ label {
 	margin-bottom: var(--space-2);
 }
 
+label[title] {
+	cursor: help;
+}
+
 input[type="text"], input[type="date"], select {
 	min-height: var(--touch-target);
 	width: 100%;

@@ -92,17 +92,27 @@ function initUploadPage({ subjects, subjectLabels }) {
 			size.textContent = formatBytes(entry.file.size);
 			li.appendChild(size);
 
-			li.appendChild(numberField("Grupo", entry.grupo, (value) => {
-				entry.grupo = value;
-				if (!(value in state.groups)) {
-					state.groups[value] = { subjectId: subjects[0], titulo: entry.file.name.replace(/\.[^.]+$/, ""), data: todayIso() };
+			li.appendChild(numberField(
+				"Grupo",
+				entry.grupo,
+				"Arquivos com o mesmo número de grupo viram uma aula só (o caso do intervalo). Deixe cada um com um número diferente para virarem aulas separadas — é o normal.",
+				(value) => {
+					entry.grupo = value;
+					if (!(value in state.groups)) {
+						state.groups[value] = { subjectId: subjects[0], titulo: entry.file.name.replace(/\.[^.]+$/, ""), data: todayIso() };
+					}
+					renderGroupBoxes();
 				}
-				renderGroupBoxes();
-			}));
+			));
 
-			li.appendChild(numberField("Ordem", entry.ordem, (value) => {
-				entry.ordem = value;
-			}));
+			li.appendChild(numberField(
+				"Ordem",
+				entry.ordem,
+				"Dentro do mesmo grupo, define qual arquivo toca primeiro: 1 = antes do intervalo, 2 = depois.",
+				(value) => {
+					entry.ordem = value;
+				}
+			));
 
 			const status = document.createElement("span");
 			status.className = "muted";
@@ -118,18 +128,25 @@ function initUploadPage({ subjects, subjectLabels }) {
 		fileRows.appendChild(card);
 	}
 
-	function numberField(labelText, value, onChange) {
+	function numberField(labelText, value, tooltip, onChange) {
 		const label = document.createElement("label");
 		label.style.display = "inline-flex";
 		label.style.alignItems = "center";
 		label.style.gap = "0.3rem";
 		label.style.marginBottom = "0";
+		label.title = tooltip;
 		label.textContent = labelText;
+
+		const help = document.createElement("span");
+		help.textContent = " ⓘ";
+		help.className = "muted";
+		label.appendChild(help);
 
 		const input = document.createElement("input");
 		input.type = "number";
 		input.min = "1";
 		input.value = value;
+		input.title = tooltip;
 		input.style.width = "4rem";
 		input.style.minHeight = "auto";
 		input.addEventListener("change", () => onChange(parseInt(input.value, 10) || 1));

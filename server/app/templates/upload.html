@@ -4,12 +4,26 @@
 <p><a href="/">← Início</a></p>
 <h1>Upload</h1>
 <p class="muted">
-	Escolha um ou mais arquivos (.m4a, .mp3, .wav). Cada um vira uma aula própria por padrão —
-	para juntar dois arquivos como uma aula única (o caso do intervalo), dê o mesmo número de
-	<strong>grupo</strong> a eles e ajuste a <strong>ordem</strong>. O envio continua em segundo
-	plano mesmo se a rede cair no meio — ele retoma sozinho de onde parou. Se a aba fechar antes
-	de terminar, escolher os mesmos arquivos de novo pula o que já foi enviado.
+	Escolha um ou mais arquivos (.m4a, .mp3, .wav). O envio continua em segundo plano mesmo se a
+	rede cair no meio — ele retoma sozinho de onde parou. Se a aba fechar antes de terminar,
+	escolher os mesmos arquivos de novo pula o que já foi enviado.
 </p>
+
+<div class="card">
+	<h2>Grupo e ordem — só importa se um arquivo virou dois</h2>
+	<p class="muted">
+		Na maioria das vezes você não precisa mexer nisso: <strong>cada arquivo já vira uma aula
+		própria sozinho.</strong> Isso só importa quando a gravação foi partida em dois pedaços —
+		por exemplo, você parou de gravar no intervalo e começou um arquivo novo depois.
+	</p>
+	<p class="muted">
+		<strong>Grupo</strong> diz quais arquivos são a mesma aula: dê o <em>mesmo número</em> aos
+		dois pedaços (ex.: 1 e 1) e eles se juntam numa aula só; deixe números diferentes e cada
+		um vira uma aula separada, que é o padrão.<br>
+		<strong>Ordem</strong> diz qual toca primeiro dentro do mesmo grupo: o pedaço de antes do
+		intervalo recebe ordem 1, o de depois recebe ordem 2.
+	</p>
+</div>
 
 <div class="card">
 	<input type="file" id="file-input" accept=".m4a,.mp3,.wav" multiple>
@@ -27,7 +41,7 @@
 <script>
 	initUploadPage({
 		subjects: {{ subjects | map(attribute="id") | list | tojson }},
-		subjectLabels: {{ subjects | map(attribute="sigla") | list | tojson }},
+		subjectLabels: {{ subject_labels | tojson }},
 	});
 </script>
 {% endblock %}

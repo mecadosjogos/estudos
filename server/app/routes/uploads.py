@@ -55,7 +55,10 @@ def upload_page(request: Request, session: Session = Depends(get_session)):
     subjects = session.scalars(
         select(Subject).where(Subject.encerrada_em.is_(None)).order_by(Subject.nome)
     ).all()
-    return templates.TemplateResponse(request, "upload.html", {"subjects": subjects})
+    subject_labels = [f"{s.sigla} — {s.nome}" for s in subjects]
+    return templates.TemplateResponse(
+        request, "upload.html", {"subjects": subjects, "subject_labels": subject_labels}
+    )
 
 
 @api_router.post("/lessons")
