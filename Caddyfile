@@ -1,0 +1,10 @@
+drwyver.mecadosjogos.app.br {
+	reverse_proxy server:8000
+	encode gzip
+
+	@blocked {
+		path /robots.txt
+	}
+	respond @blocked "User-agent: *
+Disallow: /" 200
+}

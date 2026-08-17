@@ -1,0 +1,32 @@
+# Ambiente
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# Banco e mídia (só existem na VPS ou local; nunca versionados)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/media/original/*
+!data/media/original/.gitkeep
+data/media/web/*
+!data/media/web/.gitkeep
+
+# Áudios originais arquivados localmente
+archive/*
+!archive/.gitkeep
+
+# Backups
+backups/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Testes / cobertura
+.pytest_cache/
+htmlcov/
+.coverage
