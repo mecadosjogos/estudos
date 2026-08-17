@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Matérias{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Matérias</h1>
+
+<ul class="subject-list">
+	{% for subject in subjects %}
+	<li>
+		<span class="dot" style="background: {{ subject.cor or 'var(--border)' }}"></span>
+		<a href="/subjects/{{ subject.id }}"><strong>{{ subject.sigla }}</strong> — {{ subject.nome }}</a>
+		{% if subject.diploma_padrao %}<span class="badge">{{ subject.diploma_padrao }}</span>{% endif %}
+		{% if subject.continua_de %}<span class="badge">continua {{ subject.continua_de.sigla }}</span>{% endif %}
+		{% if subject.encerrada_em %}
+			<span class="badge">encerrada</span>
+			<form method="post" action="/subjects/{{ subject.id }}/reabrir" style="margin-left:auto">
+				<button type="submit">Reabrir</button>
+			</form>
+		{% else %}
+			<form method="post" action="/subjects/{{ subject.id }}/encerrar" style="margin-left:auto">
+				<button type="submit">Encerrar</button>
+			</form>
+		{% endif %}
+	</li>
+	{% endfor %}
+</ul>
+
+<div class="card">
+	<h2>Nova matéria</h2>
+	<p class="muted">Use "continua de" para encadear com um semestre anterior — glossário e cards seguem juntos.</p>
+	<form method="post" action="/subjects">
+		<p><label>Nome<br><input type="text" name="nome" required></label></p>
+		<p><label>Sigla<br><input type="text" name="sigla" required maxlength="10"></label></p>
+		<p><label>Cor<br><input type="color" name="cor" value="#7c3aed"></label></p>
+		<p><label>Diploma padrão (ex.: CC, CP, CF)<br><input type="text" name="diploma_padrao" maxlength="10"></label></p>
+		<p><label>Continua de<br>
+			<select name="continua_de_id">
+				<option value="">— nenhuma —</option>
+				{% for s in subjects %}
+				<option value="{{ s.id }}">{{ s.sigla }} — {{ s.nome }}</option>
+				{% endfor %}
+			</select>
+		</label></p>
+		<button type="submit">Criar matéria</button>
+	</form>
+</div>
+{% endblock %}

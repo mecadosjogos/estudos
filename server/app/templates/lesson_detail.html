@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/subjects/{{ lesson.subject_id }}">← {{ lesson.subject.sigla }}</a></p>
+<h1>{{ lesson.titulo }}</h1>
+
+<div class="card">
+	<h2>Editar</h2>
+	<form method="post" action="/lessons/{{ lesson.id }}">
+		<p><label>Título<br><input type="text" name="titulo" value="{{ lesson.titulo }}" required></label></p>
+		<p><label>Data<br><input type="date" name="data" value="{{ lesson.data.isoformat() }}" required></label></p>
+		<p><label>Link do Google Doc<br><input type="text" name="google_doc_url" value="{{ lesson.google_doc_url or '' }}" placeholder="https://docs.google.com/..."></label></p>
+		<button type="submit">Salvar</button>
+	</form>
+	{% if lesson.google_doc_url %}<p><a class="button" href="{{ lesson.google_doc_url }}" target="_blank">Abrir no Docs</a></p>{% endif %}
+</div>
+
+<div class="card">
+	<h2>Mover para outra matéria</h2>
+	<p class="muted">Upload na matéria errada é erro banal — mover aqui atualiza tudo que depende dela.</p>
+	<form method="post" action="/lessons/{{ lesson.id }}/move">
+		<select name="subject_id">
+			{% for s in all_subjects %}
+			<option value="{{ s.id }}" {% if s.id == lesson.subject_id %}selected{% endif %}>{{ s.sigla }} — {{ s.nome }}</option>
+			{% endfor %}
+		</select>
+		<button type="submit">Mover</button>
+	</form>
+</div>
+{% endblock %}

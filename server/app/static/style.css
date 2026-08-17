@@ -122,3 +122,50 @@ button, .button {
 	background: var(--border);
 	font-size: 0.85em;
 }
+
+.dot {
+	display: inline-block;
+	width: 0.75rem;
+	height: 0.75rem;
+	border-radius: 999px;
+	flex-shrink: 0;
+}
+
+.timeline {
+	list-style: none;
+	padding: 0;
+	display: grid;
+	gap: var(--space-2);
+}
+
+.timeline li {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-height: var(--touch-target);
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+}
+
+.timeline time {
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+label {
+	display: block;
+	margin-bottom: var(--space-2);
+}
+
+input[type="text"], input[type="date"], select {
+	min-height: var(--touch-target);
+	width: 100%;
+	max-width: 28rem;
+	padding: var(--space-2);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+	background: var(--bg);
+	color: var(--text);
+	font-size: 1rem;
+}

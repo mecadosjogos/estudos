@@ -9,11 +9,12 @@
 	<ul class="subject-list">
 		{% for subject in subjects %}
 		<li>
-			<strong>{{ subject.sigla }}</strong>
-			<span>{{ subject.nome }}</span>
+			<span class="dot" style="background: {{ subject.cor or 'var(--border)' }}"></span>
+			<a href="/subjects/{{ subject.id }}"><strong>{{ subject.sigla }}</strong> — {{ subject.nome }}</a>
 			{% if subject.diploma_padrao %}<span class="badge">{{ subject.diploma_padrao }}</span>{% endif %}
 		</li>
 		{% endfor %}
 	</ul>
+	<p><a href="/subjects">gerenciar matérias →</a></p>
 </div>
 {% endblock %}

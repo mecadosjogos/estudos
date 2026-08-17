@@ -5,7 +5,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth import session_middleware
-from .routes import admin, pages
+from .routes import admin, lessons, pages, subjects
 
 app = FastAPI(title="Estudos")
 
@@ -17,6 +17,8 @@ app.mount(
 
 app.include_router(pages.router)
 app.include_router(admin.router)
+app.include_router(subjects.router)
+app.include_router(lessons.router)
 
 
 @app.get("/healthz", response_class=PlainTextResponse)
