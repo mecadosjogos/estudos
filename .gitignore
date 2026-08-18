@@ -30,8 +30,11 @@ backups/
 .DS_Store
 Thumbs.db
 
-# Estado interno do assistente de codificação
-.claude/
+# Estado interno do assistente de codificação (skills são a exceção — fazem
+# parte do projeto, não do estado local de uma sessão)
+.claude/*
+!.claude/skills/
+!.claude/skills/**
 
 # Testes / cobertura
 .pytest_cache/
