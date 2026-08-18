@@ -80,6 +80,9 @@ class Lesson(Base):
     article_mentions: Mapped[list["ArticleMention"]] = relationship(
         back_populates="lesson", cascade="all, delete-orphan"
     )
+    assunto_proposals: Mapped[list["LessonAssunto"]] = relationship(
+        back_populates="lesson", cascade="all, delete-orphan"
+    )
 
 
 class AudioSegment(Base):
@@ -376,3 +379,75 @@ class ReviewLog(Base):
     acertou: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     revisado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+# --- Fase 8: assuntos e estudo ativo ---
+#
+# Assunto e global (PLANO.md): "prescricao" e um so no curso inteiro, de
+# Civil I a OAB. A materia so registra que cobriu, via AssuntoCobertura --
+# nao existe "semestre" separado porque cada Subject ja e uma oferta de um
+# semestre especifico (encadeada por continua_de, fase 2).
+
+ASSUNTO_COBERTURA_STATUSES = ("pendente", "dado", "estudado")
+ASSUNTO_ORIGENS = ("ia", "ementa", "manual")
+
+
+class Assunto(Base):
+    """Global, sem materia (PLANO.md: 'Assunto -- a terceira aplicacao do
+    mesmo padrao'). slug e a identidade estavel usada pra deduplicar
+    propostas da IA entre aulas e semestres diferentes; titulo e so
+    exibicao e pode ser renomeado sem quebrar o casamento."""
+
+    __tablename__ = "assunto"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    titulo: Mapped[str] = mapped_column(String, nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class AssuntoCobertura(Base):
+    """'A materia registra que cobriu o assunto' -- e aqui que mora a
+    datacao (PLANO.md). Uma linha por (assunto, matéria); a matéria já
+    carrega o semestre implicitamente."""
+
+    __tablename__ = "assunto_cobertura"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    assunto_id: Mapped[int] = mapped_column(ForeignKey("assunto.id"), nullable=False)
+    assunto: Mapped["Assunto"] = relationship()
+    subject_id: Mapped[int] = mapped_column(ForeignKey("subject.id"), nullable=False)
+    subject: Mapped["Subject"] = relationship()
+
+    status: Mapped[str] = mapped_column(String, nullable=False, default="dado")
+    origem: Mapped[str] = mapped_column(String, nullable=False, default="ia")
+    ordem: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class LessonAssunto(Base):
+    """Proposta da IA de que esta aula cobre um assunto, e depois de
+    aceita, o vinculo aula<->assunto em si -- mesmo padrao do CardProposal
+    (fase 6/7): uma linha so, o status decide o que ela significa agora.
+    assunto_id fica nulo ate aceitar (é quando resolvemos/criamos o
+    Assunto global pelo slug)."""
+
+    __tablename__ = "lesson_assunto"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lesson.id"), nullable=False)
+    lesson: Mapped["Lesson"] = relationship(back_populates="assunto_proposals")
+
+    deriv_key: Mapped[str] = mapped_column(String, nullable=False)
+    texto_proposto: Mapped[str] = mapped_column(String, nullable=False)
+
+    assunto_id: Mapped[int | None] = mapped_column(ForeignKey("assunto.id"), nullable=True)
+    assunto: Mapped["Assunto | None"] = relationship()
+
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pendente")
+    orfao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

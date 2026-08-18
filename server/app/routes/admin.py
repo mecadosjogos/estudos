@@ -16,9 +16,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import backup, config
+from ..ai.budget import month_spend_usd
 from ..auth import require_session
 from ..db import get_session
-from ..models import Lesson, TranscriptionJob
+from ..models import AiCall, Lesson, TranscriptionJob
 from .jobs import ensure_pending_job
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_session)])
@@ -33,6 +34,24 @@ def _job_in_progress(session: Session) -> bool:
             select(TranscriptionJob.id).where(TranscriptionJob.status.in_(["pending", "claimed"])).limit(1)
         )
         is not None
+    )
+
+
+@router.get("/gasto")
+def spend_panel(request: Request, session: Session = Depends(get_session)):
+    """Painel de gasto (PLANO.md, fase 8): lê ai_call como fonte única de
+    custo. Chamadas manuais sempre entram com custo zero, mas aparecem na
+    lista — dá pra ver que o volume de trabalho existe mesmo sem gasto."""
+    gasto_mes = month_spend_usd(session)
+    calls = session.scalars(select(AiCall).order_by(AiCall.criado_em.desc()).limit(200)).all()
+    return templates.TemplateResponse(
+        request,
+        "admin_gasto.html",
+        {
+            "gasto_mes": gasto_mes,
+            "teto_mensal": config.AI_MONTHLY_BUDGET_USD,
+            "calls": calls,
+        },
     )
 
 

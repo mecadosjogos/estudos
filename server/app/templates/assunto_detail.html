@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ assunto.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/assuntos">← Assuntos</a></p>
+<h1>{{ assunto.titulo }}</h1>
+{% if assunto.descricao %}<p>{{ assunto.descricao }}</p>{% endif %}
+
+<div class="card">
+	<h2>Coberto em</h2>
+	{% for c in coberturas %}
+	<p><span class="dot" style="background: {{ c.subject.cor or 'var(--border)' }}"></span> {{ c.subject.sigla }} — {{ c.subject.nome }} <span class="badge">{{ c.origem }}</span></p>
+	{% else %}
+	<p class="muted">Nenhuma matéria vinculada ainda.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
+	<h2>Aulas ({{ links|length }})</h2>
+	{% for link in links %}
+	{% set lesson = lessons_by_id.get(link.lesson_id) %}
+	{% if lesson %}
+	<div class="approval-item">
+		<p><a href="/lessons/{{ lesson.id }}">{{ lesson.titulo }}</a> — {{ lesson.data }}</p>
+		<details>
+			<summary class="muted">Mover para outro assunto (separar)</summary>
+			<form method="post" action="/assuntos/{{ assunto.id }}/vinculos/{{ link.id }}/separar">
+				<input type="text" name="novo_titulo" placeholder="Título do assunto certo" required>
+				<button type="submit">Mover</button>
+			</form>
+		</details>
+	</div>
+	{% endif %}
+	{% else %}
+	<p class="muted">Nenhuma aula vinculada ainda.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
+	<h2>Cards</h2>
+	<p>{{ cards_count }} card(s) ativo(s)
+		{% if taxa_acerto is not none %}· acerto {{ "%.0f"|format(taxa_acerto * 100) }}%{% endif %}
+		· {{ vencidos }} vencido(s)</p>
+	<p class="muted">Última vez estudado: {{ ultima_revisao or "ainda não" }}</p>
+</div>
+
+<div class="card">
+	<h2>Termos, artigos e material</h2>
+	<p class="muted">Chegam nas fases 9–12 (livros, glossário e busca unificada) — esta página já está pronta pra mostrar quando existirem.</p>
+</div>
+
+<div class="card">
+	<h2>Renomear</h2>
+	<form method="post" action="/assuntos/{{ assunto.id }}/renomear">
+		<label>Título<br><input type="text" name="titulo" value="{{ assunto.titulo }}"></label>
+		<label>Descrição<br><textarea name="descricao" rows="2">{{ assunto.descricao or "" }}</textarea></label>
+		<button type="submit">Salvar</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Fundir com outro assunto</h2>
+	<p class="muted">Este assunto desaparece; tudo migra para o escolhido.</p>
+	<form method="post" action="/assuntos/{{ assunto.id }}/fundir">
+		<select name="target_id">
+			{% for outro in outras %}
+			<option value="{{ outro.id }}">{{ outro.titulo }}</option>
+			{% endfor %}
+		</select>
+		<button type="submit">Fundir</button>
+	</form>
+</div>
+{% endblock %}

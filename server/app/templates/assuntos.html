@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Assuntos{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Assuntos</h1>
+<p class="muted">Global — atravessa matérias e semestres. "Prescrição" é um só do curso inteiro.</p>
+
+<form method="get" action="/assuntos" class="search-form">
+	<input type="search" name="q" value="{{ q }}" placeholder="Buscar assunto...">
+	<button type="submit">Buscar</button>
+</form>
+
+<ul class="subject-list">
+	{% for assunto in assuntos %}
+	<li>
+		<a href="/assuntos/{{ assunto.id }}"><strong>{{ assunto.titulo }}</strong></a>
+		<span class="badge">{{ aula_counts.get(assunto.id, 0) }} aula(s)</span>
+	</li>
+	{% else %}
+	<p class="muted">Nenhum assunto ainda — aceite propostas na tela de aprovação de uma aula.</p>
+	{% endfor %}
+</ul>
+{% endblock %}

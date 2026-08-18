@@ -16,9 +16,10 @@ from ..ai.bridge import build_prompt, package_as_markdown
 from ..ai.budget import BudgetExceededError
 from ..ai.client import get_ai_client
 from ..ai.pipeline import ProcessingError, build_prompt_for_lesson, ingest_manual_response, process_lesson_automatically
+from ..assuntos import ensure_cobertura, find_or_create_assunto
 from ..auth import require_session
 from ..db import get_session
-from ..models import AnnouncementProposal, CardProposal, EditedBlock, Lesson
+from ..models import AnnouncementProposal, CardProposal, EditedBlock, Lesson, LessonAssunto
 
 router = APIRouter(prefix="/lessons", dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -133,8 +134,13 @@ def approval_screen(request: Request, lesson_id: int, session: Session = Depends
             AnnouncementProposal.lesson_id == lesson_id, AnnouncementProposal.status == "pendente"
         )
     ).all()
+    assuntos = session.scalars(
+        select(LessonAssunto).where(LessonAssunto.lesson_id == lesson_id, LessonAssunto.status == "pendente")
+    ).all()
     return templates.TemplateResponse(
-        request, "approval.html", {"lesson": lesson, "cards": cards, "announcements": announcements}
+        request,
+        "approval.html",
+        {"lesson": lesson, "cards": cards, "announcements": announcements, "assuntos": assuntos},
     )
 
 
@@ -221,5 +227,40 @@ def discard_announcement(lesson_id: int, announcement_id: int, session: Session 
     if ann is None or ann.lesson_id != lesson_id:
         raise HTTPException(status_code=404, detail="data não encontrada")
     ann.status = "descartado"
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/aprovacao", status_code=303)
+
+
+@router.post("/{lesson_id}/assuntos/{assunto_proposal_id}/aceitar")
+def accept_lesson_assunto(
+    lesson_id: int,
+    assunto_proposal_id: int,
+    titulo: str = Form(""),
+    session: Session = Depends(get_session),
+):
+    """Aceitar resolve/cria o Assunto global pelo slug do título (editável
+    aqui antes de aceitar) e registra a cobertura da matéria -- é o ponto
+    em que 'Capacidade' de duas aulas diferentes vira o mesmo registro."""
+    lesson = _get_lesson_or_404(session, lesson_id)
+    proposal = session.get(LessonAssunto, assunto_proposal_id)
+    if proposal is None or proposal.lesson_id != lesson_id:
+        raise HTTPException(status_code=404, detail="assunto não encontrado")
+
+    titulo_final = titulo.strip() or proposal.texto_proposto
+    assunto = find_or_create_assunto(session, titulo_final)
+    ensure_cobertura(session, assunto.id, lesson.subject_id, origem="ia")
+
+    proposal.assunto_id = assunto.id
+    proposal.status = "aceito"
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/aprovacao", status_code=303)
+
+
+@router.post("/{lesson_id}/assuntos/{assunto_proposal_id}/descartar")
+def discard_lesson_assunto(lesson_id: int, assunto_proposal_id: int, session: Session = Depends(get_session)):
+    proposal = session.get(LessonAssunto, assunto_proposal_id)
+    if proposal is None or proposal.lesson_id != lesson_id:
+        raise HTTPException(status_code=404, detail="assunto não encontrado")
+    proposal.status = "descartado"
     session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}/aprovacao", status_code=303)

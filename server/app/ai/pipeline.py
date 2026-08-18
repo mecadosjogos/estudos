@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ..ai.client import AIClient
+from ..assuntos import normalize_slug
 from ..models import (
     AiCall,
     AnnouncementProposal,
@@ -17,6 +18,7 @@ from ..models import (
     CardProposal,
     EditedBlock,
     Lesson,
+    LessonAssunto,
     OutlineItem,
     TranscriptSegment,
 )
@@ -250,6 +252,13 @@ def _ingest(
         for c in output.cards
     ]
     reconcile(session, CardProposal, lesson.id, card_items, has_versao_nova=True)
+
+    # Assunto (fase 8): sem intervalo -- a proposta é sobre a aula inteira,
+    # então a chave de dedup é o slug do texto, não um hash de intervalo.
+    assunto_items = [
+        (f"assunto:{normalize_slug(texto)}", {"texto_proposto": texto}) for texto in output.assuntos
+    ]
+    reconcile(session, LessonAssunto, lesson.id, assunto_items)
 
     cost = (
         estimate_cost_usd(model, input_tokens, output_tokens, cache_read_input_tokens)

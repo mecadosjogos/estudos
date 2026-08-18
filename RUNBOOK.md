@@ -98,14 +98,24 @@ curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/lessons/{id}/colar-respos
 
 (salve sua resposta em `resposta.md` antes — precisa ter o bloco ` ```json `)
 
-⚠️ **Armadilha de encoding testada e confirmada:** no Git Bash deste
-Windows, `--data-urlencode "resposta=$(cat resposta.md)"` (substituição de
-shell) **corrompe acentos** — "usucapião" vira "usucapi�o" silenciosamente,
-sem erro nenhum. Deixe o `curl` ler o arquivo direto, com caminho Windows
-(`cygpath -w`), não via `$(cat ...)`:
+⚠️ **Armadilha de encoding testada e confirmada — mais ampla do que parece.**
+No Git Bash deste Windows, **qualquer texto acentuado passado como argumento
+de shell pro `curl` corrompe silenciosamente**, sem erro nenhum: tanto
+`--data-urlencode "campo=$(cat arquivo)"` (substituição de comando) quanto
+`--data-urlencode "campo=Usucapião"` (literal digitado direto no comando)
+viram "Usucapi�o". Confirmado nas duas formas, em dois campos diferentes,
+nesta sessão (fase 6 e fase 8).
+
+**A única forma segura é `--data-urlencode "campo@${WINPATH}"` — o curl
+lendo o arquivo sozinho, nunca o bash interpolando o conteúdo numa
+string.** Isso vale pra
+QUALQUER campo com acento, não só `resposta` — inclusive campos curtos como
+um título de assunto:
 
 ```bash
-WINPATH=$(cygpath -w /caminho/para/resposta.md)
+printf 'Usucapião Extraordinária' > titulo.txt   # nunca: --data-urlencode "titulo=Usucapião..."
+WINPATH=$(cygpath -w titulo.txt)
+curl ... --data-urlencode "titulo@${WINPATH}"
 ```
 
 Depois de colar, **sempre confira no banco** que o texto não corrompeu
@@ -135,12 +145,41 @@ preserva o que você já editou/aceitou e só atualiza o que mudou
 
 Não usa IA (SM-2 é determinístico, sem chamada nenhuma). Nada a fazer aqui.
 
-### Fase 8 em diante
+### Fase 8a — Assuntos
 
-Ainda não implementadas. **Ao implementar**: descreva aqui como achar o
-trabalho pendente, onde baixar o prompt/pacote, o schema esperado, e o
-endpoint de "colar resposta" equivalente — no mesmo formato da fase 6
-acima.
+O campo `assuntos` (lista de títulos) já vem na mesma resposta da fase 6 —
+não é uma passada de IA separada, é o mesmo `colar-resposta` de sempre.
+Depois de colar, as propostas aparecem na tela de aprovação da aula
+(`/lessons/{id}/aprovacao`), numa seção própria "Assuntos propostos".
+
+**Aceitar** (`POST /lessons/{id}/assuntos/{proposal_id}/aceitar`, campo
+`titulo`) resolve ou cria o `Assunto` global pelo slug do título — duas
+aulas propondo "Posse" e "posse" caem no mesmo registro automaticamente.
+Edite o título antes de aceitar se quiser que a proposta caia num assunto
+que já existe com outro nome.
+
+**Ferramentas de correção** (a IA vai fatiar demais ou de menos, é o
+esperado): `/assuntos` lista tudo; `/assuntos/{id}` é a página do assunto
+com **renomear** (só troca o rótulo, o slug de casamento não muda),
+**fundir** (escolhe outro assunto, este desaparece e tudo migra) e
+**separar** — em cada aula vinculada, um formulário move só aquele vínculo
+pra outro assunto (existente ou novo, por título).
+
+**Painel de gasto**: `/admin/gasto` — soma do mês contra o teto, e a lista
+de `AiCall` recentes (manual sempre grátis).
+
+`server/app/context/window.py` monta o contexto de um assunto concatenando
+a transcrição literal de cada aula vinculada (nunca a aula editada) — hoje
+é a aula inteira, não um recorte por trecho, porque o `assunto` ainda não
+marca onde começa/termina dentro da aula (simplificação deliberada da fase
+8a; ver o módulo pra decisão completa).
+
+### Fase 8b em diante
+
+Ainda não implementadas (cloze, cards de discriminação). **Ao
+implementar**: descreva aqui como achar o trabalho pendente, onde baixar o
+prompt/pacote se houver, o schema esperado, e o endpoint equivalente — no
+mesmo formato das seções acima.
 
 ## Custo
 

@@ -39,6 +39,24 @@
 </div>
 
 <div class="card">
+	<h2>Assuntos propostos ({{ assuntos|length }})</h2>
+	<p class="muted">Assunto é global — atravessa matérias e semestres. Ajuste o título antes de aceitar se quiser juntar com um assunto que já existe.</p>
+	{% for a in assuntos %}
+	<div class="card approval-item">
+		<form method="post" action="/lessons/{{ lesson.id }}/assuntos/{{ a.id }}/aceitar" class="button-row">
+			<input type="text" name="titulo" value="{{ a.texto_proposto }}">
+			<button type="submit">✓ Aceitar</button>
+		</form>
+		<form method="post" action="/lessons/{{ lesson.id }}/assuntos/{{ a.id }}/descartar">
+			<button type="submit">✗ Descartar</button>
+		</form>
+	</div>
+	{% else %}
+	<p class="muted">Nenhum assunto pendente.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
 	<h2>Datas anunciadas ({{ announcements|length }})</h2>
 	{% for ann in announcements %}
 	<div class="card approval-item">

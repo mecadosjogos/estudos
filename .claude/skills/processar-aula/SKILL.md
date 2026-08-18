@@ -34,18 +34,25 @@ no RUNBOOK.md — não só fase 6). Vazio equivale a `pendentes`.
 2. **Não invente.** Siga a instrução central do RUNBOOK.md: todo trecho
    citado, artigo, data ou bloco da aula editada precisa vir literalmente
    da transcrição, com `start_s`/`end_s` reais.
-3. **Nunca poste a resposta usando `--data-urlencode "campo=$(cat arquivo)"`.**
-   Isso corrompe acentos silenciosamente (bug real, já confirmado neste
-   projeto). Use sempre leitura de arquivo pelo próprio curl com caminho
-   Windows (`cygpath -w`), como o RUNBOOK.md documenta.
-4. **Confira encoding depois de cada `colar-resposta`.** Rode o `repr()`
-   no banco (comando está no RUNBOOK.md) e confirme que não apareceu `�`
-   antes de considerar aquela aula concluída.
-5. **Nunca aceite cards/anúncios automaticamente.** Pare em
-   `colar-resposta`. Não chame `/cards/{id}/aceitar`, `/cards/aceitar-todos`
-   nem `/announcements/{id}/aceitar` — isso é decisão humana, feita depois
-   na tela `/aprovacao`. Sua tarefa termina quando a proposta está gravada
-   e pendente de revisão.
+3. **Nunca passe texto acentuado como argumento inline de curl** — nem
+   `--data-urlencode "campo=$(cat arquivo)"` nem `--data-urlencode
+   "campo=Usucapião"` digitado direto. As duas formas corrompem acentos
+   silenciosamente (bug real, confirmado duas vezes nesta sessão, em
+   campos diferentes). Sempre escreva o valor num arquivo primeiro e deixe
+   o curl ler sozinho com caminho Windows: `--data-urlencode
+   "campo@${WINPATH}"` (`WINPATH=$(cygpath -w arquivo)`) — vale pra
+   `resposta` e pra qualquer outro campo com acento, como título de
+   assunto.
+4. **Confira encoding depois de qualquer POST com texto acentuado**
+   (`colar-resposta`, aceitar assunto, renomear, etc). Rode o `repr()` no
+   banco (comando está no RUNBOOK.md) e confirme que não apareceu `�`
+   antes de considerar aquele passo concluído.
+5. **Nunca aceite cards/anúncios/assuntos automaticamente.** Pare em
+   `colar-resposta`. Não chame `/cards/{id}/aceitar`,
+   `/cards/aceitar-todos`, `/announcements/{id}/aceitar` nem
+   `/assuntos/{id}/aceitar` — isso é decisão humana, feita depois na tela
+   `/aprovacao`. Sua tarefa termina quando a proposta está gravada e
+   pendente de revisão.
 
 ## Ao terminar
 
