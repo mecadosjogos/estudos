@@ -143,12 +143,35 @@ class CardEditBody(BaseModel):
     verso: str
 
 
+def _activate_card(card: CardProposal) -> None:
+    """Aceitar é o que faz o card entrar na fila de revisão (fase 7) — vence
+    hoje mesmo, pra não esperar o SM-2 de um card que nunca foi revisado.
+    Reaceitar um card descartado antes mantém o agendamento que já tinha."""
+    card.status = "aceito"
+    if card.due_date is None:
+        card.due_date = datetime.now(timezone.utc).date()
+
+
 @router.post("/{lesson_id}/cards/{card_id}/aceitar")
 def accept_card(lesson_id: int, card_id: int, session: Session = Depends(get_session)):
     card = session.get(CardProposal, card_id)
     if card is None or card.lesson_id != lesson_id:
         raise HTTPException(status_code=404, detail="card não encontrado")
-    card.status = "aceito"
+    _activate_card(card)
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/aprovacao", status_code=303)
+
+
+@router.post("/{lesson_id}/cards/aceitar-todos")
+def accept_all_cards(lesson_id: int, session: Session = Depends(get_session)):
+    """PLANO.md: 'há aceitar todos na tela de aprovação' — uma semana
+    corrida sem revisar as propostas não pode travar a fila do que já
+    está ativo."""
+    pending = session.scalars(
+        select(CardProposal).where(CardProposal.lesson_id == lesson_id, CardProposal.status == "pendente")
+    ).all()
+    for card in pending:
+        _activate_card(card)
     session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}/aprovacao", status_code=303)
 
@@ -176,7 +199,7 @@ def edit_card(
         raise HTTPException(status_code=404, detail="card não encontrado")
     card.frente = frente
     card.verso = verso
-    card.status = "aceito"
+    _activate_card(card)
     card.editado_em = datetime.now(timezone.utc)
     session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}/aprovacao", status_code=303)

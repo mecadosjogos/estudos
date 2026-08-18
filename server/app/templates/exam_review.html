@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Modo prova — {{ subject.sigla }}{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a> · <strong>Modo prova — {{ subject.sigla }}</strong></p>
+<h1>Revisão</h1>
+
+{% if current %}
+<p class="muted">{{ remaining }} card(s) na fila</p>
+
+<audio id="review-audio" src="/lessons/{{ current.lesson_id }}/audio" preload="none"></audio>
+
+<div class="card" id="review-card" data-card-id="{{ current.id }}" data-start="{{ current.start_s }}">
+	<h2>{{ current.frente }}</h2>
+
+	<div id="confidence-step">
+		<p class="muted">Antes de ver a resposta: o quanto você confia?</p>
+		<div class="button-row">
+			{% for level in confidence_levels %}
+			<button type="button" class="confidence-btn" data-confianca="{{ level }}">{{ level.replace("_", " ") }}</button>
+			{% endfor %}
+		</div>
+	</div>
+
+	<div id="answer-step" hidden>
+		<p><strong>Resposta:</strong> {{ current.verso }}</p>
+		<p class="muted">Como foi? (atalhos 1–4)</p>
+		<form method="post" action="/revisao/{{ current.id }}/responder" id="answer-form">
+			<input type="hidden" name="confianca" id="confianca-field">
+			<input type="hidden" name="shortcut" id="shortcut-field">
+			<input type="hidden" name="queue_url" value="{{ queue_url }}">
+			<div class="button-row">
+				<button type="submit" class="quality-btn" data-shortcut="1">1 · Errei</button>
+				<button type="submit" class="quality-btn" data-shortcut="2">2 · Difícil</button>
+				<button type="submit" class="quality-btn" data-shortcut="3">3 · Bom</button>
+				<button type="submit" class="quality-btn" data-shortcut="4">4 · Fácil</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<script>
+	const confidenceStep = document.getElementById("confidence-step");
+	const answerStep = document.getElementById("answer-step");
+	const confiancaField = document.getElementById("confianca-field");
+	const shortcutField = document.getElementById("shortcut-field");
+	const answerForm = document.getElementById("answer-form");
+	let revealed = false;
+
+	document.querySelectorAll(".confidence-btn").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			confiancaField.value = btn.dataset.confianca;
+			confidenceStep.hidden = true;
+			answerStep.hidden = false;
+			revealed = true;
+		});
+	});
+
+	document.querySelectorAll(".quality-btn").forEach((btn) => {
+		btn.addEventListener("click", (ev) => {
+			ev.preventDefault();
+			shortcutField.value = btn.dataset.shortcut;
+			answerForm.submit();
+		});
+	});
+
+	document.addEventListener("keydown", (ev) => {
+		if (!revealed) return;
+		if (["1", "2", "3", "4"].includes(ev.key)) {
+			shortcutField.value = ev.key;
+			answerForm.submit();
+		}
+	});
+</script>
+{% else %}
+<div class="card">
+	<p>Fila vazia — nada pra revisar nesta matéria. 🎉</p>
+</div>
+{% endif %}
+{% endblock %}

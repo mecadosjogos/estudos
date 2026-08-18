@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Revisão{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Revisão</h1>
+
+<p id="offline-badge" class="badge error" hidden>offline — respostas ficam guardadas e sincronizam sozinhas quando a rede voltar</p>
+<p id="recovery-badge" class="badge error" hidden>modo recuperação — a fila passou do teto de {{ daily_cap }} e o resto foi redistribuído nos próximos dias</p>
+
+<p id="progress" class="muted"></p>
+
+<audio id="review-audio" preload="none"></audio>
+
+<div class="card" id="review-card" hidden>
+	<h2 id="card-frente"></h2>
+
+	<div id="confidence-step">
+		<p class="muted">Antes de ver a resposta: o quanto você confia?</p>
+		<div class="button-row">
+			{% for level in confidence_levels %}
+			<button type="button" class="confidence-btn" data-confianca="{{ level }}">{{ level.replace("_", " ") }}</button>
+			{% endfor %}
+		</div>
+	</div>
+
+	<div id="answer-step" hidden>
+		<p><strong>Resposta:</strong> <span id="card-verso"></span></p>
+		<p class="muted">Como foi? (atalhos 1–4)</p>
+		<div class="button-row">
+			<button type="button" class="quality-btn" data-shortcut="1">1 · Errei</button>
+			<button type="button" class="quality-btn" data-shortcut="2">2 · Difícil</button>
+			<button type="button" class="quality-btn" data-shortcut="3">3 · Bom</button>
+			<button type="button" class="quality-btn" data-shortcut="4">4 · Fácil</button>
+		</div>
+	</div>
+
+	<div id="feedback-step" hidden>
+		<p id="feedback-result"></p>
+		<button type="button" id="ouvir-original" hidden>▸ ouvir os 30s de origem</button>
+		<p><button type="button" class="button" id="next-btn">Próximo card →</button></p>
+	</div>
+</div>
+
+<div class="card" id="empty-state" hidden>
+	<p>Fila vazia — nada pra revisar agora. 🎉</p>
+</div>
+
+<p><a href="/revisao/calibracao">Ver calibração →</a></p>
+
+<script>
+	const QUEUE_KEY = "estudos_review_queue";
+	const PENDING_KEY = "estudos_pending_reviews";
+
+	const els = {
+		offlineBadge: document.getElementById("offline-badge"),
+		recoveryBadge: document.getElementById("recovery-badge"),
+		progress: document.getElementById("progress"),
+		card: document.getElementById("review-card"),
+		frente: document.getElementById("card-frente"),
+		verso: document.getElementById("card-verso"),
+		confidenceStep: document.getElementById("confidence-step"),
+		answerStep: document.getElementById("answer-step"),
+		feedbackStep: document.getElementById("feedback-step"),
+		feedbackResult: document.getElementById("feedback-result"),
+		ouvirOriginal: document.getElementById("ouvir-original"),
+		nextBtn: document.getElementById("next-btn"),
+		emptyState: document.getElementById("empty-state"),
+		audio: document.getElementById("review-audio"),
+	};
+
+	let queue = [];
+	let confiancaEscolhida = null;
+
+	function loadQueue() {
+		try {
+			return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+		} catch {
+			return [];
+		}
+	}
+
+	function saveQueue() {
+		localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+	}
+
+	function loadPending() {
+		try {
+			return JSON.parse(localStorage.getItem(PENDING_KEY) || "[]");
+		} catch {
+			return [];
+		}
+	}
+
+	function savePending(pending) {
+		localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+	}
+
+	async function flushPending() {
+		let pending = loadPending();
+		if (!pending.length) return;
+		const rest = [];
+		for (const item of pending) {
+			try {
+				const body = new URLSearchParams({ confianca: item.confianca, shortcut: String(item.shortcut) });
+				const resp = await fetch(`/revisao/${item.card_id}/responder.json`, { method: "POST", body });
+				if (!resp.ok) rest.push(item);
+			} catch {
+				rest.push(item);
+			}
+		}
+		savePending(rest);
+	}
+
+	async function refreshFromServer() {
+		try {
+			const resp = await fetch("/revisao/fila.json");
+			if (!resp.ok) return false;
+			const data = await resp.json();
+			queue = data.cards;
+			saveQueue();
+			els.recoveryBadge.hidden = !data.in_recovery;
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function render() {
+		if (!queue.length) {
+			els.card.hidden = true;
+			els.emptyState.hidden = false;
+			els.progress.textContent = "";
+			return;
+		}
+		els.emptyState.hidden = true;
+		els.card.hidden = false;
+		const current = queue[0];
+		els.progress.textContent = `${queue.length} card(s) na fila · ${current.subject_sigla}`;
+		els.frente.textContent = current.frente;
+		els.verso.textContent = current.verso;
+		els.audio.src = `/lessons/${current.lesson_id}/audio`;
+		confiancaEscolhida = null;
+		els.confidenceStep.hidden = false;
+		els.answerStep.hidden = true;
+		els.feedbackStep.hidden = true;
+	}
+
+	document.querySelectorAll(".confidence-btn").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			confiancaEscolhida = btn.dataset.confianca;
+			els.confidenceStep.hidden = true;
+			els.answerStep.hidden = false;
+		});
+	});
+
+	async function answer(shortcut) {
+		const current = queue[0];
+		if (!current || !confiancaEscolhida) return;
+
+		let acertou = shortcut >= 3;
+		try {
+			const body = new URLSearchParams({ confianca: confiancaEscolhida, shortcut: String(shortcut) });
+			const resp = await fetch(`/revisao/${current.id}/responder.json`, { method: "POST", body });
+			if (resp.ok) {
+				const data = await resp.json();
+				acertou = data.acertou;
+			} else {
+				throw new Error("resposta não-ok");
+			}
+		} catch {
+			const pending = loadPending();
+			pending.push({ card_id: current.id, confianca: confiancaEscolhida, shortcut });
+			savePending(pending);
+		}
+
+		els.answerStep.hidden = true;
+		els.feedbackStep.hidden = false;
+		els.feedbackResult.textContent = acertou ? "✓ acertou" : "✗ errou";
+		els.feedbackResult.className = acertou ? "badge" : "badge error";
+		els.ouvirOriginal.hidden = acertou;
+		els.ouvirOriginal.dataset.start = current.start_s;
+
+		queue.shift();
+		saveQueue();
+	}
+
+	document.querySelectorAll(".quality-btn").forEach((btn) => {
+		btn.addEventListener("click", () => answer(parseInt(btn.dataset.shortcut, 10)));
+	});
+
+	els.ouvirOriginal.addEventListener("click", () => {
+		els.audio.currentTime = parseFloat(els.ouvirOriginal.dataset.start);
+		els.audio.play();
+		setTimeout(() => els.audio.pause(), 30000);
+	});
+
+	els.nextBtn.addEventListener("click", render);
+
+	document.addEventListener("keydown", (ev) => {
+		if (els.answerStep.hidden) return;
+		if (["1", "2", "3", "4"].includes(ev.key)) answer(parseInt(ev.key, 10));
+	});
+
+	function setOfflineBadge() {
+		els.offlineBadge.hidden = navigator.onLine;
+	}
+	window.addEventListener("online", () => {
+		setOfflineBadge();
+		flushPending().then(refreshFromServer);
+	});
+	window.addEventListener("offline", setOfflineBadge);
+	setOfflineBadge();
+
+	(async () => {
+		queue = loadQueue();
+		render();
+		await flushPending();
+		const refreshed = await refreshFromServer();
+		if (refreshed) render();
+	})();
+
+	if ("serviceWorker" in navigator) {
+		navigator.serviceWorker.register("/static/service-worker.js");
+	}
+</script>
+{% endblock %}

@@ -229,8 +229,10 @@ class EditedBlock(Base):
 
 
 class CardProposal(Base):
-    """Card de revisao proposto pela IA -- entra como pendente na tela de
-    aprovacao, nunca direto na fila de revisao espacada (fase 7)."""
+    """Card de revisão. Nasce como proposta pendente da IA (fase 6); quando
+    aceito (`status="aceito"`), o mesmo registro passa a valer como card
+    ativo na fila de revisão espaçada (fase 7) — sem duplicar linha, sem
+    outra tabela: os campos de SM-2 só importam a partir daí."""
 
     __tablename__ = "card_proposal"
 
@@ -249,6 +251,17 @@ class CardProposal(Base):
     editado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     orfao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     versao_nova_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # SM-2 (fase 7) — só passam a valer quando status="aceito".
+    ease_factor: Mapped[float] = mapped_column(Float, nullable=False, default=2.5)
+    interval_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    repetitions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    review_logs: Mapped[list["ReviewLog"]] = relationship(
+        back_populates="card", order_by="ReviewLog.revisado_em", cascade="all, delete-orphan"
+    )
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -340,3 +353,26 @@ class AiCall(Base):
     raw_response_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+# --- Fase 7: revisão espaçada, calibração e offline ---
+
+CONFIDENCE_LEVELS = ("chutei", "acho_que_sei", "tenho_certeza")
+
+
+class ReviewLog(Base):
+    """Uma resposta na fila de revisão. `confianca` é marcada ANTES de
+    revelar o verso (PLANO.md) — é o que alimenta o painel de calibração,
+    mostrando se "tenho certeza" realmente acerta mais que "acho que sei"."""
+
+    __tablename__ = "review_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    card_id: Mapped[int] = mapped_column(ForeignKey("card_proposal.id"), nullable=False)
+    card: Mapped["CardProposal"] = relationship(back_populates="review_logs")
+
+    confianca: Mapped[str] = mapped_column(String, nullable=False)
+    qualidade: Mapped[int] = mapped_column(Integer, nullable=False)  # 0-5, escala SM-2
+    acertou: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    revisado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -54,5 +54,9 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.environ.get("AI_MODEL", "claude-opus-5")
 AI_MONTHLY_BUDGET_USD = float(os.environ.get("AI_MONTHLY_BUDGET_USD", "40"))
 
+# Teto diário da fila de revisão (fase 7) — sem isso, sumir uma semana
+# devolve uma fila impagável e você desiste dela.
+REVIEW_DAILY_CAP = int(os.environ.get("REVIEW_DAILY_CAP", "40"))
+
 SESSION_COOKIE_NAME = "estudos_session"
 SESSION_MAX_AGE = 60 * 60 * 24 * 365  # 1 ano

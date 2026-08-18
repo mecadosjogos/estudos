@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Calibração{% endblock %}
+{% block content %}
+<p><a href="/revisao">← Revisão</a></p>
+<h1>Calibração</h1>
+<p class="muted">O quanto sua confiança bate com o acerto real — "tenho certeza" errando muito é o sinal mais caro de ignorar.</p>
+
+<div class="card">
+	{% for level, stats in report.items() %}
+	<div class="approval-item">
+		<h2>{{ level.replace("_", " ") }}</h2>
+		{% if stats.total == 0 %}
+		<p class="muted">Sem revisões ainda.</p>
+		{% else %}
+		<p>{{ stats.acertos }} de {{ stats.total }} — <strong>{{ "%.0f"|format(stats.taxa_acerto * 100) }}%</strong> de acerto</p>
+		{% endif %}
+	</div>
+	{% endfor %}
+</div>
+{% endblock %}

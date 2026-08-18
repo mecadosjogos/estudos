@@ -2,7 +2,16 @@
 {% block title %}Estudos{% endblock %}
 {% block content %}
 <h1>Estudos</h1>
-<p class="muted">A fila do dia (cards, provas) entra nas fases 7 e 14.</p>
+
+<div class="card">
+	<h2>Revisão</h2>
+	{% if review_count %}
+	<p>Hoje: <strong>{{ review_count }}</strong> card(s) para revisar{% if review_recovery %} <span class="badge error">recuperação</span>{% endif %}</p>
+	<p><a class="button" href="/revisao">Revisar agora →</a></p>
+	{% else %}
+	<p class="muted">Nada pendente na fila de hoje.</p>
+	{% endif %}
+</div>
 
 <form method="get" action="/search" class="search-form">
 	<input type="search" name="q" placeholder="Buscar na transcrição das aulas...">

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Revisão{% endblock %}
+{% block content %}
+<h1>Revisão</h1>
+
+<audio id="feedback-audio" src="/lessons/{{ card.lesson_id }}/audio" preload="none"></audio>
+
+<div class="card">
+	{% if log.acertou %}
+	<p class="badge">✓ acertou</p>
+	{% else %}
+	<p class="badge error">✗ errou</p>
+	<button type="button" id="ouvir-original">▸ ouvir os 30s de origem</button>
+	{% endif %}
+
+	<p><strong>Frente:</strong> {{ card.frente }}</p>
+	<p><strong>Verso:</strong> {{ card.verso }}</p>
+	<p class="muted">Próxima revisão: {{ card.due_date }}</p>
+
+	<p><a class="button" href="{{ queue_url }}">Próximo card →</a></p>
+</div>
+
+<script>
+	const audio = document.getElementById("feedback-audio");
+	const btn = document.getElementById("ouvir-original");
+	if (btn) {
+		btn.addEventListener("click", () => {
+			audio.currentTime = {{ card.start_s }};
+			audio.play();
+			setTimeout(() => audio.pause(), 30000);
+		});
+	}
+</script>
+{% endblock %}

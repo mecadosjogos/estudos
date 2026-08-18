@@ -7,6 +7,11 @@
 
 <div class="card">
 	<h2>Cards propostos ({{ cards|length }})</h2>
+	{% if cards %}
+	<form method="post" action="/lessons/{{ lesson.id }}/cards/aceitar-todos">
+		<button type="submit">✓ Aceitar todos</button>
+	</form>
+	{% endif %}
 	{% for card in cards %}
 	<div class="card approval-item">
 		<p><strong>Frente:</strong> {{ card.frente }}</p>
