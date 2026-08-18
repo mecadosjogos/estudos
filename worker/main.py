@@ -9,15 +9,20 @@ pendente, um job por vez, e sai quando não sobrar nada) — pensado pra rodar
 por um atalho de duplo clique: liga, trabalha até não ter mais nada, desliga
 sozinho. `--once` processa só um job e sai (útil pra testar). `--watch` fica
 rodando pra sempre, pegando job assim que aparecer.
+
+A transcrição (a etapa cara, minutos de GPU) é salva em disco assim que
+termina — antes de arriscar comprimir e enviar. Se uma dessas duas etapas
+falhar depois, a próxima tentativa retoma dali sem rodar o Whisper de novo.
+O diretório de trabalho só é apagado depois do envio confirmado.
 """
 
 import argparse
+import json
 import shutil
 import sys
 import threading
 import time
 import traceback
-import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -61,8 +66,16 @@ def process_one_job(job: dict) -> None:
 
     job_id = job["id"]
     claim_token = job["claim_token"]
-    work_dir = config.TMP_DIR / f"job-{job_id}-{uuid.uuid4().hex[:8]}"
+
+    # Diretório fixo por job (não randômico): uma segunda tentativa do mesmo
+    # job cai no mesmo lugar e encontra o que a tentativa anterior já tinha
+    # calculado, em vez de começar do zero.
+    work_dir = config.TMP_DIR / f"job-{job_id}"
     work_dir.mkdir(parents=True, exist_ok=True)
+
+    transcript_cache_path = work_dir / "transcript.json"
+    concatenated = work_dir / "concatenated.wav"
+    mp3_path = work_dir / "audio.mp3"
 
     heartbeat = HeartbeatThread(job_id, claim_token)
     heartbeat.start()
@@ -70,77 +83,98 @@ def process_one_job(job: dict) -> None:
     try:
         _log(f"job {job_id} — aula \"{job['lesson_titulo']}\" — {len(job['segments'])} segmento(s)")
 
-        segment_paths = []
-        for seg in job["segments"]:
-            dest = work_dir / f"segment-{seg['ordem']:03d}-{seg['filename']}"
-            _log(f"baixando segmento {seg['ordem']}: {seg['filename']}")
-            api_client.download_segment(seg["download_url"], dest)
-            segment_paths.append(dest)
+        if transcript_cache_path.exists():
+            _log("achei transcrição de uma tentativa anterior em disco — pulando download e Whisper, retomando do envio")
+            cached = json.loads(transcript_cache_path.read_text(encoding="utf-8"))
+            payload = cached["payload"]
+            duration_s = cached["duration_s"]
+            segment_paths = [work_dir / name for name in cached["segment_filenames"]]
+        else:
+            segment_paths = []
+            for seg in job["segments"]:
+                dest = work_dir / f"segment-{seg['ordem']:03d}-{seg['filename']}"
+                _log(f"baixando segmento {seg['ordem']}: {seg['filename']}")
+                api_client.download_segment(seg["download_url"], dest)
+                segment_paths.append(dest)
 
-        concatenated = work_dir / "concatenated.wav"
-        _log("concatenando segmentos...")
-        concat_audio_files(segment_paths, concatenated)
+            _log("concatenando segmentos...")
+            concat_audio_files(segment_paths, concatenated)
 
-        _log(f"transcrevendo com {config.WHISPER_MODEL} ({config.WHISPER_DEVICE})...")
-        transcriber = WhisperTranscriber(
-            model_size=config.WHISPER_MODEL,
-            device=config.WHISPER_DEVICE,
-            compute_type=config.WHISPER_COMPUTE_TYPE,
-        )
+            _log(f"transcrevendo com {config.WHISPER_MODEL} ({config.WHISPER_DEVICE})...")
+            transcriber = WhisperTranscriber(
+                model_size=config.WHISPER_MODEL,
+                device=config.WHISPER_DEVICE,
+                compute_type=config.WHISPER_COMPUTE_TYPE,
+            )
 
-        start_time = time.monotonic()
+            start_time = time.monotonic()
 
-        def on_segment(segment_result, duration_s):
-            elapsed = time.monotonic() - start_time
-            eta = _format_eta(elapsed, segment_result.end_s, duration_s)
-            pct = min(100, round(100 * segment_result.end_s / duration_s)) if duration_s else 0
-            _log(f"  {pct}% — {eta}")
+            def on_segment(segment_result, total_duration_s):
+                elapsed = time.monotonic() - start_time
+                eta = _format_eta(elapsed, segment_result.end_s, total_duration_s)
+                pct = min(100, round(100 * segment_result.end_s / total_duration_s)) if total_duration_s else 0
+                _log(f"  {pct}% — {eta}")
 
-        output = transcriber.transcribe(str(concatenated), on_segment=on_segment)
-        _log(f"transcrição pronta: {len(output.segments)} segmentos, {output.duration_s:.0f}s de áudio")
+            output = transcriber.transcribe(str(concatenated), on_segment=on_segment)
+            _log(f"transcrição pronta: {len(output.segments)} segmentos, {output.duration_s:.0f}s de áudio")
 
-        mp3_path = work_dir / "audio.mp3"
-        _log("comprimindo mp3 32kbps...")
-        compress_to_mp3(concatenated, mp3_path)
+            duration_s = output.duration_s
+            payload = {
+                "full_text": output.full_text,
+                "segments": [
+                    {
+                        "idx": s.idx,
+                        "start_s": s.start_s,
+                        "end_s": s.end_s,
+                        "text": s.text,
+                        "words": [
+                            {"text": w.text, "start_s": w.start_s, "end_s": w.end_s, "probability": w.probability}
+                            for w in s.words
+                        ],
+                    }
+                    for s in output.segments
+                ],
+            }
+
+            transcript_cache_path.write_text(
+                json.dumps(
+                    {
+                        "payload": payload,
+                        "duration_s": duration_s,
+                        "segment_filenames": [p.name for p in segment_paths],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _log("transcrição salva em disco — a partir daqui, uma nova tentativa não repete o Whisper")
+
+        if not mp3_path.exists():
+            _log("comprimindo mp3 32kbps...")
+            compress_to_mp3(concatenated, mp3_path)
 
         _log("enviando resultado...")
-        payload = {
-            "full_text": output.full_text,
-            "segments": [
-                {
-                    "idx": s.idx,
-                    "start_s": s.start_s,
-                    "end_s": s.end_s,
-                    "text": s.text,
-                    "words": [
-                        {"text": w.text, "start_s": w.start_s, "end_s": w.end_s, "probability": w.probability}
-                        for w in s.words
-                    ],
-                }
-                for s in output.segments
-            ],
-        }
-        result = _send_result_with_retry(job_id, claim_token, output, mp3_path, payload)
+        result = _send_result_with_retry(job_id, claim_token, duration_s, mp3_path, payload)
         if result.get("already_received"):
             _log("servidor já tinha esse resultado (reenvio idempotente) — ok")
         else:
             _log("resultado gravado no servidor")
 
         _archive_originals(job, segment_paths)
+        shutil.rmtree(work_dir, ignore_errors=True)
 
     except Exception as exc:  # noqa: BLE001 — falha vira status "failed" no servidor, nunca some silenciosa
         _log(f"FALHOU: {exc}")
         traceback.print_exc()
+        _log(f"nada em {work_dir} foi apagado — uma nova tentativa retoma daqui em vez de repetir o Whisper")
         try:
             api_client.report_failure(job_id, claim_token, str(exc))
         except Exception as report_exc:  # noqa: BLE001
             _log(f"não consegui nem reportar a falha pro servidor: {report_exc}")
     finally:
         heartbeat.stop()
-        shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def _send_result_with_retry(job_id, claim_token, output, mp3_path, payload, max_attempts=5) -> dict:
+def _send_result_with_retry(job_id, claim_token, duration_s, mp3_path, payload, max_attempts=5) -> dict:
     for attempt in range(1, max_attempts + 1):
         try:
             return api_client.submit_result(
@@ -148,7 +182,7 @@ def _send_result_with_retry(job_id, claim_token, output, mp3_path, payload, max_
                 claim_token=claim_token,
                 worker_name=config.WORKER_NAME,
                 engine=f"faster-whisper-{config.WHISPER_MODEL}",
-                duration_s=output.duration_s,
+                duration_s=duration_s,
                 payload=payload,
                 mp3_path=mp3_path,
             )
@@ -168,7 +202,8 @@ def _archive_originals(job: dict, segment_paths: list[Path]) -> None:
     lesson_dir.mkdir(parents=True, exist_ok=True)
     for path in segment_paths:
         dest = lesson_dir / path.name.split("-", 2)[-1]
-        shutil.move(str(path), str(dest))
+        if path.exists():
+            shutil.move(str(path), str(dest))
     _log(f"originais arquivados em {lesson_dir}")
 
 

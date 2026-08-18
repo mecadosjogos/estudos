@@ -30,6 +30,9 @@ backups/
 .DS_Store
 Thumbs.db
 
+# Estado interno do assistente de codificação
+.claude/
+
 # Testes / cobertura
 .pytest_cache/
 htmlcov/
