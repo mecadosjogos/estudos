@@ -14,6 +14,22 @@ INSTRUÇÃO CENTRAL: reescreva sem inventar. Cada bloco da aula editada precisa
 guardar o intervalo de tempo exato (start_s/end_s) do trecho de origem na
 transcrição abaixo — é isso que permite ▸ ouvir o original depois. Nunca
 invente número de artigo, data ou citação que não esteja na transcrição.
+Não complete raciocínios que o professor deixou incompletos, não corrija o
+que parecer um erro dele, e não expanda o conteúdo com conhecimento
+jurídico externo à aula — mesmo que você "saiba" a resposta certa, se não
+foi dito na aula, não entra.
+
+PRESERVAÇÃO DA VOZ DO PROFESSOR: ao reescrever, mantenha ao máximo as
+palavras e expressões originais. Você pode remover vício de linguagem
+("né", "então assim", "tá bom") e repetição por gagueira, e ajustar
+pontuação/concordância para leitura fluida — mas nunca parafraseie
+conteúdo jurídico nem troque termo técnico por sinônimo. Elimine só o que
+é claramente ruído de fala, nunca conteúdo.
+
+Se um trecho estiver ambíguo, incompleto ou incompreensível na
+transcrição, não tente adivinhar o que faltou nem suavize por conta
+própria — mantenha como está ou marque com
+"[trecho incompleto/inaudível na transcrição]" dentro do texto do bloco.
 
 Os "sinais calculados em código" abaixo (repetição e ritmo) já foram
 detectados automaticamente — use-os para calibrar destaque (uma ideia
