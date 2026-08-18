@@ -3,6 +3,13 @@
 {% block content %}
 <p><a href="/">← Início</a></p>
 <h1>Upload</h1>
+{% if existing_lesson %}
+<p class="muted">
+	Anexando áudio a <strong>{{ existing_lesson.titulo }}</strong> — os arquivos escolhidos
+	entram nesta aula, não numa nova. O envio continua em segundo plano mesmo se a rede cair
+	no meio.
+</p>
+{% else %}
 <p class="muted">
 	Escolha um ou mais arquivos de áudio (ou vídeo, se a aula foi gravada assim por engano). O
 	envio continua em segundo plano mesmo se a rede cair no meio — ele retoma sozinho de onde
@@ -25,6 +32,7 @@
 		fica com ordem 1, o de depois com ordem 2.
 	</p>
 </div>
+{% endif %}
 
 <div class="card">
 	<input type="file" id="file-input" accept="audio/*,video/*" multiple>
@@ -44,6 +52,7 @@
 	initUploadPage({
 		subjects: {{ subjects | map(attribute="id") | list | tojson }},
 		subjectLabels: {{ subject_labels | tojson }},
+		existingLesson: {{ existing_lesson | tojson }},
 	});
 </script>
 {% endblock %}

@@ -58,13 +58,24 @@ def _enqueue_transcription(session: Session, lesson_id: int) -> None:
 
 
 @router.get("/upload")
-def upload_page(request: Request, session: Session = Depends(get_session)):
+def upload_page(request: Request, lesson_id: int | None = None, session: Session = Depends(get_session)):
     subjects = session.scalars(
         select(Subject).where(Subject.encerrada_em.is_(None)).order_by(Subject.nome)
     ).all()
     subject_labels = [f"{s.sigla} — {s.nome}" for s in subjects]
+
+    existing_lesson = None
+    if lesson_id is not None:
+        lesson = session.get(Lesson, lesson_id)
+        if lesson is None:
+            raise HTTPException(status_code=404, detail="aula não encontrada")
+        next_ordem = len(lesson.audio_segments) + 1
+        existing_lesson = {"id": lesson.id, "titulo": lesson.titulo, "next_ordem": next_ordem}
+
     return templates.TemplateResponse(
-        request, "upload.html", {"subjects": subjects, "subject_labels": subject_labels}
+        request,
+        "upload.html",
+        {"subjects": subjects, "subject_labels": subject_labels, "existing_lesson": existing_lesson},
     )
 
 

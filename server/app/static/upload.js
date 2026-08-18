@@ -31,11 +31,12 @@ function todayIso() {
 	return new Date().toISOString().slice(0, 10);
 }
 
-function initUploadPage({ subjects, subjectLabels }) {
+function initUploadPage({ subjects, subjectLabels, existingLesson }) {
 	const state = {
 		files: [], // { file, key, grupo, ordem, statusEl, progressText }
 		groups: {}, // grupo -> { subjectId, titulo, data }
 		currentGrupo: 1,
+		existingLesson, // set = anexar a uma aula já existente, nunca criar outra
 	};
 
 	const fileInput = document.getElementById("file-input");
@@ -53,7 +54,8 @@ function initUploadPage({ subjects, subjectLabels }) {
 
 			const grupo = state.currentGrupo;
 			const siblings = state.files.filter((f) => f.grupo === grupo);
-			const ordem = siblings.length ? Math.max(...siblings.map((f) => f.ordem)) + 1 : 1;
+			const baseOrdem = state.existingLesson ? state.existingLesson.next_ordem : 1;
+			const ordem = siblings.length ? Math.max(...siblings.map((f) => f.ordem)) + 1 : baseOrdem;
 
 			state.files.push({ file, key, grupo, ordem, status: "pendente" });
 			if (!(grupo in state.groups)) {
@@ -99,18 +101,20 @@ function initUploadPage({ subjects, subjectLabels }) {
 			size.textContent = formatBytes(entry.file.size);
 			li.appendChild(size);
 
-			li.appendChild(numberField(
-				"Grupo",
-				entry.grupo,
-				"Arquivos com o mesmo número de grupo viram uma aula só (o caso do intervalo) — é o padrão. Para que este arquivo vire uma aula separada, dê a ele um número de grupo diferente dos outros.",
-				(value) => {
-					entry.grupo = value;
-					if (!(value in state.groups)) {
-						state.groups[value] = { subjectId: subjects[0], titulo: entry.file.name.replace(/\.[^.]+$/, ""), data: todayIso() };
+			if (!state.existingLesson) {
+				li.appendChild(numberField(
+					"Grupo",
+					entry.grupo,
+					"Arquivos com o mesmo número de grupo viram uma aula só (o caso do intervalo) — é o padrão. Para que este arquivo vire uma aula separada, dê a ele um número de grupo diferente dos outros.",
+					(value) => {
+						entry.grupo = value;
+						if (!(value in state.groups)) {
+							state.groups[value] = { subjectId: subjects[0], titulo: entry.file.name.replace(/\.[^.]+$/, ""), data: todayIso() };
+						}
+						renderGroupBoxes();
 					}
-					renderGroupBoxes();
-				}
-			));
+				));
+			}
 
 			li.appendChild(numberField(
 				"Ordem",
@@ -164,6 +168,7 @@ function initUploadPage({ subjects, subjectLabels }) {
 
 	function renderGroupBoxes() {
 		groupBoxes.innerHTML = "";
+		if (state.existingLesson) return; // anexando a uma aula que já tem matéria/título/data definidos
 		const grupoNumbers = [...new Set(state.files.map((f) => f.grupo))].sort((a, b) => a - b);
 
 		for (const grupo of grupoNumbers) {
@@ -226,33 +231,48 @@ function initUploadPage({ subjects, subjectLabels }) {
 			const progress = { done: 0, total: totalBytes || 1 };
 			updateOverallProgress(progress, "Enviando...");
 
-			const grupoNumbers = [...new Set(state.files.map((f) => f.grupo))].sort((a, b) => a - b);
 			const createdLessons = [];
 
-			for (const grupo of grupoNumbers) {
-				const cfg = state.groups[grupo];
-
-				const form = new FormData();
-				form.set("subject_id", cfg.subjectId);
-				form.set("titulo", cfg.titulo);
-				form.set("data", cfg.data);
-				const lessonResponse = await fetch("/api/lessons", { method: "POST", body: form, credentials: "same-origin" });
-				await assertOk(lessonResponse, `criar a aula "${cfg.titulo}"`);
-				const { id: lessonId } = await lessonResponse.json();
-				createdLessons.push({ id: lessonId, titulo: cfg.titulo });
-
-				const filesInGroup = state.files.filter((f) => f.grupo === grupo).sort((a, b) => a.ordem - b.ordem);
+			if (state.existingLesson) {
+				const { id: lessonId, titulo } = state.existingLesson;
+				const filesInGroup = [...state.files].sort((a, b) => a.ordem - b.ordem);
 				for (const entry of filesInGroup) {
 					await uploadFile(entry, lessonId, progress);
 				}
-
-				// só enfileira a transcrição depois que TODOS os arquivos do grupo
-				// terminaram — senão o worker pode pegar a aula com o intervalo faltando
 				const enqueueResponse = await fetch(`/api/lessons/${lessonId}/enqueue-transcription`, {
 					method: "POST",
 					credentials: "same-origin",
 				});
-				await assertOk(enqueueResponse, `enfileirar a transcrição de "${cfg.titulo}"`);
+				await assertOk(enqueueResponse, `enfileirar a transcrição de "${titulo}"`);
+				createdLessons.push({ id: lessonId, titulo });
+			} else {
+				const grupoNumbers = [...new Set(state.files.map((f) => f.grupo))].sort((a, b) => a - b);
+
+				for (const grupo of grupoNumbers) {
+					const cfg = state.groups[grupo];
+
+					const form = new FormData();
+					form.set("subject_id", cfg.subjectId);
+					form.set("titulo", cfg.titulo);
+					form.set("data", cfg.data);
+					const lessonResponse = await fetch("/api/lessons", { method: "POST", body: form, credentials: "same-origin" });
+					await assertOk(lessonResponse, `criar a aula "${cfg.titulo}"`);
+					const { id: lessonId } = await lessonResponse.json();
+					createdLessons.push({ id: lessonId, titulo: cfg.titulo });
+
+					const filesInGroup = state.files.filter((f) => f.grupo === grupo).sort((a, b) => a.ordem - b.ordem);
+					for (const entry of filesInGroup) {
+						await uploadFile(entry, lessonId, progress);
+					}
+
+					// só enfileira a transcrição depois que TODOS os arquivos do grupo
+					// terminaram — senão o worker pode pegar a aula com o intervalo faltando
+					const enqueueResponse = await fetch(`/api/lessons/${lessonId}/enqueue-transcription`, {
+						method: "POST",
+						credentials: "same-origin",
+					});
+					await assertOk(enqueueResponse, `enfileirar a transcrição de "${cfg.titulo}"`);
+				}
 			}
 
 			updateOverallProgress(progress, "Concluído.");

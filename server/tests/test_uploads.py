@@ -29,6 +29,58 @@ def test_upload_page_requires_session(app_env):
     assert response.status_code == 401
 
 
+def test_upload_page_with_lesson_id_shows_attach_mode_not_new_lesson_form(app_env):
+    """Regressão: clicar 'Subir áudio' dentro de uma aula existente estava
+    sempre criando uma aula NOVA em vez de anexar áudio à aula aberta."""
+    from datetime import date
+
+    client = _authed_client()
+    from app.db import holder
+    from app.models import Lesson
+
+    with holder.SessionLocal() as session:
+        lesson = Lesson(subject_id=_tgdc_id(), titulo="Aula 1", data=date(2026, 3, 1))
+        session.add(lesson)
+        session.commit()
+        lesson_id = lesson.id
+
+    response = client.get(f"/upload?lesson_id={lesson_id}")
+    assert response.status_code == 200
+    assert "Aula 1" in response.text
+    assert "Grupo e ordem" not in response.text  # não é o fluxo de criar aula(s) nova(s)
+
+
+def test_upload_page_with_unknown_lesson_id_404s(app_env):
+    client = _authed_client()
+    response = client.get("/upload?lesson_id=999999")
+    assert response.status_code == 404
+
+
+def test_upload_page_computes_next_ordem_from_existing_segments(app_env):
+    from datetime import date
+
+    client = _authed_client()
+    from app.db import holder
+    from app.models import AudioSegment, Lesson
+
+    with holder.SessionLocal() as session:
+        lesson = Lesson(subject_id=_tgdc_id(), titulo="Aula com intervalo", data=date(2026, 3, 1))
+        session.add(lesson)
+        session.flush()
+        session.add(AudioSegment(
+            lesson_id=lesson.id, ordem=1, original_filename="parte1.m4a",
+            storage_path="/tmp/x", size_bytes=10, status="complete",
+        ))
+        session.commit()
+        lesson_id = lesson.id
+
+    response = client.get(f"/upload?lesson_id={lesson_id}")
+    assert response.status_code == 200
+    # next_ordem=2 vai parar dentro do JSON inline pro JS — confirma que o
+    # segundo arquivo anexado assume ordem 2, não recomeça em 1.
+    assert '"next_ordem": 2' in response.text
+
+
 def test_chunked_upload_end_to_end_creates_audio_segment(app_env):
     client = _authed_client()
     subject_id = _tgdc_id()
