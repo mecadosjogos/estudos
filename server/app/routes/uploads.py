@@ -23,7 +23,8 @@ from sqlalchemy.orm import Session
 from .. import config
 from ..auth import require_session, require_session_or_token
 from ..db import get_session
-from ..models import AudioSegment, Lesson, Subject, TranscriptionJob
+from ..models import AudioSegment, Lesson, Subject
+from .jobs import ensure_pending_job
 
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -51,18 +52,9 @@ def _manifest_path(upload_id: str) -> Path:
 
 
 def _enqueue_transcription(session: Session, lesson_id: int) -> None:
-    """Cria um job pendente para a aula, se não houver um já pendente/em
-    andamento — chamado só quando TODOS os segmentos da aula já terminaram de
-    subir, para o worker nunca pegar uma aula com o intervalo faltando."""
-    existing = session.scalar(
-        select(TranscriptionJob).where(
-            TranscriptionJob.lesson_id == lesson_id,
-            TranscriptionJob.status.in_(["pending", "claimed"]),
-        )
-    )
-    if existing is None:
-        session.add(TranscriptionJob(lesson_id=lesson_id, target="gpu_worker"))
-        session.commit()
+    """Chamado só quando TODOS os segmentos da aula já terminaram de subir,
+    para o worker nunca pegar uma aula com o intervalo faltando."""
+    ensure_pending_job(session, lesson_id, target="gpu_worker")
 
 
 @router.get("/upload")

@@ -318,3 +318,78 @@ def test_enqueue_transcription_does_not_duplicate_pending_job(app_env):
             select(TranscriptionJob).where(TranscriptionJob.lesson_id == lesson_id)
         ).all()
     assert len(jobs) == 1
+
+
+def test_lesson_with_audio_but_no_job_offers_start_button(app_env):
+    """Bug real: aula com segmentos de áudio subidos antes de o enfileiramento
+    automático existir (ou por qualquer outro motivo sem job) tinha que dar
+    pra iniciar a transcrição na mão — a página não podia ficar sem ação."""
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_lesson_with_segment(session)
+
+    page = client.get(f"/lessons/{lesson_id}")
+    assert "iniciar-transcricao" in page.text
+    assert "transcrever-na-vps" in page.text
+
+
+def test_iniciar_transcricao_creates_pending_job(app_env):
+    client = _authed_client()
+    from app.db import holder
+    from sqlalchemy import select
+    from app.models import TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_lesson_with_segment(session)
+
+    response = client.post(f"/lessons/{lesson_id}/iniciar-transcricao", follow_redirects=True)
+    assert response.status_code == 200
+
+    with holder.SessionLocal() as session:
+        jobs = session.scalars(
+            select(TranscriptionJob).where(TranscriptionJob.lesson_id == lesson_id)
+        ).all()
+    assert len(jobs) == 1
+    assert jobs[0].status == "pending"
+    assert jobs[0].target == "gpu_worker"
+
+
+def test_iniciar_transcricao_rejects_lesson_without_audio(app_env):
+    client = _authed_client()
+    from app.db import holder
+    from sqlalchemy import select
+    from app.models import Lesson, Subject
+
+    with holder.SessionLocal() as session:
+        subject_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
+        lesson = Lesson(subject_id=subject_id, titulo="Sem audio", data=date(2026, 3, 12))
+        session.add(lesson)
+        session.commit()
+        lesson_id = lesson.id
+
+    response = client.post(f"/lessons/{lesson_id}/iniciar-transcricao")
+    assert response.status_code == 400
+
+
+def test_gpu_and_vps_queues_are_independent(app_env):
+    """Uma aula pode ter um job pendente de GPU e, ao mesmo tempo, um da VPS
+    acionado manualmente — não é a mesma fila."""
+    client = _authed_client()
+    from app.db import holder
+    from sqlalchemy import select
+    from app.models import TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_lesson_with_segment(session)
+
+    client.post(f"/lessons/{lesson_id}/iniciar-transcricao")
+    client.post(f"/lessons/{lesson_id}/transcrever-na-vps")
+
+    with holder.SessionLocal() as session:
+        jobs = session.scalars(
+            select(TranscriptionJob).where(TranscriptionJob.lesson_id == lesson_id)
+        ).all()
+    targets = sorted(j.target for j in jobs)
+    assert targets == ["gpu_worker", "vps_cpu"]

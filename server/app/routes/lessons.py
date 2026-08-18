@@ -13,7 +13,7 @@ from .. import config, db
 from ..auth import require_session
 from ..db import get_session
 from ..models import Lesson, Subject, TranscriptionJob
-from .jobs import claim_job_by_id, ingest_result
+from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
 
 router = APIRouter(prefix="/lessons", dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -65,6 +65,21 @@ def move_lesson(lesson_id: int, subject_id: int = Form(...), session: Session = 
     return RedirectResponse(url=f"/subjects/{subject_id}", status_code=303)
 
 
+@router.post("/{lesson_id}/iniciar-transcricao")
+def start_transcription(lesson_id: int, session: Session = Depends(get_session)):
+    """Botão manual pra quando a aula tem áudio mas nunca ganhou job — cobre
+    tanto o caso raro (upload antigo, de antes do enfileiramento automático)
+    quanto o caso comum de reprocessar do zero."""
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+    if not lesson.audio_segments:
+        raise HTTPException(status_code=400, detail="aula sem áudio")
+
+    ensure_pending_job(session, lesson_id, target="gpu_worker")
+    return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
+
+
 @router.post("/{lesson_id}/transcrever-na-vps")
 def transcribe_on_vps(lesson_id: int, session: Session = Depends(get_session)):
     """Válvula de emergência (PLANO.md): quando nenhum worker de GPU está
@@ -76,22 +91,9 @@ def transcribe_on_vps(lesson_id: int, session: Session = Depends(get_session)):
     if not lesson.audio_segments:
         raise HTTPException(status_code=400, detail="aula sem áudio")
 
-    existing = session.scalar(
-        select(TranscriptionJob).where(
-            TranscriptionJob.lesson_id == lesson_id,
-            TranscriptionJob.target == "vps_cpu",
-            TranscriptionJob.status.in_(["pending", "claimed"]),
-        )
-    )
-    if existing is None:
-        job = TranscriptionJob(lesson_id=lesson_id, target="vps_cpu")
-        session.add(job)
-        session.commit()
-        job_id = job.id
-    else:
-        job_id = existing.id
+    job = ensure_pending_job(session, lesson_id, target="vps_cpu")
 
-    threading.Thread(target=_run_vps_cpu_job, args=(job_id,), daemon=True).start()
+    threading.Thread(target=_run_vps_cpu_job, args=(job.id,), daemon=True).start()
     return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
 
 
@@ -170,22 +172,3 @@ def lesson_transcript(request: Request, lesson_id: int, session: Session = Depen
     return templates.TemplateResponse(
         request, "lesson_transcript.html", {"lesson": lesson, "transcript": lesson.transcript}
     )
-
-
-@router.post("/{lesson_id}/reprocessar")
-def reprocess(lesson_id: int, session: Session = Depends(get_session)):
-    job = session.scalar(
-        select(TranscriptionJob)
-        .where(TranscriptionJob.lesson_id == lesson_id)
-        .order_by(TranscriptionJob.criado_em.desc())
-        .limit(1)
-    )
-    if job is not None and job.status == "failed":
-        job.status = "pending"
-        job.error = None
-        job.claim_token = None
-        job.claimed_by = None
-        job.claimed_at = None
-        job.heartbeat_at = None
-        session.commit()
-    return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)

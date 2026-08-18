@@ -32,6 +32,27 @@ STALE_CLAIM_TIMEOUT = timedelta(minutes=15)
 RESULT_BATCH_SIZE = 500
 
 
+def ensure_pending_job(session: Session, lesson_id: int, target: str = "gpu_worker") -> TranscriptionJob:
+    """Garante que existe um job pendente para a aula **naquele alvo**, criando
+    um se não houver nenhum ativo — idempotente, seguro de chamar várias vezes
+    (upload de cada arquivo, botão manual, etc). gpu_worker e vps_cpu são filas
+    independentes: uma aula pode ter as duas ao mesmo tempo."""
+    existing = session.scalar(
+        select(TranscriptionJob).where(
+            TranscriptionJob.lesson_id == lesson_id,
+            TranscriptionJob.target == target,
+            TranscriptionJob.status.in_(["pending", "claimed"]),
+        )
+    )
+    if existing is not None:
+        return existing
+
+    job = TranscriptionJob(lesson_id=lesson_id, target=target)
+    session.add(job)
+    session.commit()
+    return job
+
+
 def _reclaim_stale(session: Session, target: str) -> None:
     cutoff = datetime.now(timezone.utc) - STALE_CLAIM_TIMEOUT
     session.execute(
