@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Aprovação — {{ lesson.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}/aula-editada">← Aula editada</a></p>
+<h1>Aprovação</h1>
+<p class="muted">Nada gerado por IA entra na sua fila de revisão sem você ter visto.</p>
+
+<div class="card">
+	<h2>Cards propostos ({{ cards|length }})</h2>
+	{% for card in cards %}
+	<div class="card approval-item">
+		<p><strong>Frente:</strong> {{ card.frente }}</p>
+		<p><strong>Verso:</strong> {{ card.verso }}</p>
+		<div class="button-row">
+			<form method="post" action="/lessons/{{ lesson.id }}/cards/{{ card.id }}/aceitar">
+				<button type="submit">✓ Aceitar</button>
+			</form>
+			<form method="post" action="/lessons/{{ lesson.id }}/cards/{{ card.id }}/descartar">
+				<button type="submit">✗ Descartar</button>
+			</form>
+		</div>
+		<details>
+			<summary class="muted">Editar antes de aceitar</summary>
+			<form method="post" action="/lessons/{{ lesson.id }}/cards/{{ card.id }}/editar">
+				<label>Frente<br><input type="text" name="frente" value="{{ card.frente }}"></label>
+				<label>Verso<br><input type="text" name="verso" value="{{ card.verso }}"></label>
+				<button type="submit">Salvar e aceitar</button>
+			</form>
+		</details>
+	</div>
+	{% else %}
+	<p class="muted">Nenhum card pendente.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
+	<h2>Datas anunciadas ({{ announcements|length }})</h2>
+	{% for ann in announcements %}
+	<div class="card approval-item">
+		<p>{{ ann.texto }}</p>
+		{% if ann.data_anunciada %}<p class="muted">Data: {{ ann.data_anunciada }}</p>{% endif %}
+		<div class="button-row">
+			<form method="post" action="/lessons/{{ lesson.id }}/announcements/{{ ann.id }}/aceitar">
+				<button type="submit">✓ Aceitar</button>
+			</form>
+			<form method="post" action="/lessons/{{ lesson.id }}/announcements/{{ ann.id }}/descartar">
+				<button type="submit">✗ Descartar</button>
+			</form>
+		</div>
+	</div>
+	{% else %}
+	<p class="muted">Nenhuma data pendente.</p>
+	{% endfor %}
+</div>
+{% endblock %}

@@ -51,6 +51,31 @@
 	{% endif %}
 </div>
 
+{% if lesson.transcript %}
+<div class="card">
+	<h2>Aula editada (IA)</h2>
+	{% if request.query_params.get("erro_ia") %}
+	<p class="error">{{ request.query_params.get("erro_ia") }}</p>
+	{% endif %}
+	{% if lesson.resumo %}
+		<p><span class="badge">processada ✓</span></p>
+		<div class="button-row">
+			<a class="button" href="/lessons/{{ lesson.id }}/aula-editada">Ver aula editada</a>
+			<a class="button" href="/lessons/{{ lesson.id }}/aprovacao">Aprovar propostas</a>
+		</div>
+	{% else %}
+		<p class="muted">Ainda não processada. Automático precisa da chave da API configurada; manual funciona sempre.</p>
+	{% endif %}
+	<div class="button-row" style="margin-top: var(--space-3)">
+		<form method="post" action="/lessons/{{ lesson.id }}/processar">
+			<button type="submit">Processar (automático)</button>
+		</form>
+		<a class="button" href="/lessons/{{ lesson.id }}/pacote.md">Baixar pacote (.md)</a>
+		<a class="button" href="/lessons/{{ lesson.id }}/colar-resposta">Colar resposta</a>
+	</div>
+</div>
+{% endif %}
+
 <div class="card">
 	<h2>Editar</h2>
 	<form method="post" action="/lessons/{{ lesson.id }}">

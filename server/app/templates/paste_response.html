@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Colar resposta — {{ lesson.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
+<h1>Colar resposta</h1>
+<p class="muted">
+	Cole aqui a resposta que você recebeu do Claude (pode vir com conversa em
+	volta do bloco <code>```json</code> — o parser é tolerante).
+</p>
+
+{% if request.query_params.get("erro") %}
+<div class="card error">{{ request.query_params.get("erro") }}</div>
+{% endif %}
+
+<form method="post" action="/lessons/{{ lesson.id }}/colar-resposta">
+	<textarea name="resposta" rows="16" style="width:100%; font-family: monospace;" required></textarea>
+	<p><button type="submit">Processar resposta</button></p>
+</form>
+{% endblock %}

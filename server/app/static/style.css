@@ -298,3 +298,68 @@ input[type="text"], input[type="date"], input[type="search"], select {
 	border-radius: 0.2em;
 	padding: 0 0.15em;
 }
+
+textarea {
+	width: 100%;
+	padding: var(--space-2);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+	background: var(--bg);
+	color: var(--text);
+	font-size: 1rem;
+	font-family: inherit;
+}
+
+.edited-block {
+	border-radius: var(--radius);
+	padding: var(--space-3);
+	margin-bottom: var(--space-3);
+	border: 1px solid var(--border);
+	border-left-width: 6px;
+}
+
+.block-header {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex-wrap: wrap;
+	margin-bottom: var(--space-2);
+}
+
+.block-tipo-badge {
+	text-transform: uppercase;
+	font-size: 0.75em;
+	letter-spacing: 0.02em;
+}
+
+.block-destaque-prova {
+	border-left-color: var(--danger);
+	background: color-mix(in srgb, var(--danger) 8%, var(--bg-elevated));
+}
+
+.block-ditado {
+	border-left-color: var(--accent);
+	font-style: italic;
+}
+
+.block-conceito {
+	border-left-color: #2563eb;
+}
+
+.block-exemplo {
+	border-left-color: var(--text-muted);
+	opacity: 0.9;
+}
+
+.block-atencao {
+	border-left-color: #d97706;
+	background: color-mix(in srgb, #d97706 8%, var(--bg-elevated));
+}
+
+.block-normal {
+	border-left-color: var(--border);
+}
+
+.approval-item {
+	margin-bottom: var(--space-3);
+}

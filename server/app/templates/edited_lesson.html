@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Aula editada — {{ lesson.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
+<h1>{{ lesson.titulo }}</h1>
+<p class="muted">Aula editada — reescrita e organizada. <strong>Nunca é fonte</strong>: qualquer bloco estranho, toque ▸ ouvir o original.</p>
+
+{% if lesson.resumo %}
+<div class="card">
+	<h2>Resumo</h2>
+	<p>{{ lesson.resumo }}</p>
+</div>
+{% endif %}
+
+<audio id="edited-audio" src="/lessons/{{ lesson.id }}/audio" preload="none"></audio>
+
+<div class="card">
+	<h2>Aprovação pendente</h2>
+	<p><a class="button" href="/lessons/{{ lesson.id }}/aprovacao">Ver cards e datas propostas →</a></p>
+</div>
+
+<div id="blocks">
+	{% for block in blocks %}
+	<div class="edited-block block-{{ block.tipo }}" data-start="{{ block.start_s }}">
+		<div class="block-header">
+			<span class="badge block-tipo-badge">{{ block.tipo }}</span>
+			{% if block.repeticoes > 1 %}<span class="badge">repetido {{ block.repeticoes }}x</span>{% endif %}
+			{% if block.editado_em %}<span class="badge">editado por você</span>{% endif %}
+			{% if block.versao_nova_json %}<span class="badge error">há versão nova da IA</span>{% endif %}
+			<button type="button" class="ouvir-original" data-start="{{ block.start_s }}">▸ ouvir o original</button>
+		</div>
+		<p>{{ block.texto }}</p>
+
+		{% if block.baixa_confianca %}
+			{% if block.confirmado_em %}
+				<p class="muted">✓ confirmado</p>
+			{% else %}
+				<form method="post" action="/lessons/{{ lesson.id }}/blocks/{{ block.id }}/confirmar">
+					<span class="badge error">baixa confiança — confira o áudio</span>
+					<button type="submit">Confirmar</button>
+				</form>
+			{% endif %}
+		{% endif %}
+
+		<details>
+			<summary class="muted">Observação</summary>
+			<form method="post" action="/lessons/{{ lesson.id }}/blocks/{{ block.id }}/observacao">
+				<textarea name="observacao" rows="2" style="width:100%">{{ block.observacao or "" }}</textarea>
+				<button type="submit">Salvar observação</button>
+			</form>
+		</details>
+	</div>
+	{% else %}
+	<p class="muted">Nenhum bloco ainda — processe a aula primeiro.</p>
+	{% endfor %}
+</div>
+
+<script>
+	const audio = document.getElementById("edited-audio");
+	document.querySelectorAll(".ouvir-original").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			audio.currentTime = parseFloat(btn.dataset.start);
+			audio.play();
+		});
+	});
+</script>
+{% endblock %}

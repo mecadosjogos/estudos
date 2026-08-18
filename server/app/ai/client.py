@@ -37,3 +37,55 @@ class FakeAIClient(AIClient):
     def structured_call(self, *, prompt: str, schema: dict, cache: bool = False) -> AIResponse:
         self.calls.append(prompt)
         return self.fixed_response
+
+
+class AnthropicAIClient(AIClient):
+    """Implementação real — ainda não testada nesta sessão (sem
+    ANTHROPIC_API_KEY disponível). Usa tool-use forçado pra obter saída
+    estruturada e cache_control no prompt quando `cache=True` (PLANO.md:
+    'o cache_control fica no recorte')."""
+
+    def __init__(self, api_key: str, model: str):
+        from anthropic import Anthropic
+
+        self.client = Anthropic(api_key=api_key)
+        self.model = model
+
+    def structured_call(self, *, prompt: str, schema: dict, cache: bool = False) -> AIResponse:
+        import json
+
+        tool_name = "responder_estruturado"
+        content_block = {"type": "text", "text": prompt}
+        if cache:
+            content_block["cache_control"] = {"type": "ephemeral"}
+
+        message = self.client.messages.create(
+            model=self.model,
+            max_tokens=8192,
+            tools=[
+                {
+                    "name": tool_name,
+                    "description": "Devolve a resposta no formato pedido.",
+                    "input_schema": schema,
+                }
+            ],
+            tool_choice={"type": "tool", "name": tool_name},
+            messages=[{"role": "user", "content": [content_block]}],
+        )
+
+        tool_use = next(block for block in message.content if block.type == "tool_use")
+        usage = message.usage
+        return AIResponse(
+            content=json.dumps(tool_use.input),
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cache_read_input_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
+        )
+
+
+def get_ai_client() -> AIClient:
+    from .. import config
+
+    if not config.ANTHROPIC_API_KEY:
+        raise RuntimeError("ANTHROPIC_API_KEY não configurada — só o modo manual funciona")
+    return AnthropicAIClient(api_key=config.ANTHROPIC_API_KEY, model=config.AI_MODEL)
