@@ -6,6 +6,7 @@ que importa de verdade é o que a API realmente cobrar."""
 _PRICING_PER_MILLION = {
     "claude-opus-5": {"input": 5.00, "output": 25.00},
     "claude-sonnet-5": {"input": 2.50, "output": 12.50},
+    "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
 }
 _DEFAULT_PRICING = {"input": 5.00, "output": 25.00}
 CACHE_READ_DISCOUNT = 0.10

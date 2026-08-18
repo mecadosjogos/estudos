@@ -17,6 +17,8 @@ Peça uma fase por vez: *"execute a fase 3 do PLANO.md"*. Confira o bloco de ver
 
 A **Entrega A não depende de nada externo além do DNS**. A chave da API só é necessária na fase 6; a service account do Google, na 9; as datas de prova, na 14.
 
+**Toda passada de IA (fase 6 em diante) é feita manualmente por um chat do Claude Code, não pela API paga da Anthropic** — decisão do usuário para não gastar com API. Antes de processar qualquer aula/material com IA, leia [RUNBOOK_IA.md](RUNBOOK_IA.md): ele traz o passo a passo (achar pendências, baixar o prompt, gerar a resposta, colar de volta) e deve ganhar uma seção nova toda vez que uma fase futura envolver IA.
+
 ## Antes de mexer em qualquer coisa
 
 1. **Leia "Decisões fechadas — não reabrir"** no PLANO.md. Cada linha traz o motivo de uma alternativa já descartada — evita repropor o que foi discutido e rejeitado.
