@@ -168,14 +168,14 @@ def test_rejects_disallowed_extension(app_env):
     assert ".exe" in response.json()["detail"]
 
 
-def test_accepts_opus_and_aac_extensions(app_env):
+def test_accepts_common_audio_and_video_extensions(app_env):
     client = _authed_client()
     subject_id = _tgdc_id()
     lesson_id = client.post(
         "/api/lessons", data={"subject_id": subject_id, "titulo": "Aula 5", "data": "2026-04-05"}
     ).json()["id"]
 
-    for i, ext in enumerate(["opus", "aac"]):
+    for i, ext in enumerate(["opus", "aac", "mp4", "mov", "ogg", "flac", "webm", "3gp"]):
         response = client.post(
             "/api/uploads/init",
             json={

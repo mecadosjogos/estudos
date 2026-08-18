@@ -29,7 +29,12 @@ MEDIA_ORIGINAL_DIR = _resolve(os.environ.get("MEDIA_ORIGINAL_DIR", "data/media/o
 MEDIA_WEB_DIR = _resolve(os.environ.get("MEDIA_WEB_DIR", "data/media/web"))
 UPLOAD_STAGING_DIR = _resolve(os.environ.get("UPLOAD_STAGING_DIR", "data/uploads"))
 UPLOAD_CHUNK_MAX_BYTES = int(os.environ.get("UPLOAD_CHUNK_MAX_BYTES", str(8 * 1024 * 1024)))
-UPLOAD_ALLOWED_EXTENSIONS = {".m4a", ".mp3", ".wav", ".opus", ".aac"}
+# ffmpeg (fase 4) lê o áudio de qualquer um desses contêineres, então a lista é
+# generosa de propósito: o gargalo real de qualidade é o Whisper, não o formato
+# do arquivo. .mp4/.mov cobrem apps que gravam aula como vídeo sem querer.
+UPLOAD_ALLOWED_EXTENSIONS = {
+    ".m4a", ".mp3", ".wav", ".opus", ".aac", ".ogg", ".flac", ".mp4", ".mov", ".webm", ".3gp",
+}
 
 BUSY_TIMEOUT_MS = int(os.environ.get("BUSY_TIMEOUT_MS", "30000"))
 
