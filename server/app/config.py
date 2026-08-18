@@ -1,9 +1,16 @@
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# shared/ fica ao lado de server/ (fora do pacote app), não dentro dele — sem
+# isso, `import shared.audio` (worker e o caminho de emergência da VPS usam)
+# quebraria tanto localmente quanto no container.
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 _env_file = BASE_DIR / ".env"
 if _env_file.exists():
@@ -37,6 +44,11 @@ UPLOAD_ALLOWED_EXTENSIONS = {
 }
 
 BUSY_TIMEOUT_MS = int(os.environ.get("BUSY_TIMEOUT_MS", "30000"))
+
+# Válvula de emergência "transcrever na VPS agora" (fase 4) — CPU, modelo
+# médio, mais lento e um pouco pior que o large-v3 na GPU do worker.
+WHISPER_VPS_MODEL = os.environ.get("WHISPER_VPS_MODEL", "medium")
+WHISPER_VPS_COMPUTE_TYPE = os.environ.get("WHISPER_VPS_COMPUTE_TYPE", "int8")
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.environ.get("AI_MODEL", "claude-opus-5")

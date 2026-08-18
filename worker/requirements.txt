@@ -1,3 +1,4 @@
 faster-whisper
 httpx
 pydantic
+python-dotenv

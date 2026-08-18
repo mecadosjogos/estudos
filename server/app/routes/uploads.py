@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from .. import config
 from ..auth import require_session, require_session_or_token
 from ..db import get_session
-from ..models import AudioSegment, Lesson, Subject
+from ..models import AudioSegment, Lesson, Subject, TranscriptionJob
 
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -48,6 +48,21 @@ def _extension_ok(filename: str) -> str:
 
 def _manifest_path(upload_id: str) -> Path:
     return config.UPLOAD_STAGING_DIR / upload_id / "manifest.json"
+
+
+def _enqueue_transcription(session: Session, lesson_id: int) -> None:
+    """Cria um job pendente para a aula, se não houver um já pendente/em
+    andamento — chamado só quando TODOS os segmentos da aula já terminaram de
+    subir, para o worker nunca pegar uma aula com o intervalo faltando."""
+    existing = session.scalar(
+        select(TranscriptionJob).where(
+            TranscriptionJob.lesson_id == lesson_id,
+            TranscriptionJob.status.in_(["pending", "claimed"]),
+        )
+    )
+    if existing is None:
+        session.add(TranscriptionJob(lesson_id=lesson_id, target="gpu_worker"))
+        session.commit()
 
 
 @router.get("/upload")
@@ -162,6 +177,15 @@ def complete_upload(upload_id: str, session: Session = Depends(get_session)):
     return JSONResponse({"ok": True, "segment_id": segment.id})
 
 
+@api_router.post("/lessons/{lesson_id}/enqueue-transcription")
+def enqueue_transcription(lesson_id: int, session: Session = Depends(get_session)):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+    _enqueue_transcription(session, lesson_id)
+    return JSONResponse({"ok": True})
+
+
 direct_router = APIRouter(prefix="/api", dependencies=[Depends(require_session_or_token)])
 
 
@@ -204,4 +228,5 @@ def upload_direct(
     )
     session.add(segment)
     session.commit()
+    _enqueue_transcription(session, lesson.id)
     return JSONResponse({"ok": True, "lesson_id": lesson.id, "segment_id": segment.id})

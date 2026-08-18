@@ -6,10 +6,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY worker/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY worker/requirements.txt worker/requirements.txt
+RUN pip install --no-cache-dir -r worker/requirements.txt
 
-COPY worker .
-COPY shared ./shared
+COPY worker worker
+COPY shared shared
 
-CMD ["python3", "main.py"]
+CMD ["python3", "-m", "worker.main", "--watch"]

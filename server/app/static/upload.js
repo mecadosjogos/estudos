@@ -245,6 +245,14 @@ function initUploadPage({ subjects, subjectLabels }) {
 				for (const entry of filesInGroup) {
 					await uploadFile(entry, lessonId, progress);
 				}
+
+				// só enfileira a transcrição depois que TODOS os arquivos do grupo
+				// terminaram — senão o worker pode pegar a aula com o intervalo faltando
+				const enqueueResponse = await fetch(`/api/lessons/${lessonId}/enqueue-transcription`, {
+					method: "POST",
+					credentials: "same-origin",
+				});
+				await assertOk(enqueueResponse, `enfileirar a transcrição de "${cfg.titulo}"`);
 			}
 
 			updateOverallProgress(progress, "Concluído.");
