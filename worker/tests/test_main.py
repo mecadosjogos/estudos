@@ -117,3 +117,54 @@ def test_transcript_is_cached_to_disk_before_risking_compress_or_send(tmp_path, 
     assert mock_transcriber_cls.call_count == 1  # não subiu pra 2
     assert mock_concat.call_count == 1  # idem — só rodou na primeira tentativa
     assert not work_dir.exists()  # limpo depois do sucesso na segunda tentativa
+
+
+def test_rebuild_job_uses_archive_and_never_calls_whisper(tmp_path, monkeypatch):
+    """Job de reconstrução de mídia usa só o que já está arquivado localmente
+    (PLANO.md, 'reconstruir mídia' depois de restaurar um backup) — não pode
+    baixar nada do servidor nem rodar o Whisper de novo."""
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    monkeypatch.setattr(worker_config, "ARCHIVE_DIR", tmp_path / "archive")
+
+    job = _make_job(job_id=42)
+    lesson_dir = tmp_path / "archive" / f"lesson-{job['lesson_id']}"
+    lesson_dir.mkdir(parents=True)
+    (lesson_dir / "a.mp3").write_bytes(b"original arquivado")
+
+    with (
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.download_segment") as mock_download,
+        patch(
+            "worker.api_client.submit_rebuild_result",
+            return_value={"ok": True, "already_received": False},
+        ) as mock_submit,
+        patch("shared.transcriber.WhisperTranscriber") as mock_transcriber_cls,
+        patch("shared.audio.concat_audio_files") as mock_concat,
+        patch("shared.audio.compress_to_mp3") as mock_compress,
+    ):
+        worker_main.process_rebuild_job(job)
+
+    mock_download.assert_not_called()
+    mock_transcriber_cls.assert_not_called()
+    mock_concat.assert_called_once()
+    assert mock_concat.call_args.args[0] == [lesson_dir / "a.mp3"]
+    mock_compress.assert_called_once()
+    mock_submit.assert_called_once_with(42, claim_token="tok", mp3_path=tmp_path / "job-42" / "audio.mp3")
+
+
+def test_rebuild_job_fails_clearly_when_archive_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    monkeypatch.setattr(worker_config, "ARCHIVE_DIR", tmp_path / "archive")
+
+    job = _make_job(job_id=43)
+
+    with (
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.report_failure") as mock_fail,
+        patch("shared.audio.concat_audio_files") as mock_concat,
+    ):
+        worker_main.process_rebuild_job(job)
+
+    mock_concat.assert_not_called()
+    mock_fail.assert_called_once()
+    assert "archive local" in mock_fail.call_args.args[2]

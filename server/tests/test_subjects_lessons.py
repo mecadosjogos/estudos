@@ -121,3 +121,12 @@ def test_move_lesson_between_subjects(app_env):
 
     with holder.SessionLocal() as session:
         assert session.get(Lesson, lesson_id).subject_id == tgc_id
+
+
+def test_lesson_detail_404s_for_nonexistent_lesson(app_env):
+    """Bug real: pedir uma aula que não existe (ex.: sumiu numa restauração
+    de backup) quebrava com 500 — o template usava lesson.subject sem
+    checar se lesson era None."""
+    client = _authed_client()
+    response = client.get("/lessons/999999")
+    assert response.status_code == 404

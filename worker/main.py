@@ -207,6 +207,59 @@ def _archive_originals(job: dict, segment_paths: list[Path]) -> None:
     _log(f"originais arquivados em {lesson_dir}")
 
 
+def process_rebuild_job(job: dict) -> None:
+    """Job `rebuild_media` (PLANO.md, botão 'reconstruir mídia'): depois de
+    restaurar um backup, o banco volta mas os mp3 não — só o banco é copiado.
+    Recompõe a partir do original já arquivado localmente, sem baixar nem
+    transcrever nada de novo."""
+    from shared.audio import compress_to_mp3, concat_audio_files
+
+    job_id = job["id"]
+    claim_token = job["claim_token"]
+    work_dir = config.TMP_DIR / f"job-{job_id}"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    concatenated = work_dir / "concatenated.wav"
+    mp3_path = work_dir / "audio.mp3"
+
+    heartbeat = HeartbeatThread(job_id, claim_token)
+    heartbeat.start()
+
+    try:
+        _log(f"job {job_id} (reconstrução de mídia) — aula \"{job['lesson_titulo']}\"")
+        lesson_dir = config.ARCHIVE_DIR / f"lesson-{job['lesson_id']}"
+        segment_paths = []
+        for seg in sorted(job["segments"], key=lambda s: s["ordem"]):
+            path = lesson_dir / seg["filename"]
+            if not path.exists():
+                raise FileNotFoundError(f"original não encontrado no archive local: {path}")
+            segment_paths.append(path)
+
+        if not mp3_path.exists():
+            _log("concatenando a partir do archive local...")
+            concat_audio_files(segment_paths, concatenated)
+            _log("comprimindo mp3 32kbps...")
+            compress_to_mp3(concatenated, mp3_path)
+
+        _log("enviando mp3 reconstruído...")
+        result = api_client.submit_rebuild_result(job_id, claim_token=claim_token, mp3_path=mp3_path)
+        if result.get("already_received"):
+            _log("servidor já tinha esse resultado (reenvio idempotente) — ok")
+        else:
+            _log("mp3 reconstruído e enviado")
+
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+    except Exception as exc:  # noqa: BLE001
+        _log(f"FALHOU: {exc}")
+        traceback.print_exc()
+        try:
+            api_client.report_failure(job_id, claim_token, str(exc))
+        except Exception as report_exc:  # noqa: BLE001
+            _log(f"não consegui nem reportar a falha pro servidor: {report_exc}")
+    finally:
+        heartbeat.stop()
+
+
 def run(mode: str, target: str) -> None:
     if not config.ACCESS_TOKEN:
         _log("ACCESS_TOKEN não configurado no .env — o servidor vai recusar tudo")
@@ -223,7 +276,10 @@ def run(mode: str, target: str) -> None:
             _log(f"fila vazia — {jobs_done} job(s) processado(s) nesta execução, encerrando")
             return
 
-        process_one_job(job)
+        if target == "rebuild_media":
+            process_rebuild_job(job)
+        else:
+            process_one_job(job)
         jobs_done += 1
 
         if mode == "once":
@@ -239,7 +295,9 @@ def main():
     parser.add_argument(
         "--watch", action="store_true", help="roda contínuo, pegando job assim que aparecer"
     )
-    parser.add_argument("--target", default="gpu_worker", choices=["gpu_worker", "vps_cpu"])
+    parser.add_argument(
+        "--target", default="gpu_worker", choices=["gpu_worker", "vps_cpu", "rebuild_media"]
+    )
     args = parser.parse_args()
 
     if args.once and args.watch:

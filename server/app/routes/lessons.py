@@ -24,6 +24,8 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 @router.get("/{lesson_id}")
 def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(get_session)):
     lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
     all_subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
     latest_job = session.scalar(
         select(TranscriptionJob)

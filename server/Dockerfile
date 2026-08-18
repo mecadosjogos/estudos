@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+# Sem isso, stdout do Python fica bufferizado dentro do container e os logs
+# só aparecem em `docker logs` com atraso (ou nunca, se o buffer não encher)
+# — inclusive tracebacks de erro, o que torna qualquer investigação às cegas.
+ENV PYTHONUNBUFFERED=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 

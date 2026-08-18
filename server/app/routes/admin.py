@@ -3,7 +3,7 @@
 Restaurar é a única operação do sistema que apaga dados de propósito: por isso
 sempre mostra uma comparação antes de confirmar, sempre cria uma cópia de
 segurança do estado atual, e recusa rodar se houver job de transcrição em
-andamento (checagem real entra na fase 4, quando a fila de jobs existir).
+andamento.
 """
 
 import shutil
@@ -12,9 +12,14 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from .. import backup, config
 from ..auth import require_session
+from ..db import get_session
+from ..models import Lesson, TranscriptionJob
+from .jobs import ensure_pending_job
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -22,9 +27,13 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 STAGING_DIR = config.BACKUP_DIR / "staging"
 
 
-def _job_in_progress() -> bool:
-    # A fila de jobs de transcrição só existe a partir da fase 4.
-    return False
+def _job_in_progress(session: Session) -> bool:
+    return (
+        session.scalar(
+            select(TranscriptionJob.id).where(TranscriptionJob.status.in_(["pending", "claimed"])).limit(1)
+        )
+        is not None
+    )
 
 
 @router.get("/backups")
@@ -41,7 +50,9 @@ def run_backup():
 
 
 @router.post("/restore/stage")
-async def stage_restore(request: Request, file: UploadFile = File(...)):
+async def stage_restore(
+    request: Request, file: UploadFile = File(...), session: Session = Depends(get_session)
+):
     STAGING_DIR.mkdir(parents=True, exist_ok=True)
     staged_path = STAGING_DIR / file.filename
     with staged_path.open("wb") as out:
@@ -56,17 +67,39 @@ async def stage_restore(request: Request, file: UploadFile = File(...)):
             "current": current_summary,
             "incoming": incoming_summary,
             "staged_filename": file.filename,
-            "job_in_progress": _job_in_progress(),
+            "job_in_progress": _job_in_progress(session),
         },
     )
 
 
 @router.post("/restore/confirm")
-def confirm_restore(staged_filename: str = Form(...)):
-    if _job_in_progress():
-        return RedirectResponse(url="/admin/backups", status_code=303)
+def confirm_restore(staged_filename: str = Form(...), session: Session = Depends(get_session)):
+    blocked = _job_in_progress(session)
+    # Fecha antes de restaurar: restore_from precisa derrubar TODAS as conexões
+    # do pool (db.maintenance_mode), e esta sessão continuaria aberta até o fim
+    # do request se não for liberada agora — no Windows isso chega a travar a
+    # troca do arquivo com "em uso por outro processo".
+    session.close()
+    if blocked:
+        return RedirectResponse(url="/admin/backups?restore_blocked=1", status_code=303)
 
     staged_path = STAGING_DIR / staged_filename
     safety_copy = backup.restore_from(staged_path)
     staged_path.unlink(missing_ok=True)
     return RedirectResponse(url=f"/admin/backups?restored_from_safety={safety_copy.name}", status_code=303)
+
+
+@router.post("/reconstruir-midia")
+def rebuild_media(session: Session = Depends(get_session)):
+    """PLANO.md: depois de restaurar um backup, só o banco volta — os mp3
+    ficam faltando. Esta ação acha as aulas transcritas sem mp3 no disco e
+    enfileira um job `rebuild_media`: o worker recomprime a partir do que
+    já tem arquivado localmente, sem baixar nem transcrever nada de novo."""
+    lessons = session.scalars(select(Lesson).where(Lesson.transcript.has())).all()
+    enqueued = 0
+    for lesson in lessons:
+        mp3_path = config.MEDIA_WEB_DIR / f"lesson-{lesson.id}.mp3"
+        if not mp3_path.exists():
+            ensure_pending_job(session, lesson.id, target="rebuild_media")
+            enqueued += 1
+    return RedirectResponse(url=f"/admin/backups?media_rebuild_enqueued={enqueued}", status_code=303)

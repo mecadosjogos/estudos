@@ -75,6 +75,19 @@ def submit_result(
     return response.json()
 
 
+def submit_rebuild_result(job_id: int, *, claim_token: str, mp3_path: Path) -> dict:
+    with mp3_path.open("rb") as f:
+        response = httpx.post(
+            f"{config.SERVER_URL}/api/jobs/{job_id}/rebuild-result",
+            headers=_headers(),
+            data={"claim_token": claim_token},
+            files={"audio": (mp3_path.name, f, "audio/mpeg")},
+            timeout=600,
+        )
+    response.raise_for_status()
+    return response.json()
+
+
 def report_failure(job_id: int, claim_token: str, error: str) -> None:
     httpx.post(
         f"{config.SERVER_URL}/api/jobs/{job_id}/fail",

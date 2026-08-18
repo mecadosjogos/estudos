@@ -280,6 +280,39 @@ async def submit_result(
     return JSONResponse({"ok": True, "already_received": False})
 
 
+@router.post("/{job_id}/rebuild-result")
+async def submit_rebuild_result(
+    job_id: int,
+    claim_token: str = Form(...),
+    audio: UploadFile = File(...),
+    session: Session = Depends(get_session),
+):
+    """Resultado de um job `rebuild_media` (PLANO.md — 'reconstruir mídia'):
+    só o mp3 volta, sem transcrição nova — o original já não existe mais em
+    lugar nenhum além do archive/ local do worker, que é de onde ele vem."""
+    job = session.get(TranscriptionJob, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job não encontrado")
+
+    if job.status == "done" and job.claim_token == claim_token:
+        return JSONResponse({"ok": True, "already_received": True})
+
+    if job.status != "claimed" or job.claim_token != claim_token:
+        raise HTTPException(
+            status_code=409, detail="claim inválido ou expirado — outro worker já processou"
+        )
+
+    config.MEDIA_WEB_DIR.mkdir(parents=True, exist_ok=True)
+    mp3_path = config.MEDIA_WEB_DIR / f"lesson-{job.lesson_id}.mp3"
+    with mp3_path.open("wb") as out:
+        while chunk := await audio.read(1024 * 1024):
+            out.write(chunk)
+
+    job.status = "done"
+    session.commit()
+    return JSONResponse({"ok": True, "already_received": False})
+
+
 class FailBody(BaseModel):
     claim_token: str
     error: str

@@ -5,8 +5,10 @@ partir de `archive/` no PC. Restaurar troca o arquivo sob modo manutenção: o p
 de conexões é fechado antes, para não corromper o WAL (ver db.maintenance_mode).
 """
 
+import gc
 import shutil
 import sqlite3
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,24 +49,35 @@ def _apply_retention(dest_dir: Path) -> None:
 class BackupSummary:
     path: Path
     subjects_count: int
+    lessons_count: int
     size_bytes: int
+
+
+def _count_rows(cursor: sqlite3.Cursor, table: str) -> int:
+    """0 se a tabela nem existir — backups antigos, de antes de uma fase que
+    criou a tabela, não podem quebrar a comparação."""
+    exists = cursor.execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone()[0]
+    if not exists:
+        return 0
+    return cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608 — nome de tabela fixo, não vem do usuário
 
 
 def summarize(path: Path) -> BackupSummary:
     conn = sqlite3.connect(path)
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='subject'"
-        )
-        has_table = cursor.fetchone()[0] > 0
-        count = 0
-        if has_table:
-            cursor.execute("SELECT COUNT(*) FROM subject")
-            count = cursor.fetchone()[0]
+        subjects_count = _count_rows(cursor, "subject")
+        lessons_count = _count_rows(cursor, "lesson")
     finally:
         conn.close()
-    return BackupSummary(path=path, subjects_count=count, size_bytes=path.stat().st_size)
+    return BackupSummary(
+        path=path,
+        subjects_count=subjects_count,
+        lessons_count=lessons_count,
+        size_bytes=path.stat().st_size,
+    )
 
 
 def restore_from(backup_path: Path) -> Path:
@@ -80,9 +93,25 @@ def restore_from(backup_path: Path) -> Path:
         for suffix in ("-wal", "-shm"):
             stale = Path(str(config.DATABASE_PATH) + suffix)
             if stale.exists():
-                stale.unlink()
+                _unlink_with_retry(stale)
         _run_migrations()
     return safety_copy
+
+
+def _unlink_with_retry(path: Path, attempts: int = 10, delay_s: float = 0.2) -> None:
+    """No Windows, o SQLite às vezes não libera o handle do arquivo no exato
+    instante em que `engine.dispose()` retorna — apagar o WAL antigo logo em
+    seguida pode esbarrar num PermissionError passageiro. No Linux (a VPS de
+    produção) isso nunca acontece, mas custa nada ser resiliente aqui também."""
+    for attempt in range(attempts):
+        try:
+            path.unlink()
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            gc.collect()  # libera handles do sqlite3 de conexões já sem referência
+            time.sleep(delay_s)
 
 
 def _run_migrations() -> None:

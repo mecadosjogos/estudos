@@ -6,12 +6,12 @@
 
 <div class="card">
 	<h2>No ar agora</h2>
-	<p>{{ current.subjects_count }} matérias · {{ (current.size_bytes / 1024) | round(1) }} KB</p>
+	<p>{{ current.subjects_count }} matérias · {{ current.lessons_count }} aulas · {{ (current.size_bytes / 1024) | round(1) }} KB</p>
 </div>
 
 <div class="card">
 	<h2>Vai entrar</h2>
-	<p>{{ incoming.subjects_count }} matérias · {{ (incoming.size_bytes / 1024) | round(1) }} KB</p>
+	<p>{{ incoming.subjects_count }} matérias · {{ incoming.lessons_count }} aulas · {{ (incoming.size_bytes / 1024) | round(1) }} KB</p>
 	<p class="muted">Arquivo: {{ staged_filename }}</p>
 </div>
 
