@@ -115,6 +115,11 @@ button, .button {
 	color: var(--text-muted);
 }
 
+.error {
+	color: var(--danger);
+	font-weight: 600;
+}
+
 .badge {
 	display: inline-block;
 	padding: 0 var(--space-2);

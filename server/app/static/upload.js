@@ -219,45 +219,66 @@ function initUploadPage({ subjects, subjectLabels }) {
 	submitButton.addEventListener("click", async () => {
 		submitButton.disabled = true;
 		fileInput.disabled = true;
+		overallStatus.classList.remove("error");
 
-		const totalBytes = state.files.reduce((sum, f) => sum + f.file.size, 0);
-		const progress = { done: 0, total: totalBytes || 1 };
-		updateOverallProgress(progress, "Enviando...");
+		try {
+			const totalBytes = state.files.reduce((sum, f) => sum + f.file.size, 0);
+			const progress = { done: 0, total: totalBytes || 1 };
+			updateOverallProgress(progress, "Enviando...");
 
-		const grupoNumbers = [...new Set(state.files.map((f) => f.grupo))].sort((a, b) => a - b);
-		const createdLessons = [];
+			const grupoNumbers = [...new Set(state.files.map((f) => f.grupo))].sort((a, b) => a - b);
+			const createdLessons = [];
 
-		for (const grupo of grupoNumbers) {
-			const cfg = state.groups[grupo];
+			for (const grupo of grupoNumbers) {
+				const cfg = state.groups[grupo];
 
-			const form = new FormData();
-			form.set("subject_id", cfg.subjectId);
-			form.set("titulo", cfg.titulo);
-			form.set("data", cfg.data);
-			const lessonResponse = await fetch("/api/lessons", { method: "POST", body: form, credentials: "same-origin" });
-			const { id: lessonId } = await lessonResponse.json();
-			createdLessons.push({ id: lessonId, titulo: cfg.titulo });
+				const form = new FormData();
+				form.set("subject_id", cfg.subjectId);
+				form.set("titulo", cfg.titulo);
+				form.set("data", cfg.data);
+				const lessonResponse = await fetch("/api/lessons", { method: "POST", body: form, credentials: "same-origin" });
+				await assertOk(lessonResponse, `criar a aula "${cfg.titulo}"`);
+				const { id: lessonId } = await lessonResponse.json();
+				createdLessons.push({ id: lessonId, titulo: cfg.titulo });
 
-			const filesInGroup = state.files.filter((f) => f.grupo === grupo).sort((a, b) => a.ordem - b.ordem);
-			for (const entry of filesInGroup) {
-				await uploadFile(entry, lessonId, progress);
+				const filesInGroup = state.files.filter((f) => f.grupo === grupo).sort((a, b) => a.ordem - b.ordem);
+				for (const entry of filesInGroup) {
+					await uploadFile(entry, lessonId, progress);
+				}
 			}
+
+			updateOverallProgress(progress, "Concluído.");
+
+			if (createdLessons.length === 1) {
+				overallStatus.textContent = "Concluído — abrindo a aula...";
+				window.location.href = `/lessons/${createdLessons[0].id}`;
+				return;
+			}
+
+			overallStatus.innerHTML =
+				"Concluído. " +
+				createdLessons.map((l) => `<a href="/lessons/${l.id}">${l.titulo}</a>`).join(" · ");
+			submitButton.disabled = false;
+			fileInput.disabled = false;
+		} catch (err) {
+			overallStatus.classList.add("error");
+			overallStatus.textContent = `Falhou: ${err.message}`;
+			submitButton.disabled = false;
+			fileInput.disabled = false;
 		}
-
-		updateOverallProgress(progress, "Concluído.");
-
-		if (createdLessons.length === 1) {
-			overallStatus.textContent = "Concluído — abrindo a aula...";
-			window.location.href = `/lessons/${createdLessons[0].id}`;
-			return;
-		}
-
-		overallStatus.innerHTML =
-			"Concluído. " +
-			createdLessons.map((l) => `<a href="/lessons/${l.id}">${l.titulo}</a>`).join(" · ");
-		submitButton.disabled = false;
-		fileInput.disabled = false;
 	});
+
+	async function assertOk(response, context) {
+		if (response.ok) return;
+		let detail = response.statusText;
+		try {
+			const body = await response.clone().json();
+			if (body && body.detail) detail = body.detail;
+		} catch {
+			// corpo não era JSON — mantém o statusText
+		}
+		throw new Error(`não foi possível ${context} (${detail})`);
+	}
 
 	function updateOverallProgress(progress, label) {
 		const pct = Math.round((progress.done / progress.total) * 100);
@@ -284,6 +305,7 @@ function initUploadPage({ subjects, subjectLabels }) {
 				total_chunks: totalChunks,
 			}),
 		});
+		await assertOk(initResponse, `iniciar o envio de "${file.name}"`);
 		const { received_chunks: received } = await initResponse.json();
 		const receivedSet = new Set(received);
 
@@ -307,7 +329,8 @@ function initUploadPage({ subjects, subjectLabels }) {
 			updateOverallProgress(progress, "Enviando...");
 		}
 
-		await fetch(`/api/uploads/${key}/complete`, { method: "POST", credentials: "same-origin" });
+		const completeResponse = await fetch(`/api/uploads/${key}/complete`, { method: "POST", credentials: "same-origin" });
+		await assertOk(completeResponse, `finalizar o envio de "${file.name}"`);
 		entry.status = "concluído";
 		if (statusEl) statusEl.textContent = entry.status;
 	}

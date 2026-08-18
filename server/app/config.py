@@ -29,7 +29,7 @@ MEDIA_ORIGINAL_DIR = _resolve(os.environ.get("MEDIA_ORIGINAL_DIR", "data/media/o
 MEDIA_WEB_DIR = _resolve(os.environ.get("MEDIA_WEB_DIR", "data/media/web"))
 UPLOAD_STAGING_DIR = _resolve(os.environ.get("UPLOAD_STAGING_DIR", "data/uploads"))
 UPLOAD_CHUNK_MAX_BYTES = int(os.environ.get("UPLOAD_CHUNK_MAX_BYTES", str(8 * 1024 * 1024)))
-UPLOAD_ALLOWED_EXTENSIONS = {".m4a", ".mp3", ".wav"}
+UPLOAD_ALLOWED_EXTENSIONS = {".m4a", ".mp3", ".wav", ".opus", ".aac"}
 
 BUSY_TIMEOUT_MS = int(os.environ.get("BUSY_TIMEOUT_MS", "30000"))
 
