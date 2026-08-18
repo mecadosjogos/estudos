@@ -2,8 +2,13 @@
 
 Roda na máquina com GPU: pega um job da fila, baixa os segmentos de áudio,
 concatena na ordem certa, transcreve com faster-whisper, comprime pra mp3,
-envia o resultado e arquiva o original localmente. `--once` processa um job
-e sai; `--watch` fica rodando, pegando job assim que aparecer.
+envia o resultado e arquiva o original localmente.
+
+Três modos: o padrão **drena a fila inteira** (processa tudo que estiver
+pendente, um job por vez, e sai quando não sobrar nada) — pensado pra rodar
+por um atalho de duplo clique: liga, trabalha até não ter mais nada, desliga
+sozinho. `--once` processa só um job e sai (útil pra testar). `--watch` fica
+rodando pra sempre, pegando job assim que aparecer.
 """
 
 import argparse
@@ -167,35 +172,46 @@ def _archive_originals(job: dict, segment_paths: list[Path]) -> None:
     _log(f"originais arquivados em {lesson_dir}")
 
 
-def run(watch: bool, target: str) -> None:
+def run(mode: str, target: str) -> None:
     if not config.ACCESS_TOKEN:
         _log("ACCESS_TOKEN não configurado no .env — o servidor vai recusar tudo")
 
-    _log(f"worker \"{config.WORKER_NAME}\" — servidor {config.SERVER_URL} — alvo {target}")
+    _log(f"worker \"{config.WORKER_NAME}\" — servidor {config.SERVER_URL} — alvo {target} — modo {mode}")
 
+    jobs_done = 0
     while True:
         job = api_client.get_next_job(config.WORKER_NAME, target)
         if job is None:
-            if not watch:
-                _log("nenhum job pendente — saindo (padrão é processar o que tiver e sair; use --watch para ficar rodando)")
-                return
-            time.sleep(config.POLL_INTERVAL_S)
-            continue
+            if mode == "watch":
+                time.sleep(config.POLL_INTERVAL_S)
+                continue
+            _log(f"fila vazia — {jobs_done} job(s) processado(s) nesta execução, encerrando")
+            return
 
         process_one_job(job)
+        jobs_done += 1
 
-        if not watch:
+        if mode == "once":
             return
+        # "drain" e "watch" voltam pro topo do loop e pegam o próximo
 
 
 def main():
     parser = argparse.ArgumentParser(description="Worker de transcrição")
-    parser.add_argument("--once", action="store_true", help="processa um job e sai (padrão)")
-    parser.add_argument("--watch", action="store_true", help="roda contínuo, pegando job assim que aparecer")
+    parser.add_argument(
+        "--once", action="store_true", help="processa só um job e sai (útil pra testar)"
+    )
+    parser.add_argument(
+        "--watch", action="store_true", help="roda contínuo, pegando job assim que aparecer"
+    )
     parser.add_argument("--target", default="gpu_worker", choices=["gpu_worker", "vps_cpu"])
     args = parser.parse_args()
 
-    run(watch=args.watch, target=args.target)
+    if args.once and args.watch:
+        raise SystemExit("--once e --watch são incompatíveis")
+
+    mode = "once" if args.once else "watch" if args.watch else "drain"
+    run(mode=mode, target=args.target)
 
 
 if __name__ == "__main__":

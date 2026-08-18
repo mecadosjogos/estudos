@@ -18,6 +18,9 @@ data/uploads/
 archive/*
 !archive/.gitkeep
 
+# Área de trabalho temporária do worker (segmentos baixados, concatenação)
+worker/tmp/
+
 # Backups
 backups/
 
