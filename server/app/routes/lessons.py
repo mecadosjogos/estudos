@@ -1,11 +1,13 @@
+import json
 import shutil
 import threading
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -112,7 +114,7 @@ def _run_vps_cpu_job(job_id: int) -> None:
             return
 
         segments = sorted(job.lesson.audio_segments, key=lambda s: s.ordem)
-        audio_paths = [config.BASE_DIR / s.storage_path for s in segments]
+        audio_paths = [Path(s.storage_path) for s in segments]
 
         work_dir.mkdir(parents=True, exist_ok=True)
         concatenated = work_dir / "concatenated.wav"
@@ -164,11 +166,47 @@ def _run_vps_cpu_job(job_id: int) -> None:
 
 @router.get("/{lesson_id}/transcricao")
 def lesson_transcript(request: Request, lesson_id: int, session: Session = Depends(get_session)):
-    """Visualização crua da transcrição — provisória. A leitura de verdade,
-    com player sincronizado por parágrafo, é a fase 5."""
+    """A leitura de verdade (fase 5): transcrição com player sincronizado —
+    tocar um parágrafo pula o áudio, o trecho atual se destaca sozinho."""
     lesson = session.get(Lesson, lesson_id)
     if lesson is None or lesson.transcript is None:
         raise HTTPException(status_code=404, detail="transcrição não encontrada")
-    return templates.TemplateResponse(
-        request, "lesson_transcript.html", {"lesson": lesson, "transcript": lesson.transcript}
+
+    segments_json = json.dumps(
+        [
+            {"idx": s.idx, "start_s": s.start_s, "end_s": s.end_s, "text": s.text}
+            for s in lesson.transcript.segments
+        ]
     )
+    return templates.TemplateResponse(
+        request,
+        "lesson_transcript.html",
+        {
+            "lesson": lesson,
+            "transcript": lesson.transcript,
+            "segments_json": segments_json,
+            "has_audio_file": (config.MEDIA_WEB_DIR / f"lesson-{lesson_id}.mp3").exists(),
+        },
+    )
+
+
+@router.get("/{lesson_id}/audio")
+def lesson_audio(lesson_id: int):
+    path = config.MEDIA_WEB_DIR / f"lesson-{lesson_id}.mp3"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="áudio não encontrado")
+    return FileResponse(path, media_type="audio/mpeg")
+
+
+class PositionBody(BaseModel):
+    posicao_s: float
+
+
+@router.post("/{lesson_id}/posicao")
+def save_position(lesson_id: int, body: PositionBody, session: Session = Depends(get_session)):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+    lesson.posicao_s = max(0.0, body.posicao_s)
+    session.commit()
+    return {"ok": True}

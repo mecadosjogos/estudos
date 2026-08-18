@@ -47,6 +47,9 @@ class Lesson(Base):
     # Aqui é só o link para abrir a cópia no Google Docs.
     google_doc_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Posição salva do player (fase 5) — retoma de onde parou.
+    posicao_s: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
     criada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
@@ -77,7 +80,7 @@ class AudioSegment(Base):
 
     ordem: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     original_filename: Mapped[str] = mapped_column(String, nullable=False)
-    storage_path: Mapped[str] = mapped_column(String, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String, nullable=False)  # caminho absoluto
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String, nullable=False, default="uploading")
 

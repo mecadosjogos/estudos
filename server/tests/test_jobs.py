@@ -210,7 +210,7 @@ def test_original_deleted_from_vps_after_successful_result(app_env, tmp_path):
 
         segment = AudioSegment(
             lesson_id=lesson.id, ordem=1, original_filename="a.mp3",
-            storage_path=str(real_original.relative_to(config.BASE_DIR)),
+            storage_path=str(real_original),
             size_bytes=18, status="complete",
         )
         session.add(segment)

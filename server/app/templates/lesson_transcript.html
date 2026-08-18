@@ -1,19 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Transcrição — {{ lesson.titulo }}{% endblock %}
+{% block title %}{{ lesson.titulo }}{% endblock %}
 {% block content %}
 <p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
-<h1>Transcrição</h1>
+<h1>{{ lesson.titulo }}</h1>
 <p class="muted">
-	Visualização provisória, sem player sincronizado ainda (isso vem na fase 5).
 	{{ transcript.engine }} · {{ (transcript.duration_s / 60) | round(1) }} min · máquina: {{ transcript.worker_name }}
 </p>
 
+{% if has_audio_file %}
+<div class="card player-card" id="player-card">
+	<audio id="player-audio" src="/lessons/{{ lesson.id }}/audio" preload="metadata"></audio>
+	<div class="player-controls">
+		<button type="button" id="player-back15">−15s</button>
+		<button type="button" id="player-playpause">▸ Tocar</button>
+		<button type="button" id="player-fwd15">+15s</button>
+		<select id="player-speed">
+			<option value="0.75">0.75×</option>
+			<option value="1" selected>1×</option>
+			<option value="1.25">1.25×</option>
+			<option value="1.5">1.5×</option>
+			<option value="2">2×</option>
+		</select>
+		<span id="player-time" class="muted">00:00 / 00:00</span>
+	</div>
+</div>
+{% else %}
 <div class="card">
+	<p class="muted">O áudio comprimido ainda não está disponível pra tocar (só a transcrição).</p>
+</div>
+{% endif %}
+
+<div class="card" id="transcript-body">
 	{% for segment in transcript.segments %}
-	<p>
-		<span class="muted">{{ "%02d:%02d"|format((segment.start_s // 60)|int, (segment.start_s % 60)|int) }}</span>
+	<p class="segment" data-idx="{{ segment.idx }}" data-start="{{ segment.start_s }}" data-end="{{ segment.end_s }}">
+		<span class="muted segment-time">{{ "%02d:%02d"|format((segment.start_s // 60)|int, (segment.start_s % 60)|int) }}</span>
 		{{ segment.text }}
 	</p>
 	{% endfor %}
 </div>
+
+<script src="/static/reading.js"></script>
+<script>
+	initReadingPage({
+		lessonId: {{ lesson.id }},
+		hasAudio: {{ "true" if has_audio_file else "false" }},
+		initialPosition: {{ lesson.posicao_s }},
+	});
+</script>
 {% endblock %}

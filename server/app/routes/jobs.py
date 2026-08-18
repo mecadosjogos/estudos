@@ -160,7 +160,7 @@ def download_segment(job_id: int, segment_id: int, session: Session = Depends(ge
     if job is None or segment is None or segment.lesson_id != job.lesson_id:
         raise HTTPException(status_code=404, detail="segmento não encontrado para este job")
 
-    path = config.BASE_DIR / segment.storage_path
+    path = Path(segment.storage_path)
     if not path.exists():
         raise HTTPException(status_code=410, detail="original já não está mais na VPS")
     return FileResponse(path, filename=segment.original_filename)
@@ -239,7 +239,7 @@ def ingest_result(
 
     # Ciclo de vida do áudio: original sai da VPS assim que a transcrição existe.
     for seg in job.lesson.audio_segments:
-        original = config.BASE_DIR / seg.storage_path
+        original = Path(seg.storage_path)
         original.unlink(missing_ok=True)
 
 

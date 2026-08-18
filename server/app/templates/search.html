@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Buscar{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Buscar</h1>
+
+<form method="get" action="/search" class="search-form">
+	<input type="search" name="q" value="{{ q }}" placeholder="Buscar na transcrição das aulas..." autofocus>
+	<button type="submit">Buscar</button>
+</form>
+
+{% if q.strip() %}
+	{% if results %}
+	<ul class="search-results">
+		{% for r in results %}
+		<li>
+			<a href="/lessons/{{ r.lesson_id }}/transcricao?t={{ r.start_s }}">
+				<span class="badge">{{ r.subject_sigla }}</span>
+				<strong>{{ r.lesson_titulo }}</strong>
+				<span class="muted">{{ r.lesson_data }} · {{ "%02d:%02d"|format((r.start_s // 60)|int, (r.start_s % 60)|int) }}</span>
+			</a>
+			<p class="snippet">{{ r.snippet | safe }}</p>
+		</li>
+		{% endfor %}
+	</ul>
+	{% else %}
+	<p class="muted">Nada encontrado para "{{ q }}".</p>
+	{% endif %}
+{% endif %}
+{% endblock %}

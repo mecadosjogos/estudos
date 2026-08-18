@@ -158,7 +158,7 @@ def complete_upload(upload_id: str, session: Session = Depends(get_session)):
         lesson_id=manifest["lesson_id"],
         ordem=manifest["ordem"],
         original_filename=manifest["filename"],
-        storage_path=str(final_path.relative_to(config.BASE_DIR)),
+        storage_path=str(final_path),
         size_bytes=final_path.stat().st_size,
         status="complete",
     )
@@ -214,7 +214,7 @@ def upload_direct(
         lesson_id=lesson.id,
         ordem=1,
         original_filename=file.filename,
-        storage_path=str(final_path.relative_to(config.BASE_DIR)),
+        storage_path=str(final_path),
         size_bytes=final_path.stat().st_size,
         status="complete",
     )

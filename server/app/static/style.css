@@ -196,7 +196,7 @@ progress::-moz-progress-bar {
 	border-radius: 999px;
 }
 
-input[type="text"], input[type="date"], select {
+input[type="text"], input[type="date"], input[type="search"], select {
 	min-height: var(--touch-target);
 	width: 100%;
 	max-width: 28rem;
@@ -206,4 +206,95 @@ input[type="text"], input[type="date"], select {
 	background: var(--bg);
 	color: var(--text);
 	font-size: 1rem;
+}
+
+.player-card {
+	position: sticky;
+	top: var(--space-2);
+	z-index: 10;
+}
+
+.player-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex-wrap: wrap;
+}
+
+.player-controls select {
+	width: auto;
+	min-width: 0;
+}
+
+#player-time {
+	margin-left: auto;
+	white-space: nowrap;
+}
+
+.segment {
+	padding: var(--space-2);
+	border-radius: var(--radius);
+	cursor: pointer;
+}
+
+.segment:hover {
+	background: var(--border);
+}
+
+.segment-active {
+	background: var(--accent);
+	color: var(--accent-text);
+}
+
+.segment-active .segment-time {
+	color: var(--accent-text);
+	opacity: 0.8;
+}
+
+.segment-time {
+	margin-right: var(--space-2);
+}
+
+.search-form {
+	display: flex;
+	gap: var(--space-2);
+	margin-bottom: var(--space-4);
+}
+
+.search-form input {
+	max-width: none;
+	flex: 1;
+}
+
+.search-results {
+	list-style: none;
+	padding: 0;
+	display: grid;
+	gap: var(--space-3);
+}
+
+.search-results li {
+	padding: var(--space-3);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+}
+
+.search-results a {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex-wrap: wrap;
+	text-decoration: none;
+}
+
+.snippet {
+	margin: var(--space-2) 0 0;
+	color: var(--text-muted);
+}
+
+.snippet mark {
+	background: var(--accent);
+	color: var(--accent-text);
+	border-radius: 0.2em;
+	padding: 0 0.15em;
 }

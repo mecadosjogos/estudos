@@ -5,7 +5,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth import session_middleware
-from .routes import admin, jobs, lessons, pages, subjects, uploads
+from .routes import admin, jobs, lessons, pages, search, subjects, uploads
 
 app = FastAPI(title="Estudos")
 
@@ -23,6 +23,7 @@ app.include_router(uploads.router)
 app.include_router(uploads.api_router)
 app.include_router(uploads.direct_router)
 app.include_router(jobs.router)
+app.include_router(search.router)
 
 
 @app.get("/healthz", response_class=PlainTextResponse)

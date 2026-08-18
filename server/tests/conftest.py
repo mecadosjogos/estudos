@@ -15,6 +15,12 @@ def app_env(tmp_path, monkeypatch):
     monkeypatch.setenv("BACKUP_DIR", str(tmp_path / "backups"))
     monkeypatch.setenv("ACCESS_TOKEN", "test-token")
     monkeypatch.setenv("SESSION_SECRET", "test-secret")
+    # Sem isso, testes de upload/mídia escrevem nas pastas reais do projeto
+    # em vez de num diretório descartável — foi assim que boa parte do "lixo"
+    # em data/media/original/ apareceu antes de alguém perceber.
+    monkeypatch.setenv("MEDIA_ORIGINAL_DIR", str(tmp_path / "media" / "original"))
+    monkeypatch.setenv("MEDIA_WEB_DIR", str(tmp_path / "media" / "web"))
+    monkeypatch.setenv("UPLOAD_STAGING_DIR", str(tmp_path / "uploads"))
 
     # Módulos já podem ter sido importados por outro teste com config antiga;
     # força reimport para pegar as env vars isoladas deste teste.
