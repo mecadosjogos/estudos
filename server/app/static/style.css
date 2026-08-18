@@ -162,6 +162,29 @@ label[title] {
 	cursor: help;
 }
 
+progress {
+	height: 0.6rem;
+	border-radius: 999px;
+	overflow: hidden;
+	border: none;
+	background: var(--border);
+}
+
+progress::-webkit-progress-bar {
+	background: var(--border);
+	border-radius: 999px;
+}
+
+progress::-webkit-progress-value {
+	background: var(--accent);
+	border-radius: 999px;
+}
+
+progress::-moz-progress-bar {
+	background: var(--accent);
+	border-radius: 999px;
+}
+
 input[type="text"], input[type="date"], select {
 	min-height: var(--touch-target);
 	width: 100%;

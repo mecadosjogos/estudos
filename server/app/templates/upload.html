@@ -10,18 +10,18 @@
 </p>
 
 <div class="card">
-	<h2>Grupo e ordem — só importa se um arquivo virou dois</h2>
+	<h2>Grupo e ordem</h2>
 	<p class="muted">
-		Na maioria das vezes você não precisa mexer nisso: <strong>cada arquivo já vira uma aula
-		própria sozinho.</strong> Isso só importa quando a gravação foi partida em dois pedaços —
-		por exemplo, você parou de gravar no intervalo e começou um arquivo novo depois.
+		Por padrão, todos os arquivos que você escolher entram <strong>na mesma aula</strong>, na
+		ordem em que foram escolhidos — é o caso mais comum: a gravação parou no intervalo e
+		virou dois (ou mais) arquivos.
 	</p>
 	<p class="muted">
-		<strong>Grupo</strong> diz quais arquivos são a mesma aula: dê o <em>mesmo número</em> aos
-		dois pedaços (ex.: 1 e 1) e eles se juntam numa aula só; deixe números diferentes e cada
-		um vira uma aula separada, que é o padrão.<br>
-		<strong>Ordem</strong> diz qual toca primeiro dentro do mesmo grupo: o pedaço de antes do
-		intervalo recebe ordem 1, o de depois recebe ordem 2.
+		Se um arquivo for na verdade de <strong>outra aula</strong>, mude o número do
+		<strong>grupo</strong> dele para separar — arquivos com números de grupo diferentes viram
+		aulas diferentes.<br>
+		<strong>Ordem</strong> só importa dentro do mesmo grupo: o pedaço de antes do intervalo
+		fica com ordem 1, o de depois com ordem 2.
 	</p>
 </div>
 
@@ -34,6 +34,7 @@
 
 <div class="card" id="submit-card" style="display:none">
 	<button type="button" id="submit-button">Enviar tudo</button>
+	<progress id="overall-progress" value="0" max="100" style="width:100%; margin-top: var(--space-3);"></progress>
 	<div id="overall-status" class="muted"></div>
 </div>
 

@@ -1,9 +1,9 @@
 /* Upload em chunks com retomada automática (PLANO.md, fase 3).
  *
- * Cada arquivo escolhido vira uma aula própria por padrão. Dar o mesmo número
- * de "grupo" a dois ou mais arquivos os junta numa aula única, na ordem dada
- * pelo campo "ordem" — é assim que o intervalo (gravação partida em dois) se
- * declara. upload_id é derivado do nome+tamanho+data de modificação do
+ * Arquivos escolhidos entram por padrão todos no mesmo grupo (mesma aula),
+ * em ordem de seleção — é o caso mais comum, a gravação partida em dois ou
+ * mais pedaços. Para que um arquivo vire uma aula separada, muda o número do
+ * seu "grupo". upload_id é derivado do nome+tamanho+data de modificação do
  * arquivo, então re-selecionar o mesmo arquivo depois de a aba fechar retoma
  * do chunk onde parou em vez de reenviar tudo.
  */
@@ -35,7 +35,7 @@ function initUploadPage({ subjects, subjectLabels }) {
 	const state = {
 		files: [], // { file, key, grupo, ordem, statusEl, progressText }
 		groups: {}, // grupo -> { subjectId, titulo, data }
-		nextGrupo: 1,
+		currentGrupo: 1,
 	};
 
 	const fileInput = document.getElementById("file-input");
@@ -43,19 +43,26 @@ function initUploadPage({ subjects, subjectLabels }) {
 	const groupBoxes = document.getElementById("group-boxes");
 	const submitCard = document.getElementById("submit-card");
 	const submitButton = document.getElementById("submit-button");
+	const overallProgress = document.getElementById("overall-progress");
 	const overallStatus = document.getElementById("overall-status");
 
 	fileInput.addEventListener("change", () => {
 		for (const file of fileInput.files) {
 			const key = hashKey(`${file.name}|${file.size}|${file.lastModified}`);
 			if (state.files.some((f) => f.key === key)) continue;
-			const grupo = state.nextGrupo++;
-			state.files.push({ file, key, grupo, ordem: 1, status: "pendente" });
-			state.groups[grupo] = {
-				subjectId: subjects[0],
-				titulo: file.name.replace(/\.[^.]+$/, ""),
-				data: todayIso(),
-			};
+
+			const grupo = state.currentGrupo;
+			const siblings = state.files.filter((f) => f.grupo === grupo);
+			const ordem = siblings.length ? Math.max(...siblings.map((f) => f.ordem)) + 1 : 1;
+
+			state.files.push({ file, key, grupo, ordem, status: "pendente" });
+			if (!(grupo in state.groups)) {
+				state.groups[grupo] = {
+					subjectId: subjects[0],
+					titulo: file.name.replace(/\.[^.]+$/, ""),
+					data: todayIso(),
+				};
+			}
 		}
 		fileInput.value = "";
 		render();
@@ -95,7 +102,7 @@ function initUploadPage({ subjects, subjectLabels }) {
 			li.appendChild(numberField(
 				"Grupo",
 				entry.grupo,
-				"Arquivos com o mesmo número de grupo viram uma aula só (o caso do intervalo). Deixe cada um com um número diferente para virarem aulas separadas — é o normal.",
+				"Arquivos com o mesmo número de grupo viram uma aula só (o caso do intervalo) — é o padrão. Para que este arquivo vire uma aula separada, dê a ele um número de grupo diferente dos outros.",
 				(value) => {
 					entry.grupo = value;
 					if (!(value in state.groups)) {
@@ -211,11 +218,17 @@ function initUploadPage({ subjects, subjectLabels }) {
 
 	submitButton.addEventListener("click", async () => {
 		submitButton.disabled = true;
+		fileInput.disabled = true;
+
+		const totalBytes = state.files.reduce((sum, f) => sum + f.file.size, 0);
+		const progress = { done: 0, total: totalBytes || 1 };
+		updateOverallProgress(progress, "Enviando...");
+
 		const grupoNumbers = [...new Set(state.files.map((f) => f.grupo))].sort((a, b) => a - b);
+		const createdLessons = [];
 
 		for (const grupo of grupoNumbers) {
 			const cfg = state.groups[grupo];
-			overallStatus.textContent = `Criando aula "${cfg.titulo}"...`;
 
 			const form = new FormData();
 			form.set("subject_id", cfg.subjectId);
@@ -223,18 +236,36 @@ function initUploadPage({ subjects, subjectLabels }) {
 			form.set("data", cfg.data);
 			const lessonResponse = await fetch("/api/lessons", { method: "POST", body: form, credentials: "same-origin" });
 			const { id: lessonId } = await lessonResponse.json();
+			createdLessons.push({ id: lessonId, titulo: cfg.titulo });
 
 			const filesInGroup = state.files.filter((f) => f.grupo === grupo).sort((a, b) => a.ordem - b.ordem);
 			for (const entry of filesInGroup) {
-				await uploadFile(entry, lessonId);
+				await uploadFile(entry, lessonId, progress);
 			}
 		}
 
-		overallStatus.textContent = "Tudo enviado.";
+		updateOverallProgress(progress, "Concluído.");
+
+		if (createdLessons.length === 1) {
+			overallStatus.textContent = "Concluído — abrindo a aula...";
+			window.location.href = `/lessons/${createdLessons[0].id}`;
+			return;
+		}
+
+		overallStatus.innerHTML =
+			"Concluído. " +
+			createdLessons.map((l) => `<a href="/lessons/${l.id}">${l.titulo}</a>`).join(" · ");
 		submitButton.disabled = false;
+		fileInput.disabled = false;
 	});
 
-	async function uploadFile(entry, lessonId) {
+	function updateOverallProgress(progress, label) {
+		const pct = Math.round((progress.done / progress.total) * 100);
+		overallProgress.value = pct;
+		overallStatus.textContent = `${label} ${pct}%`;
+	}
+
+	async function uploadFile(entry, lessonId, progress) {
 		const { file, key, ordem, statusEl } = entry;
 		const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
@@ -256,6 +287,12 @@ function initUploadPage({ subjects, subjectLabels }) {
 		const { received_chunks: received } = await initResponse.json();
 		const receivedSet = new Set(received);
 
+		// Chunks já recebidos numa tentativa anterior já contam como progresso feito.
+		for (const index of receivedSet) {
+			progress.done += chunkSize(file, index, totalChunks);
+		}
+		updateOverallProgress(progress, "Enviando...");
+
 		for (let index = 0; index < totalChunks; index++) {
 			if (receivedSet.has(index)) continue;
 
@@ -265,11 +302,19 @@ function initUploadPage({ subjects, subjectLabels }) {
 			const start = index * CHUNK_SIZE;
 			const blob = file.slice(start, start + CHUNK_SIZE);
 			await putChunkWithRetry(key, index, blob);
+
+			progress.done += blob.size;
+			updateOverallProgress(progress, "Enviando...");
 		}
 
 		await fetch(`/api/uploads/${key}/complete`, { method: "POST", credentials: "same-origin" });
 		entry.status = "concluído";
 		if (statusEl) statusEl.textContent = entry.status;
+	}
+
+	function chunkSize(file, index, totalChunks) {
+		if (index < totalChunks - 1) return CHUNK_SIZE;
+		return file.size - index * CHUNK_SIZE;
 	}
 
 	async function putChunkWithRetry(uploadId, index, blob) {
