@@ -7,7 +7,8 @@ services:
     environment:
       - ROLE=server
     volumes:
-      - ./data:/app/data
+      - estudos_data:/app/data
+      - estudos_backups:/app/backups
     expose:
       - "8000"
     restart: unless-stopped
@@ -26,5 +27,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  estudos_data:
+  estudos_backups:
   caddy_data:
   caddy_config:
