@@ -68,10 +68,10 @@
 	{% endif %}
 	<div class="button-row" style="margin-top: var(--space-3)">
 		<form method="post" action="/lessons/{{ lesson.id }}/processar">
-			<button type="submit">Processar (automático)</button>
+			<button type="submit" disabled title="Desabilitado temporariamente">Processar (automático)</button>
 		</form>
-		<a class="button" href="/lessons/{{ lesson.id }}/pacote.md">Baixar pacote (.md)</a>
-		<a class="button" href="/lessons/{{ lesson.id }}/colar-resposta">Colar resposta</a>
+		<span class="button" aria-disabled="true" title="Desabilitado temporariamente">Baixar pacote (.md)</span>
+		<span class="button" aria-disabled="true" title="Desabilitado temporariamente">Colar resposta</span>
 	</div>
 </div>
 {% endif %}

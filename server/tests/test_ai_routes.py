@@ -249,7 +249,11 @@ def test_block_observacao_and_confirmacao(app_env):
         assert session.get(EditedBlock, block_id).confirmado_em is not None
 
 
-def test_lesson_detail_shows_processing_buttons_when_transcribed(app_env):
+def test_lesson_detail_shows_processing_buttons_disabled_when_transcribed(app_env):
+    """Os botões de processamento de IA na tela da aula estão desligados
+    temporariamente (decisão do usuário) — as rotas continuam existindo
+    (o RUNBOOK/skill fala com elas direto por curl), só a UI não oferece
+    o clique."""
     client = _authed_client()
     from app.db import holder
 
@@ -258,5 +262,6 @@ def test_lesson_detail_shows_processing_buttons_when_transcribed(app_env):
 
     response = client.get(f"/lessons/{lesson_id}")
     assert f"/lessons/{lesson_id}/processar" in response.text
-    assert f"/lessons/{lesson_id}/pacote.md" in response.text
-    assert f"/lessons/{lesson_id}/colar-resposta" in response.text
+    assert "disabled" in response.text
+    assert f"/lessons/{lesson_id}/pacote.md" not in response.text
+    assert f"/lessons/{lesson_id}/colar-resposta" not in response.text
