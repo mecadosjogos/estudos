@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth import session_middleware
@@ -11,9 +11,23 @@ app = FastAPI(title="Estudos")
 
 app.middleware("http")(session_middleware)
 
-app.mount(
-    "/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static"
-)
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@app.get("/static/service-worker.js")
+def service_worker():
+    """Rota dedicada (não a StaticFiles genérica) só para poder mandar
+    `Service-Worker-Allowed` -- sem esse header, um script servido de
+    /static/ não pode pedir escopo /revisao (fora do próprio diretório),
+    e o navegador recusa silenciosamente o registro com esse scope."""
+    return FileResponse(
+        STATIC_DIR / "service-worker.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/revisao"},
+    )
+
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(pages.router)
 app.include_router(admin.router)

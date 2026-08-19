@@ -220,7 +220,10 @@
 	})();
 
 	if ("serviceWorker" in navigator) {
-		navigator.serviceWorker.register("/static/service-worker.js");
+		// Escopo restrito a /revisao -- sem isso o service worker intercepta
+		// requisições de QUALQUER página do site (ex.: /upload), não só a
+		// fila offline que ele existe para cachear.
+		navigator.serviceWorker.register("/static/service-worker.js", { scope: "/revisao" });
 	}
 </script>
 {% endblock %}

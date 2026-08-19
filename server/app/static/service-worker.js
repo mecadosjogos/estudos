@@ -22,7 +22,10 @@ self.addEventListener("fetch", (event) => {
 	if (request.method !== "GET") return;
 
 	const url = new URL(request.url);
-	const isReviewPage = url.pathname === "/revisao" || url.pathname === "/";
+	// O registro (review.html) restringe o escopo a /revisao -- então este
+	// worker só controla a fila de revisão, nunca outra página do site
+	// (ex.: /upload). "/" fica de fora por causa disso.
+	const isReviewPage = url.pathname === "/revisao";
 	const isAudio = url.pathname.startsWith("/lessons/") && url.pathname.endsWith("/audio");
 
 	if (isAudio) return; // áudio original não entra no cache — pesado e a rede já é o critério de "ouvir o original"
