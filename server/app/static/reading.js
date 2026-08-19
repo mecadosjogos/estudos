@@ -17,23 +17,27 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		end: parseFloat(el.dataset.end),
 	}));
 
-	// Clicar num trecho toca e fica em loop nele (solta só quando outro
-	// trecho é clicado, ou -15s/+15s tira do intervalo) -- é o que permite
-	// ouvir um pedaço de baixa confiança repetidas vezes sem ficar
-	// rebobinando na mão.
+	// Loop só entra ao abrir edição (duplo clique) -- clique simples e
+	// "próximo de baixa confiança" tocam normal, sem prender o áudio no
+	// trecho.
 	let loopRange = null;
+
+	function playSegment(seg) {
+		seekTo(seg.start);
+		audio.play();
+	}
 
 	function playSegmentLooped(seg) {
 		loopRange = { start: seg.start, end: seg.end };
-		seekTo(seg.start);
-		audio.play();
+		playSegment(seg);
 	}
 
 	segments.forEach((seg) => {
 		seg.el.addEventListener("click", (ev) => {
 			if (!hasAudio) return;
 			if (ev.target.closest(".segment-edit-btn, textarea, .segment-edit-actions")) return;
-			playSegmentLooped(seg);
+			loopRange = null;
+			playSegment(seg);
 		});
 	});
 
@@ -46,7 +50,10 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 			if (!flagged.length) return;
 			const currentTime = hasAudio ? audio.currentTime : 0;
 			const next = flagged.find((s) => s.start > currentTime + 0.5) || flagged[0];
-			if (hasAudio) playSegmentLooped(next);
+			if (hasAudio) {
+				loopRange = null;
+				playSegment(next);
+			}
 			next.el.scrollIntoView({ behavior: "smooth", block: "center" });
 		});
 	}
