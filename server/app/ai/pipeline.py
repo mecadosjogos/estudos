@@ -30,8 +30,7 @@ from .pricing import estimate_cost_usd
 from .reconcile import reconcile
 from .schemas import LessonProcessingOutput
 from .signals import SegmentInput, WordInput, build_signals_annotation
-
-LOW_CONFIDENCE_THRESHOLD = 0.5
+from ..transcript_confidence import LOW_CONFIDENCE_THRESHOLD, word_probabilities
 
 
 class ProcessingError(Exception):
@@ -74,13 +73,15 @@ def _source_text_for_interval(segments: list[TranscriptSegment], start_s: float,
 
 def _low_confidence(segments: list[TranscriptSegment], start_s: float, end_s: float) -> bool:
     """Média de probabilidade das palavras do Whisper no intervalo — abaixo
-    do limiar, o servidor marca pra você confirmar com um toque (PLANO.md)."""
-    probs: list[float] = []
-    for seg in segments:
-        if seg.end_s < start_s or seg.start_s > end_s:
-            continue
-        for w in json.loads(seg.words_json) if seg.words_json else []:
-            probs.append(w.get("probability", 1.0))
+    do limiar, o servidor marca pra você confirmar com um toque (PLANO.md).
+    Mesmo cálculo de `transcript_confidence.py`, usado também na tela de
+    revisão da transcrição (fase 8) — um só lugar decide o que é "baixo"."""
+    probs = [
+        p
+        for seg in segments
+        if seg.end_s >= start_s and seg.start_s <= end_s
+        for p in word_probabilities(seg)
+    ]
     if not probs:
         return False
     return (sum(probs) / len(probs)) < LOW_CONFIDENCE_THRESHOLD

@@ -150,9 +150,13 @@ class TranscriptionJob(Base):
 
 
 class Transcript(Base):
-    """A transcrição bruta de uma aula — nunca editada, sempre a fonte de
-    verdade de trabalho (PLANO.md). Reprocessar substitui inteiramente: não há
-    o que preservar aqui porque nada nela é editável pelo usuário."""
+    """A transcrição bruta de uma aula -- fonte de verdade de trabalho
+    (PLANO.md). Editável por revisão humana desde a fase 8 (Whisper erra, e
+    tudo depois -- guia, aula editada, cards -- herda o erro se ninguém
+    corrigir antes). `aprovado_em` marca "revisado o suficiente pra
+    alimentar IA"; reprocessar (nova transcrição do zero) com aprovação
+    ativa exige confirmação explícita, que já limpa `aprovado_em` como
+    parte do gesto -- sem isso a revisão manual sumiria silenciosamente."""
 
     __tablename__ = "transcript"
 
@@ -164,6 +168,8 @@ class Transcript(Base):
     worker_name: Mapped[str] = mapped_column(String, nullable=False)
     full_text: Mapped[str] = mapped_column(Text, nullable=False)
     duration_s: Mapped[float] = mapped_column(Float, nullable=False)
+
+    aprovado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -189,6 +195,11 @@ class TranscriptSegment(Base):
     end_s: Mapped[float] = mapped_column(Float, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     words_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+    # Revisão humana (fase 8): editado_em só marca "você corrigiu este
+    # trecho" pra UI mostrar o que já foi revisado -- o áudio original
+    # continua a um toque, então não guardamos o texto pré-edição.
+    editado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # --- Fase 6: IA, aula editada e ponte manual ---

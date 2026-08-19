@@ -261,6 +261,24 @@ input[type="text"], input[type="date"], input[type="search"], select {
 	margin-right: var(--space-2);
 }
 
+.segment-low-confidence {
+	border-left: 3px solid var(--danger);
+	background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.segment-edit-btn {
+	min-height: auto;
+	padding: 0 var(--space-2);
+	font-size: 0.8em;
+	background: transparent;
+	border-color: var(--border);
+	color: var(--text-muted);
+}
+
+.segment-edit-actions {
+	margin-top: var(--space-2);
+}
+
 .search-form {
 	display: flex;
 	gap: var(--space-2);

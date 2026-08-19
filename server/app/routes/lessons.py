@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from .. import config, db
 from ..auth import require_session
 from ..db import get_session
-from ..models import Lesson, Subject, TranscriptionJob
+from ..models import Lesson, Subject, Transcript, TranscriptionJob, TranscriptSegment
+from ..transcript_confidence import is_low_confidence_segment
 from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
 
 router = APIRouter(prefix="/lessons", dependencies=[Depends(require_session)])
@@ -79,6 +80,11 @@ def start_transcription(lesson_id: int, session: Session = Depends(get_session))
         raise HTTPException(status_code=404, detail="aula não encontrada")
     if not lesson.audio_segments:
         raise HTTPException(status_code=400, detail="aula sem áudio")
+    if lesson.transcript is not None and lesson.transcript.aprovado_em is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="transcrição aprovada — reabra a revisão antes de retranscrever",
+        )
 
     ensure_pending_job(session, lesson_id, target="gpu_worker")
     return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
@@ -94,6 +100,11 @@ def transcribe_on_vps(lesson_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="aula não encontrada")
     if not lesson.audio_segments:
         raise HTTPException(status_code=400, detail="aula sem áudio")
+    if lesson.transcript is not None and lesson.transcript.aprovado_em is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="transcrição aprovada — reabra a revisão antes de retranscrever",
+        )
 
     job = ensure_pending_job(session, lesson_id, target="vps_cpu")
 
@@ -174,9 +185,15 @@ def lesson_transcript(request: Request, lesson_id: int, session: Session = Depen
     if lesson is None or lesson.transcript is None:
         raise HTTPException(status_code=404, detail="transcrição não encontrada")
 
+    low_confidence_ids = {
+        s.id for s in lesson.transcript.segments if is_low_confidence_segment(s)
+    }
     segments_json = json.dumps(
         [
-            {"idx": s.idx, "start_s": s.start_s, "end_s": s.end_s, "text": s.text}
+            {
+                "idx": s.idx, "start_s": s.start_s, "end_s": s.end_s, "text": s.text,
+                "low_confidence": s.id in low_confidence_ids,
+            }
             for s in lesson.transcript.segments
         ]
     )
@@ -187,9 +204,71 @@ def lesson_transcript(request: Request, lesson_id: int, session: Session = Depen
             "lesson": lesson,
             "transcript": lesson.transcript,
             "segments_json": segments_json,
+            "low_confidence_ids": low_confidence_ids,
             "has_audio_file": (config.MEDIA_WEB_DIR / f"lesson-{lesson_id}.mp3").exists(),
+            "aprovado": lesson.transcript.aprovado_em is not None,
         },
     )
+
+
+@router.post("/{lesson_id}/transcricao/segments/{segment_id}")
+def edit_transcript_segment(
+    lesson_id: int, segment_id: int, texto: str = Form(...), session: Session = Depends(get_session)
+):
+    """Edição inline de um trecho (fase 8): o Whisper erra, e tudo que vem
+    depois -- guia, aula editada, cards -- herda o erro se ninguém
+    corrigir aqui primeiro. Bloqueado depois de aprovar (reabra a revisão
+    pra editar de novo)."""
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.transcript is None:
+        raise HTTPException(status_code=404, detail="transcrição não encontrada")
+
+    segment = session.get(TranscriptSegment, segment_id)
+    if segment is None or segment.transcript_id != lesson.transcript.id:
+        raise HTTPException(status_code=404, detail="trecho não encontrado")
+
+    if lesson.transcript.aprovado_em is not None:
+        raise HTTPException(
+            status_code=409, detail="transcrição aprovada — reabra a revisão antes de editar"
+        )
+
+    texto = texto.strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="texto não pode ficar vazio")
+
+    segment.text = texto
+    segment.editado_em = datetime.now(timezone.utc)
+
+    # full_text é o que alimenta guia/aula editada/window.py -- sem
+    # recompor aqui, a correção fica presa no segmento e nunca chega na IA.
+    ordered = sorted(lesson.transcript.segments, key=lambda s: s.idx)
+    lesson.transcript.full_text = " ".join(s.text for s in ordered)
+
+    session.commit()
+    return {"ok": True, "text": segment.text}
+
+
+@router.post("/{lesson_id}/transcricao/aprovar")
+def approve_transcript(lesson_id: int, session: Session = Depends(get_session)):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.transcript is None:
+        raise HTTPException(status_code=404, detail="transcrição não encontrada")
+    lesson.transcript.aprovado_em = datetime.now(timezone.utc)
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/transcricao", status_code=303)
+
+
+@router.post("/{lesson_id}/transcricao/reabrir")
+def reopen_transcript(lesson_id: int, session: Session = Depends(get_session)):
+    """Único jeito de voltar a editar ou retranscrever depois de aprovar —
+    de propósito um passo separado e explícito, não algo que outro botão
+    faz de lambuja."""
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.transcript is None:
+        raise HTTPException(status_code=404, detail="transcrição não encontrada")
+    lesson.transcript.aprovado_em = None
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/transcricao", status_code=303)
 
 
 @router.get("/{lesson_id}/transcricao.txt")

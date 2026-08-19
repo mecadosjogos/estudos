@@ -7,7 +7,7 @@
  * não por aula).
  */
 
-function initReadingPage({ lessonId, hasAudio, initialPosition }) {
+function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 	const params = new URLSearchParams(window.location.search);
 	const seekParam = params.get("t");
 
@@ -18,12 +18,30 @@ function initReadingPage({ lessonId, hasAudio, initialPosition }) {
 	}));
 
 	segments.forEach((seg) => {
-		seg.el.addEventListener("click", () => {
+		seg.el.addEventListener("click", (ev) => {
 			if (!hasAudio) return;
+			if (ev.target.closest(".segment-edit-btn, textarea, .segment-edit-actions")) return;
 			seekTo(seg.start);
 			audio.play();
 		});
 	});
+
+	if (editable) initInlineEditing(lessonId);
+
+	const nextLowConfidenceBtn = document.getElementById("next-low-confidence");
+	if (nextLowConfidenceBtn) {
+		nextLowConfidenceBtn.addEventListener("click", () => {
+			const flagged = segments.filter((s) => s.el.classList.contains("segment-low-confidence"));
+			if (!flagged.length) return;
+			const currentTime = hasAudio ? audio.currentTime : 0;
+			const next = flagged.find((s) => s.start > currentTime + 0.5) || flagged[0];
+			if (hasAudio) {
+				seekTo(next.start);
+				audio.play();
+			}
+			next.el.scrollIntoView({ behavior: "smooth", block: "center" });
+		});
+	}
 
 	if (!hasAudio) return;
 
@@ -148,4 +166,83 @@ function initReadingPage({ lessonId, hasAudio, initialPosition }) {
 			if (details.seekTime != null) seekTo(details.seekTime);
 		});
 	}
+}
+
+/* Edição inline de um trecho (fase 8) — a correção precisa chegar no
+ * banco antes de qualquer coisa usar essa transcrição (guia, aula
+ * editada, cards), então salva no servidor a cada trecho, não só ao
+ * final. */
+function initInlineEditing(lessonId) {
+	document.querySelectorAll(".segment-edit-btn").forEach((btn) => {
+		btn.addEventListener("click", (ev) => {
+			ev.stopPropagation();
+			const segmentEl = btn.closest(".segment");
+			const textSpan = segmentEl.querySelector(".segment-text");
+			const segmentId = segmentEl.dataset.segmentId;
+			const original = textSpan.textContent;
+
+			const textarea = document.createElement("textarea");
+			textarea.value = original;
+			textarea.rows = 3;
+			textarea.style.width = "100%";
+			textarea.style.fontFamily = "inherit";
+
+			const actions = document.createElement("div");
+			actions.className = "segment-edit-actions button-row";
+			const saveBtn = document.createElement("button");
+			saveBtn.type = "button";
+			saveBtn.textContent = "Salvar";
+			const cancelBtn = document.createElement("button");
+			cancelBtn.type = "button";
+			cancelBtn.textContent = "Cancelar";
+			actions.append(saveBtn, cancelBtn);
+
+			textSpan.replaceWith(textarea);
+			btn.after(actions);
+			btn.hidden = true;
+			textarea.focus();
+
+			function restore(newText) {
+				const span = document.createElement("span");
+				span.className = "segment-text";
+				span.textContent = newText;
+				textarea.replaceWith(span);
+				actions.remove();
+				btn.hidden = false;
+			}
+
+			cancelBtn.addEventListener("click", (e) => {
+				e.stopPropagation();
+				restore(original);
+			});
+
+			saveBtn.addEventListener("click", async (e) => {
+				e.stopPropagation();
+				saveBtn.disabled = true;
+				try {
+					const response = await fetch(
+						`/lessons/${lessonId}/transcricao/segments/${segmentId}`,
+						{
+							method: "POST",
+							headers: { "Content-Type": "application/x-www-form-urlencoded" },
+							credentials: "same-origin",
+							body: `texto=${encodeURIComponent(textarea.value)}`,
+						}
+					);
+					if (!response.ok) throw new Error(`falhou (${response.status})`);
+					const data = await response.json();
+					restore(data.text);
+					if (!segmentEl.querySelector(".badge")) {
+						const badge = document.createElement("span");
+						badge.className = "badge";
+						badge.textContent = "editado";
+						btn.before(badge);
+					}
+				} catch (err) {
+					alert(`Não foi possível salvar: ${err.message}`);
+					saveBtn.disabled = false;
+				}
+			});
+		});
+	});
 }

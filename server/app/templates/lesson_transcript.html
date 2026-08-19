@@ -7,6 +7,26 @@
 	{{ transcript.engine }} · {{ (transcript.duration_s / 60) | round(1) }} min · máquina: {{ transcript.worker_name }}
 </p>
 
+<div class="card" id="review-card">
+	{% if aprovado %}
+		<p><span class="badge">revisado ✓</span> {{ transcript.aprovado_em.strftime("%d/%m/%Y %H:%M") }}</p>
+		<form method="post" action="/lessons/{{ lesson.id }}/transcricao/reabrir">
+			<button type="submit">Reabrir revisão</button>
+		</form>
+	{% else %}
+		<p class="muted">
+			{{ low_confidence_ids|length }} trecho(s) de baixa confiança do Whisper — vale ouvir e conferir antes de aprovar.
+			A transcrição alimenta o guia e a aula editada, então corrigir aqui corrige tudo depois.
+		</p>
+		<div class="button-row">
+			<button type="button" id="next-low-confidence" {{ "disabled" if not low_confidence_ids }}>⏭ Próximo de baixa confiança</button>
+			<form method="post" action="/lessons/{{ lesson.id }}/transcricao/aprovar">
+				<button type="submit">✓ Aprovar transcrição</button>
+			</form>
+		</div>
+	{% endif %}
+</div>
+
 {% if has_audio_file %}
 <div class="card player-card" id="player-card">
 	<audio id="player-audio" src="/lessons/{{ lesson.id }}/audio" preload="metadata"></audio>
@@ -32,10 +52,15 @@
 
 <div class="card" id="transcript-body">
 	{% for segment in transcript.segments %}
-	<p class="segment" data-idx="{{ segment.idx }}" data-start="{{ segment.start_s }}" data-end="{{ segment.end_s }}">
+	<div class="segment{% if segment.id in low_confidence_ids %} segment-low-confidence{% endif %}"
+		data-segment-id="{{ segment.id }}" data-idx="{{ segment.idx }}"
+		data-start="{{ segment.start_s }}" data-end="{{ segment.end_s }}">
 		<span class="muted segment-time">{{ "%02d:%02d"|format((segment.start_s // 60)|int, (segment.start_s % 60)|int) }}</span>
-		{{ segment.text }}
-	</p>
+		{% if segment.id in low_confidence_ids %}<span class="badge error">baixa confiança</span>{% endif %}
+		{% if segment.editado_em %}<span class="badge">editado</span>{% endif %}
+		{% if not aprovado %}<button type="button" class="segment-edit-btn muted">editar</button>{% endif %}
+		<span class="segment-text">{{ segment.text }}</span>
+	</div>
 	{% endfor %}
 </div>
 
@@ -45,6 +70,7 @@
 		lessonId: {{ lesson.id }},
 		hasAudio: {{ "true" if has_audio_file else "false" }},
 		initialPosition: {{ lesson.posicao_s }},
+		editable: {{ "false" if aprovado else "true" }},
 	});
 </script>
 {% endblock %}

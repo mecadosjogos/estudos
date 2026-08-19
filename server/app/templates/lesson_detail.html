@@ -19,6 +19,7 @@
 
 	{% if lesson.transcript %}
 		<p><span class="badge">transcrito ✓</span>
+		{% if lesson.transcript.aprovado_em %}<span class="badge">revisado ✓</span>{% else %}<span class="badge error">revisão pendente</span>{% endif %}
 		{{ lesson.transcript.engine }} · {{ (lesson.transcript.duration_s / 60) | round(1) }} min · máquina: {{ lesson.transcript.worker_name }}</p>
 		<p>
 			<a class="button" href="/lessons/{{ lesson.id }}/transcricao">Ver transcrição</a>
