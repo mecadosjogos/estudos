@@ -20,7 +20,10 @@
 	{% if lesson.transcript %}
 		<p><span class="badge">transcrito ✓</span>
 		{{ lesson.transcript.engine }} · {{ (lesson.transcript.duration_s / 60) | round(1) }} min · máquina: {{ lesson.transcript.worker_name }}</p>
-		<p><a class="button" href="/lessons/{{ lesson.id }}/transcricao">Ver transcrição</a></p>
+		<p>
+			<a class="button" href="/lessons/{{ lesson.id }}/transcricao">Ver transcrição</a>
+			<a class="button" href="/lessons/{{ lesson.id }}/transcricao.txt">Baixar transcrição (.txt)</a>
+		</p>
 	{% elif latest_job is not none and latest_job.status == "pending" and latest_job.target == "vps_cpu" %}
 		<p><span class="badge muted">na fila da CPU da VPS</span></p>
 	{% elif latest_job is not none and latest_job.status == "pending" %}

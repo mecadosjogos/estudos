@@ -143,6 +143,42 @@ def test_lesson_transcript_page_renders_synced_segments(app_env):
     assert "initReadingPage" in response.text
 
 
+def test_download_transcript_txt_has_plain_text_no_timestamps(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["primeiro trecho", "segundo trecho"])
+
+    response = client.get(f"/lessons/{lesson_id}/transcricao.txt")
+    assert response.status_code == 200
+    assert "primeiro trecho" in response.text
+    assert "segundo trecho" in response.text
+    assert "data-start" not in response.text
+    assert "Content-Disposition" in response.headers
+    assert f"transcricao-{lesson_id}.txt" in response.headers["Content-Disposition"]
+
+
+def test_download_transcript_txt_404_without_transcript(app_env):
+    client = _authed_client()
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import Lesson, Subject
+
+    with holder.SessionLocal() as session:
+        subject_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
+        lesson = Lesson(subject_id=subject_id, titulo="Sem transcrição", data=date(2026, 3, 12))
+        session.add(lesson)
+        session.commit()
+        lesson_id = lesson.id
+
+    response = client.get(f"/lessons/{lesson_id}/transcricao.txt")
+    assert response.status_code == 404
+
+
 def test_lesson_audio_route_404_without_file(app_env):
     client = _authed_client()
     from app.db import holder

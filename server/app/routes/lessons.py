@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -189,6 +189,22 @@ def lesson_transcript(request: Request, lesson_id: int, session: Session = Depen
             "segments_json": segments_json,
             "has_audio_file": (config.MEDIA_WEB_DIR / f"lesson-{lesson_id}.mp3").exists(),
         },
+    )
+
+
+@router.get("/{lesson_id}/transcricao.txt")
+def download_transcript_txt(lesson_id: int, session: Session = Depends(get_session)):
+    """Texto puro da transcrição, sem timestamp — mesma fonte do
+    `scripts/export_transcript.py` (Transcript.full_text), só que pelo
+    navegador em vez de `docker compose exec`."""
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.transcript is None:
+        raise HTTPException(status_code=404, detail="transcrição não encontrada")
+
+    filename = f"transcricao-{lesson_id}.txt"
+    return PlainTextResponse(
+        lesson.transcript.full_text,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
