@@ -17,16 +17,27 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		end: parseFloat(el.dataset.end),
 	}));
 
+	// Clicar num trecho toca e fica em loop nele (solta só quando outro
+	// trecho é clicado, ou -15s/+15s tira do intervalo) -- é o que permite
+	// ouvir um pedaço de baixa confiança repetidas vezes sem ficar
+	// rebobinando na mão.
+	let loopRange = null;
+
+	function playSegmentLooped(seg) {
+		loopRange = { start: seg.start, end: seg.end };
+		seekTo(seg.start);
+		audio.play();
+	}
+
 	segments.forEach((seg) => {
 		seg.el.addEventListener("click", (ev) => {
 			if (!hasAudio) return;
 			if (ev.target.closest(".segment-edit-btn, textarea, .segment-edit-actions")) return;
-			seekTo(seg.start);
-			audio.play();
+			playSegmentLooped(seg);
 		});
 	});
 
-	if (editable) initInlineEditing(lessonId);
+	if (editable) initInlineEditing(lessonId, hasAudio ? playSegmentLooped : null);
 
 	const nextLowConfidenceBtn = document.getElementById("next-low-confidence");
 	if (nextLowConfidenceBtn) {
@@ -35,10 +46,7 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 			if (!flagged.length) return;
 			const currentTime = hasAudio ? audio.currentTime : 0;
 			const next = flagged.find((s) => s.start > currentTime + 0.5) || flagged[0];
-			if (hasAudio) {
-				seekTo(next.start);
-				audio.play();
-			}
+			if (hasAudio) playSegmentLooped(next);
 			next.el.scrollIntoView({ behavior: "smooth", block: "center" });
 		});
 	}
@@ -69,10 +77,12 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 	});
 
 	back15Btn.addEventListener("click", () => {
+		loopRange = null;
 		audio.currentTime = Math.max(0, audio.currentTime - 15);
 	});
 
 	fwd15Btn.addEventListener("click", () => {
+		loopRange = null;
 		audio.currentTime = Math.min(audio.duration || Infinity, audio.currentTime + 15);
 	});
 
@@ -97,6 +107,9 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 	audio.addEventListener("timeupdate", () => {
 		timeLabel.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
 		highlightCurrentSegment();
+		if (loopRange && audio.currentTime >= loopRange.end) {
+			audio.currentTime = loopRange.start;
+		}
 	});
 
 	let lastHighlighted = null;
@@ -171,12 +184,17 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 /* Edição inline de um trecho (fase 8) — a correção precisa chegar no
  * banco antes de qualquer coisa usar essa transcrição (guia, aula
  * editada, cards), então salva no servidor a cada trecho, não só ao
- * final. */
-function initInlineEditing(lessonId) {
-	document.querySelectorAll(".segment-edit-btn").forEach((btn) => {
-		btn.addEventListener("click", (ev) => {
-			ev.stopPropagation();
-			const segmentEl = btn.closest(".segment");
+ * final. Duplo clique no trecho abre a edição direto (sem precisar mirar
+ * no botão "editar") e já toca o áudio em loop nele, pra corrigir
+ * ouvindo repetidas vezes. */
+function initInlineEditing(lessonId, playSegmentLooped) {
+	document.querySelectorAll(".segment").forEach((segmentEl) => {
+		const btn = segmentEl.querySelector(".segment-edit-btn");
+		if (!btn) return; // transcrição aprovada — sem edição
+
+		function startEditing() {
+			if (segmentEl.querySelector("textarea")) return; // já em edição
+
 			const textSpan = segmentEl.querySelector(".segment-text");
 			const segmentId = segmentEl.dataset.segmentId;
 			const original = textSpan.textContent;
@@ -243,6 +261,23 @@ function initInlineEditing(lessonId) {
 					saveBtn.disabled = false;
 				}
 			});
+		}
+
+		btn.addEventListener("click", (ev) => {
+			ev.stopPropagation();
+			startEditing();
+		});
+
+		segmentEl.addEventListener("dblclick", (ev) => {
+			if (ev.target.closest("textarea, .segment-edit-actions")) return;
+			if (playSegmentLooped) {
+				playSegmentLooped({
+					start: parseFloat(segmentEl.dataset.start),
+					end: parseFloat(segmentEl.dataset.end),
+					el: segmentEl,
+				});
+			}
+			startEditing();
 		});
 	});
 }
