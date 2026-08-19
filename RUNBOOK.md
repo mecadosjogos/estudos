@@ -174,6 +174,42 @@ a transcrição literal de cada aula vinculada (nunca a aula editada) — hoje
 marca onde começa/termina dentro da aula (simplificação deliberada da fase
 8a; ver o módulo pra decisão completa).
 
+### Guia de aula (complementar à fase 6, não é uma fase própria)
+
+Diferente da aula editada (schema JSON tipado): é um prompt simples que
+devolve markdown corrido, reorganizando a transcrição em seções com
+título — sem inventar, sem parafrasear conteúdo jurídico, preservando a
+voz do professor. O prompt inteiro mora em `server/app/ai/guia.py`
+(`INSTRUCTIONS_GUIA`).
+
+**1. Baixar o pacote:**
+
+```bash
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/guia-pacote.md" -o guia-pacote.md
+```
+
+**2. Gerar a resposta** seguindo as instruções que já vêm no pacote.
+Devolva só o markdown do guia, começando com `# título` — nada de
+conversa em volta (o parser corta tudo antes do primeiro `# `, mas é mais
+limpo já mandar só o markdown).
+
+**3. Enviar de volta** (mesma regra de encoding do resto do runbook —
+arquivo, nunca argumento inline):
+
+```bash
+WINPATH=$(cygpath -w /caminho/para/guia.md)
+curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/lessons/{id}/colar-guia" \
+  --data-urlencode "resposta@${WINPATH}"
+```
+
+**4. Validar:** `GET /lessons/{id}/guia` renderiza o markdown; confira
+`repr(lesson.guia_md)` no banco pra descartar corrupção de acento, como
+sempre.
+
+Reprocessar substitui o guia inteiro — não há `deriv_key` nem reconcile
+aqui (é um documento único, não uma lista de artefatos com identidade
+própria).
+
 ### Fase 8b em diante
 
 Ainda não implementadas (cloze, cards de discriminação). **Ao
