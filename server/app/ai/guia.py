@@ -34,13 +34,19 @@ INSTRUCTIONS_GUIA = """Você vai receber a transcrição bruta (feita via Whispe
 - Dentro de cada seção, organize o raciocínio do professor de forma lógica (conceito → explicação → exemplo → observações), mas apenas reordenando o que já existe no texto, sem reescrever o conteúdo.
 - Use marcação de importância (por exemplo, negrito) para os pontos que o próprio professor trata como centrais — reconhecíveis por marcadores como ênfase na fala, repetição do ponto, frases como "isso cai em prova", "atenção", "isso é importante", "gravem isso", ou insistência no mesmo argumento.
 
-5. O QUE NÃO FAZER
+5. ÁRVORE DE CONHECIMENTO
+- Logo depois do título, antes do sumário, monte uma seção "## Árvore de conhecimento": a estrutura hierárquica das classificações e conceitos que o professor apresentou nesta aula, como uma lista aninhada em Markdown (marcadores "-", indentados por nível) — não um parágrafo corrido, não um diagrama.
+- Espelhe SÓ a hierarquia que o professor efetivamente construiu na fala (ex.: "a lei penal se divide em incriminadora ou não incriminadora; a não incriminadora se divide em explicativa ou permissiva" vira três níveis aninhados). Nunca complete a árvore com uma classificação "padrão" da doutrina que não foi mencionada nesta aula específica — se um ramo não foi subdividido/explicado pelo professor, deixe-o como folha, sem inventar filhos.
+- Não é um resumo do conteúdo — é só o esqueleto/nomenclatura das classificações, pra enxergar de relance como os conceitos se encaixam uns nos outros. Uma ou duas palavras por nó, não frases.
+
+6. O QUE NÃO FAZER
 - Não resuma de forma a perder conteúdo — o objetivo é organizar, não sintetizar/encurtar.
 - Não misture sua interpretação pessoal do tema jurídico com a fala do professor.
 - Não invente títulos de leis, artigos, números ou nomes que o professor não tenha mencionado.
 
-6. FORMATO DE SAÍDA
+7. FORMATO DE SAÍDA
 - Título da aula (se identificável pelo conteúdo, ou "Aula sem título identificado").
+- Árvore de conhecimento (regra 5 acima).
 - Sumário dos tópicos abordados.
 - Corpo organizado por seções/subtítulos, com o texto do professor tratado conforme as regras acima.
 - Ao final, uma lista dos trechos marcados como inaudíveis/incompletos, se houver.

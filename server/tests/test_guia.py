@@ -45,6 +45,7 @@ def test_guia_pacote_contains_prompt_and_transcript(app_env):
     response = client.get(f"/lessons/{lesson_id}/guia-pacote.md")
     assert response.status_code == 200
     assert "FIDELIDADE AO CONTEÚDO" in response.text
+    assert "ÁRVORE DE CONHECIMENTO" in response.text
     assert "a posse exige corpus e animus" in response.text
 
 
