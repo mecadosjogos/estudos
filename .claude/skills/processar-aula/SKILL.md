@@ -21,9 +21,32 @@ fase nova e este arquivo não é.
 
 ## Alvo
 
-`$ARGUMENTS` é o id de uma aula, ou a palavra `pendentes` (processa todas
-as aulas com trabalho de IA pendente, em qualquer um dos fluxos descritos
-no RUNBOOK.md — não só fase 6). Vazio equivale a `pendentes`.
+`$ARGUMENTS` é o id de uma aula, ou a palavra `pendentes`. Vazio equivale
+a `pendentes`.
+
+`pendentes` significa **duas etapas, nesta ordem, nunca a segunda sem
+completar a primeira** — a etapa 0 do RUNBOOK.md, seguida da etapa 1:
+
+- **Etapa 0:** aulas com áudio mas sem transcrição ainda → enfileira e roda
+  o worker (GPU local, Windows) até a fila esvaziar. Isso não é IA, é só o
+  Whisper — não tem "não invente" nenhum aqui, é mecânico.
+- **Etapa 1:** só depois disso, aulas com transcrição **já aprovada**
+  (`Transcript.aprovado_em` preenchido) e ainda sem `resumo` → processa
+  aula editada **e** guia de aula, as duas.
+
+**Aula com transcrição pendente de revisão humana (sem aprovar) NUNCA
+entra na etapa 1** — ela fica esperando você revisar em
+`/lessons/{id}/transcricao` e clicar "Aprovar transcrição". Não aprove
+por conta própria, não pule essa checagem achando que "só está um pouco
+atrasado".
+
+**A matéria "LIXO" nunca entra em nenhuma das duas etapas** — nem
+transcreve, nem processa, nem gera guia para aula dela.
+
+Se `$ARGUMENTS` for um id específico, processe só aquela aula, mas ainda
+assim respeitando a ordem (se ela não tem transcrição, faça a etapa 0
+primeiro; se a transcrição existe mas não está aprovada, pare e diga isso
+no resumo final em vez de processar mesmo assim).
 
 ## Regras não-negociáveis
 
@@ -56,13 +79,14 @@ no RUNBOOK.md — não só fase 6). Vazio equivale a `pendentes`.
 
 ## Ao terminar
 
-Devolva um resumo compacto, uma linha por aula processada — nunca a
+Devolva um resumo compacto, uma linha por aula tocada — nunca a
 transcrição, o prompt ou o JSON completo:
 
 ```
-aula 12 "Posse e propriedade" — ok — 6 blocos, 4 cards, 1 data, encoding ok
-aula 13 "Usucapião" — ok — 3 blocos, 2 cards, 0 datas, encoding ok
-aula 14 "Direitos reais" — ERRO — resposta não bateu com o schema (ver detalhe)
+[etapa 0] aula 15 "Aula 3" — transcrita, aguardando sua revisão/aprovação
+[etapa 1] aula 12 "Posse e propriedade" — ok — 6 blocos, 4 cards, 1 data, guia gerado, encoding ok
+[etapa 1] aula 13 "Usucapião" — ok — 3 blocos, 2 cards, 0 datas, guia gerado, encoding ok
+[etapa 1] aula 14 "Direitos reais" — ERRO — resposta não bateu com o schema (ver detalhe)
 ```
 
 Se algo falhar numa aula, registre o erro nessa linha e continue para a
