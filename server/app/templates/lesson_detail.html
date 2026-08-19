@@ -24,6 +24,14 @@
 			<a class="button" href="/lessons/{{ lesson.id }}/transcricao">Ver transcrição</a>
 			<a class="button" href="/lessons/{{ lesson.id }}/transcricao.txt">Baixar transcrição (.txt)</a>
 		</p>
+		<p>
+			{% if lesson.guia_md %}
+				<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia de aula</a>
+			{% else %}
+				<a class="button" href="/lessons/{{ lesson.id }}/guia-pacote.md">Gerar guia de aula</a>
+			{% endif %}
+			<a class="button" href="/lessons/{{ lesson.id }}/colar-guia">Colar guia</a>
+		</p>
 	{% elif latest_job is not none and latest_job.status == "pending" and latest_job.target == "vps_cpu" %}
 		<p><span class="badge muted">na fila da CPU da VPS</span></p>
 	{% elif latest_job is not none and latest_job.status == "pending" %}

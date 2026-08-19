@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Guia de aula — {{ lesson.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
+<h1>Guia de aula</h1>
+<p class="muted">
+	Material de leitura organizado a partir da transcrição — não é fonte, a
+	transcrição bruta é. Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}.
+</p>
+
+<div class="button-row" style="margin-bottom: var(--space-4)">
+	<a class="button" href="/lessons/{{ lesson.id }}/guia.md">Baixar guia (.md)</a>
+	<a class="button" href="/lessons/{{ lesson.id }}/colar-guia">Gerar de novo</a>
+</div>
+
+<div class="card markdown-body">
+	{{ guia_html | safe }}
+</div>
+{% endblock %}

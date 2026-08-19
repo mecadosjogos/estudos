@@ -56,6 +56,13 @@ class Lesson(Base):
     # reprocessamento, nunca editado à mão, então não precisa de deriv_key.
     resumo: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Guia de aula: markdown corrido (a transcrição reorganizada por um
+    # prompt simples, sem schema) -- material de leitura complementar à
+    # aula editada, não um substituto dela. Regenerado por inteiro, sem
+    # deriv_key, pelo mesmo motivo do resumo.
+    guia_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    guia_gerado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
         back_populates="lesson", order_by="AudioSegment.ordem", cascade="all, delete-orphan"
     )

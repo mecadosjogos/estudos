@@ -1,7 +1,7 @@
 import json
 import shutil
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -204,6 +204,86 @@ def download_transcript_txt(lesson_id: int, session: Session = Depends(get_sessi
     filename = f"transcricao-{lesson_id}.txt"
     return PlainTextResponse(
         lesson.transcript.full_text,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{lesson_id}/guia-pacote.md")
+def download_guia_pacote(lesson_id: int, session: Session = Depends(get_session)):
+    """Baixa o prompt + transcrição pra colar num chat do Claude (ponte
+    manual) — mesmo padrão de pacote.md/colar-resposta da fase 6, mas
+    para o guia de aula (mais simples, sem schema)."""
+    from ..ai.guia import build_guia_prompt, package_guia_as_markdown
+
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.transcript is None:
+        raise HTTPException(status_code=400, detail="aula sem transcrição — transcreva antes")
+
+    prompt = build_guia_prompt(lesson.titulo, lesson.data.isoformat(), lesson.transcript.full_text)
+    content = package_guia_as_markdown(lesson.titulo, prompt)
+    filename = f"guia-aula-{lesson_id}.md"
+    return PlainTextResponse(
+        content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{lesson_id}/colar-guia")
+def paste_guia_form(request: Request, lesson_id: int, session: Session = Depends(get_session)):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+    return templates.TemplateResponse(request, "paste_guia.html", {"lesson": lesson})
+
+
+@router.post("/{lesson_id}/colar-guia")
+def paste_guia_submit(lesson_id: int, resposta: str = Form(...), session: Session = Depends(get_session)):
+    from ..ai.guia import parse_guia_response
+    from ..models import AiCall
+
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+
+    try:
+        guia_md = parse_guia_response(resposta)
+    except ValueError as exc:
+        from urllib.parse import quote
+
+        return RedirectResponse(
+            url=f"/lessons/{lesson_id}/colar-guia?erro={quote(str(exc))}", status_code=303
+        )
+
+    lesson.guia_md = guia_md
+    lesson.guia_gerado_em = datetime.now(timezone.utc)
+    session.add(AiCall(lesson_id=lesson_id, tipo_acao="guia_aula", via="manual", modelo="manual", custo_usd=0.0))
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia", status_code=303)
+
+
+@router.get("/{lesson_id}/guia")
+def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_session)):
+    import markdown as markdown_lib
+
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.guia_md is None:
+        raise HTTPException(status_code=404, detail="guia de aula não gerado ainda")
+
+    guia_html = markdown_lib.markdown(lesson.guia_md, extensions=["extra"])
+    return templates.TemplateResponse(request, "guia.html", {"lesson": lesson, "guia_html": guia_html})
+
+
+@router.get("/{lesson_id}/guia.md")
+def download_guia_md(lesson_id: int, session: Session = Depends(get_session)):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.guia_md is None:
+        raise HTTPException(status_code=404, detail="guia de aula não gerado ainda")
+
+    filename = f"guia-aula-{lesson_id}.md"
+    return PlainTextResponse(
+        lesson.guia_md,
+        media_type="text/markdown",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
