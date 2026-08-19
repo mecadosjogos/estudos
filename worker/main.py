@@ -303,6 +303,22 @@ def main():
     if args.once and args.watch:
         raise SystemExit("--once e --watch são incompatíveis")
 
+    if args.target == "gpu_worker":
+        # Etapa 0 do RUNBOOK.md: acha e enfileira aula com áudio pendente
+        # antes de drenar -- assim o atalho do desktop faz as duas coisas
+        # (achar o que falta + transcrever) numa tacada só, sem precisar
+        # de um agente pra rodar essa checagem mecânica.
+        try:
+            enqueued = api_client.enqueue_pending_transcriptions()
+        except Exception as exc:  # noqa: BLE001 — falha aqui não deve impedir de drenar o que já tá na fila
+            _log(f"não consegui checar aulas pendentes de enfileirar: {exc}")
+        else:
+            if enqueued:
+                for item in enqueued:
+                    _log(f"enfileirada: aula {item['lesson_id']} \"{item['titulo']}\"")
+            else:
+                _log("nada novo pra enfileirar")
+
     mode = "once" if args.once else "watch" if args.watch else "drain"
     run(mode=mode, target=args.target)
 

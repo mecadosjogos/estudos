@@ -3,7 +3,11 @@
 # falha com "cublas64_12.dll is not found" mesmo com a GPU disponível — o pip
 # instala as DLLs dentro do venv, mas não registra no PATH do sistema.
 #
-# Uso: .\worker\run_local.ps1            (drena a fila inteira e sai sozinho)
+# Antes de drenar a fila, o worker também pergunta pro servidor quais aulas
+# têm áudio ainda sem transcrição (fora da matéria LIXO) e enfileira sozinho
+# -- "etapa 0" do RUNBOOK.md. Não precisa abrir um chat só pra isso.
+#
+# Uso: .\worker\run_local.ps1            (acha pendente + drena a fila inteira, sai sozinho)
 #      .\worker\run_local.ps1 --once     (processa só um job e sai)
 #      .\worker\run_local.ps1 --watch    (fica rodando, pegando job assim que aparecer)
 #

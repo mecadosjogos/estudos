@@ -14,6 +14,19 @@ def _headers() -> dict:
     return {"Authorization": f"Bearer {config.ACCESS_TOKEN}"}
 
 
+def enqueue_pending_transcriptions() -> list[dict]:
+    """Etapa 0 do RUNBOOK.md: pergunta pro servidor quais aulas têm áudio
+    ainda sem transcrição (fora da matéria LIXO) e enfileira. Mecânico,
+    sem IA -- roda sozinho antes do worker drenar a fila."""
+    response = httpx.post(
+        f"{config.SERVER_URL}/api/jobs/enqueue-pending-transcriptions",
+        headers=_headers(),
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()["enqueued"]
+
+
 def get_next_job(worker_name: str, target: str = "gpu_worker") -> dict | None:
     response = httpx.get(
         f"{config.SERVER_URL}/api/jobs/next",

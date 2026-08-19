@@ -162,6 +162,116 @@ def test_result_submission_is_idempotent(app_env):
         assert job.status == "done"
 
 
+def test_enqueue_pending_transcriptions_finds_audio_without_transcript(app_env):
+    client = _authed_client()
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_lesson_with_segment(session)
+
+    response = client.post("/api/jobs/enqueue-pending-transcriptions")
+    assert response.status_code == 200
+    assert response.json()["enqueued"] == [{"lesson_id": lesson_id, "titulo": "Aula"}]
+
+    with holder.SessionLocal() as session:
+        jobs = session.scalars(
+            select(TranscriptionJob).where(TranscriptionJob.lesson_id == lesson_id)
+        ).all()
+        assert len(jobs) == 1
+        assert jobs[0].status == "pending"
+        assert jobs[0].target == "gpu_worker"
+
+
+def test_enqueue_pending_transcriptions_skips_lixo_subject(app_env):
+    client = _authed_client()
+    from datetime import date
+
+    from app.db import holder
+    from app.models import AudioSegment, Lesson, Subject
+
+    with holder.SessionLocal() as session:
+        lixo = Subject(nome="Lixo", sigla="LIXO")
+        session.add(lixo)
+        session.flush()
+        lesson = Lesson(subject_id=lixo.id, titulo="Aula de teste", data=date(2026, 3, 12))
+        session.add(lesson)
+        session.flush()
+        session.add(AudioSegment(
+            lesson_id=lesson.id, ordem=1, original_filename="a.m4a",
+            storage_path="/tmp/x", size_bytes=10, status="complete",
+        ))
+        session.commit()
+
+    response = client.post("/api/jobs/enqueue-pending-transcriptions")
+    assert response.status_code == 200
+    assert response.json()["enqueued"] == []
+
+
+def test_enqueue_pending_transcriptions_skips_lesson_without_audio(app_env):
+    client = _authed_client()
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import Lesson, Subject
+
+    with holder.SessionLocal() as session:
+        subject_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
+        lesson = Lesson(subject_id=subject_id, titulo="Sem áudio", data=date(2026, 3, 12))
+        session.add(lesson)
+        session.commit()
+
+    response = client.post("/api/jobs/enqueue-pending-transcriptions")
+    assert response.json()["enqueued"] == []
+
+
+def test_enqueue_pending_transcriptions_skips_lesson_that_already_has_transcript(app_env):
+    client = _authed_client()
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import AudioSegment, Lesson, Subject, Transcript
+
+    with holder.SessionLocal() as session:
+        subject_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
+        lesson = Lesson(subject_id=subject_id, titulo="Já transcrita", data=date(2026, 3, 12))
+        session.add(lesson)
+        session.flush()
+        session.add(AudioSegment(
+            lesson_id=lesson.id, ordem=1, original_filename="a.m4a",
+            storage_path="/tmp/x", size_bytes=10, status="complete",
+        ))
+        session.add(Transcript(lesson_id=lesson.id, engine="e", worker_name="w", full_text="x", duration_s=1.0))
+        session.commit()
+
+    response = client.post("/api/jobs/enqueue-pending-transcriptions")
+    assert response.json()["enqueued"] == []
+
+
+def test_enqueue_pending_transcriptions_is_idempotent(app_env):
+    client = _authed_client()
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        _make_lesson_with_segment(session)
+
+    client.post("/api/jobs/enqueue-pending-transcriptions")
+    client.post("/api/jobs/enqueue-pending-transcriptions")
+
+    with holder.SessionLocal() as session:
+        jobs = session.scalars(select(TranscriptionJob)).all()
+        assert len(jobs) == 1
+
+
 def test_result_submission_accepts_payload_over_1mb(app_env):
     """Regressão real: uma aula de ~2h gera milhares de segmentos com
     timestamp por palavra, passando fácil de 1MB de JSON. O Starlette

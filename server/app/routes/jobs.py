@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from .. import config
 from ..auth import require_session_or_token
 from ..db import get_session
-from ..models import AudioSegment, Transcript, TranscriptionJob, TranscriptSegment
+from ..models import AudioSegment, Lesson, Subject, Transcript, TranscriptionJob, TranscriptSegment
 
 router = APIRouter(prefix="/api/jobs", dependencies=[Depends(require_session_or_token)])
 
@@ -51,6 +51,27 @@ def ensure_pending_job(session: Session, lesson_id: int, target: str = "gpu_work
     session.add(job)
     session.commit()
     return job
+
+
+@router.post("/enqueue-pending-transcriptions")
+def enqueue_pending_transcriptions(session: Session = Depends(get_session)):
+    """Etapa 0 do RUNBOOK.md, mecânica -- sem IA, sem julgamento: acha aula
+    com áudio ainda sem transcrição (fora da matéria LIXO) e enfileira.
+    Existe pra um script local chamar sozinho antes de rodar o worker,
+    sem precisar de um agente pra fazer uma checagem que é só uma
+    consulta no banco."""
+    rows = session.execute(
+        select(Lesson.id, Lesson.titulo)
+        .join(Subject, Subject.id == Lesson.subject_id)
+        .where(Lesson.audio_segments.any(), ~Lesson.transcript.has(), Subject.sigla != "LIXO")
+    ).all()
+
+    enqueued = []
+    for row in rows:
+        ensure_pending_job(session, row.id, target="gpu_worker")
+        enqueued.append({"lesson_id": row.id, "titulo": row.titulo})
+
+    return JSONResponse({"enqueued": enqueued})
 
 
 def _reclaim_stale(session: Session, target: str) -> None:

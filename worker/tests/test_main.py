@@ -168,3 +168,43 @@ def test_rebuild_job_fails_clearly_when_archive_missing(tmp_path, monkeypatch):
     mock_concat.assert_not_called()
     mock_fail.assert_called_once()
     assert "archive local" in mock_fail.call_args.args[2]
+
+
+def test_main_enqueues_pending_before_draining_gpu_queue(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["main.py"])
+    with (
+        patch("worker.api_client.enqueue_pending_transcriptions", return_value=[]) as mock_enqueue,
+        patch("worker.main.run") as mock_run,
+    ):
+        worker_main.main()
+
+    mock_enqueue.assert_called_once()
+    mock_run.assert_called_once_with(mode="drain", target="gpu_worker")
+
+
+def test_main_does_not_enqueue_for_vps_cpu_target(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["main.py", "--target", "vps_cpu"])
+    with (
+        patch("worker.api_client.enqueue_pending_transcriptions") as mock_enqueue,
+        patch("worker.main.run") as mock_run,
+    ):
+        worker_main.main()
+
+    mock_enqueue.assert_not_called()
+    mock_run.assert_called_once_with(mode="drain", target="vps_cpu")
+
+
+def test_main_keeps_draining_even_if_enqueue_check_fails(monkeypatch):
+    """Etapa 0 é só uma conveniência -- se o servidor estiver fora do ar
+    nesse instante, ainda vale drenar o que já está na fila."""
+    monkeypatch.setattr("sys.argv", ["main.py"])
+    with (
+        patch(
+            "worker.api_client.enqueue_pending_transcriptions",
+            side_effect=RuntimeError("servidor fora do ar"),
+        ),
+        patch("worker.main.run") as mock_run,
+    ):
+        worker_main.main()
+
+    mock_run.assert_called_once_with(mode="drain", target="gpu_worker")
