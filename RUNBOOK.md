@@ -57,47 +57,28 @@ transcreve, nem processa, nem gera guia. Todo `select` desta seção filtra
 sem a primeira:**
 
 **Etapa 0 — transcrever o que tem áudio e ainda não foi transcrito.**
-Nada de IA aqui, é só rodar o Whisper (GPU local). Aulas com transcrição
-pendente de revisão **continuam esperando** — a etapa 1 não toca nelas
-até você aprovar.
-
-```bash
-docker compose exec server python -c "
-from sqlalchemy import select
-from app.db import holder
-from app.models import Lesson, Subject
-
-with holder.SessionLocal() as session:
-    rows = session.execute(
-        select(Lesson.id, Lesson.titulo)
-        .join(Subject, Subject.id == Lesson.subject_id)
-        .where(Lesson.audio_segments.any(), ~Lesson.transcript.has(), Subject.sigla != 'LIXO')
-    ).all()
-    for r in rows:
-        print(r.id, r.titulo)
-"
-```
-
-Para cada id encontrado, enfileira pela rota já existente (idempotente —
-seguro chamar de novo se já tiver job pendente):
-
-```bash
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/lessons/{id}/iniciar-transcricao"
-```
-
-Depois, ativa o worker pra drenar a fila inteira (roda no Windows, fora do
-Docker — é onde a GPU está):
+Nada de IA aqui, é só rodar o Whisper (GPU local) — por isso é **um script
+só, não passos manuais**: achar pendente e enfileirar é mecânico
+(`POST /api/jobs/enqueue-pending-transcriptions`, já filtra fora de LIXO e
+aula sem áudio/já transcrita), e `worker/main.py` chama isso sozinho antes
+de drenar a fila. Não gaste turno de agente reimplementando essa consulta
+— rode o script:
 
 ```powershell
 & .\worker\run_local.ps1
 ```
 
-Isso pode levar bastante tempo numa aula longa (grave a saída em
-background e espere terminar antes de seguir pra etapa 1). No fim, cada
-aula fica com transcrição pronta mas **`aprovado_em` ainda nulo** — a
-revisão humana (`/lessons/{id}/transcricao`, conferir os trechos de baixa
-confiança do Whisper e clicar "Aprovar transcrição") é sempre manual, o
-runbook nunca aprova sozinho.
+(ou dê dois cliques no atalho "Transcrever aulas (Estudos)" na área de
+trabalho — mesma coisa, sem terminal, sem precisar de mim.)
+
+Isso pode levar bastante tempo numa aula longa — se for você (agente)
+quem está rodando isso via PowerShell tool, rode em background e espere
+terminar antes de seguir pra etapa 1. Aulas com transcrição pendente de
+revisão **continuam esperando**: a etapa 1 não toca nelas até o usuário
+aprovar. No fim, cada aula fica com transcrição pronta mas **`aprovado_em`
+ainda nulo** — a revisão humana (`/lessons/{id}/transcricao`, conferir os
+trechos de baixa confiança do Whisper e clicar "Aprovar transcrição") é
+sempre manual, o runbook/script nunca aprova sozinho.
 
 **Etapa 1 — achar aulas com transcrição aprovada, ainda sem `resumo`.**
 Só entra aqui o que passou pela revisão humana da etapa 0 — é isso que

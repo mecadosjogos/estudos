@@ -27,9 +27,12 @@ a `pendentes`.
 `pendentes` significa **duas etapas, nesta ordem, nunca a segunda sem
 completar a primeira** — a etapa 0 do RUNBOOK.md, seguida da etapa 1:
 
-- **Etapa 0:** aulas com áudio mas sem transcrição ainda → enfileira e roda
-  o worker (GPU local, Windows) até a fila esvaziar. Isso não é IA, é só o
-  Whisper — não tem "não invente" nenhum aqui, é mecânico.
+- **Etapa 0:** é **um script só**, não passos pra você reimplementar —
+  `worker/main.py` já enfileira sozinho (via
+  `POST /api/jobs/enqueue-pending-transcriptions`) e drena a fila. Rode
+  `& .\worker\run_local.ps1` (PowerShell tool, background, espere
+  terminar) e leia o log. Isso não é IA, é só o Whisper — não tem "não
+  invente" nenhum aqui, e você não precisa escrever a query de novo.
 - **Etapa 1:** só depois disso, aulas com transcrição **já aprovada**
   (`Transcript.aprovado_em` preenchido) e ainda sem `resumo` → processa
   aula editada **e** guia de aula, as duas.
