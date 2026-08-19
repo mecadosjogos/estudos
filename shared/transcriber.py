@@ -43,7 +43,18 @@ class WhisperTranscriber:
     def transcribe(self, audio_path: str, on_segment=None) -> TranscriptionOutput:
         """`on_segment(segment_result, duration_s)` é chamado a cada segmento
         pronto — dá pro worker imprimir progresso/ETA em tempo real."""
-        segments_iter, info = self.model.transcribe(audio_path, word_timestamps=True)
+        # condition_on_previous_text=False (o padrão do faster-whisper é True):
+        # numa aula de ~2h, deixar o modelo se condicionar no que ele mesmo
+        # acabou de gerar deixa erro compor erro -- uma vez que ele começa a
+        # repetir um trecho, o texto repetido vira "contexto" pro próximo
+        # trecho, e ele trava reforçando o próprio erro. Confirmado com um
+        # teste real: uma frase inteira ("a lei faz parte de um todo
+        # presumidamente harmônico") sumiu por completo da transcrição de uma
+        # aula de ~111min nesse estado, mas saiu perfeita ao re-transcrever o
+        # mesmo trecho isolado (sem contexto acumulado pra travar em cima).
+        segments_iter, info = self.model.transcribe(
+            audio_path, word_timestamps=True, condition_on_previous_text=False
+        )
 
         segments: list[SegmentResult] = []
         text_parts: list[str] = []

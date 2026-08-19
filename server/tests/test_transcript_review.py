@@ -73,6 +73,69 @@ def test_confidence_helpers_segment_without_words_is_not_flagged(app_env):
     assert not is_low_confidence_segment(segment)
 
 
+def _seg(idx, start_s, text, probability=0.95):
+    from app.models import TranscriptSegment
+
+    words = [{"text": w, "start_s": start_s, "end_s": start_s + 0.5, "probability": probability} for w in text.split()]
+    return TranscriptSegment(
+        transcript_id=1, idx=idx, start_s=start_s, end_s=start_s + 1.0, text=text, words_json=json.dumps(words)
+    )
+
+
+def test_has_recent_repeat_flags_identical_text_within_window():
+    from app.transcript_confidence import has_recent_repeat
+
+    segments = [
+        _seg(0, 0.0, "desta feita."),
+        _seg(1, 5.0, "algo diferente"),
+        _seg(2, 10.0, "desta feita."),
+    ]
+    assert has_recent_repeat(segments, 0)
+    assert has_recent_repeat(segments, 2)
+    assert not has_recent_repeat(segments, 1)
+
+
+def test_has_recent_repeat_ignores_matches_outside_window():
+    from app.transcript_confidence import has_recent_repeat
+
+    segments = [
+        _seg(0, 0.0, "desta feita."),
+        _seg(1, 100.0, "desta feita."),
+    ]
+    assert not has_recent_repeat(segments, 0, window_s=30.0)
+    assert not has_recent_repeat(segments, 1, window_s=30.0)
+
+
+def test_has_recent_repeat_is_case_and_whitespace_insensitive():
+    from app.transcript_confidence import has_recent_repeat
+
+    segments = [_seg(0, 0.0, "Desta Feita."), _seg(1, 2.0, "  desta feita.  ")]
+    assert has_recent_repeat(segments, 0)
+
+
+def test_is_suspicious_segment_catches_high_confidence_repeat_loop():
+    """O caso real que motivou isso: seis trechos com a mesma palavra,
+    cada um com probabilidade individual razoável (o modelo "confiante"
+    reforçando o próprio erro) -- só a probabilidade não pega, a
+    repetição pega."""
+    from app.transcript_confidence import is_low_confidence_segment, is_suspicious_segment
+
+    segments = [_seg(i, i * 0.5, "será", probability=0.8) for i in range(6)]
+    assert not is_low_confidence_segment(segments[0])  # confiança "alta" isolada
+    assert is_suspicious_segment(segments, 0)  # mas a repetição denuncia
+
+
+def test_is_suspicious_segment_leaves_normal_text_alone():
+    from app.transcript_confidence import is_suspicious_segment
+
+    segments = [
+        _seg(0, 0.0, "primeira frase real", probability=0.95),
+        _seg(1, 5.0, "segunda frase diferente", probability=0.95),
+    ]
+    assert not is_suspicious_segment(segments, 0)
+    assert not is_suspicious_segment(segments, 1)
+
+
 def test_transcript_page_marks_low_confidence_segments(app_env):
     client = _authed_client()
     from app.db import holder

@@ -17,6 +17,16 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		end: parseFloat(el.dataset.end),
 	}));
 
+	// loopEnd vai até o INÍCIO do próximo trecho, não o fim do próprio --
+	// o Whisper deixa buracos entre trechos (pausa real, ou às vezes fala
+	// que ele simplesmente não transcreveu), e parar exatamente no
+	// end_s do trecho atual esconde esse buraco da revisão. Um caso real
+	// já achado: uma frase inteira sumiu bem no meio de um buraco desses.
+	segments.forEach((seg, i) => {
+		const next = segments[i + 1];
+		seg.loopEnd = next ? next.start : seg.end;
+	});
+
 	// Loop só entra ao abrir edição (duplo clique) -- clique simples e
 	// "próximo de baixa confiança" tocam normal, sem prender o áudio no
 	// trecho.
@@ -28,7 +38,7 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 	}
 
 	function playSegmentLooped(seg) {
-		loopRange = { start: seg.start, end: seg.end };
+		loopRange = { start: seg.start, end: seg.loopEnd ?? seg.end };
 		playSegment(seg);
 	}
 
@@ -41,7 +51,7 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		});
 	});
 
-	if (editable) initInlineEditing(lessonId, hasAudio ? playSegmentLooped : null);
+	if (editable) initInlineEditing(lessonId, segments, hasAudio ? playSegmentLooped : null);
 
 	const nextLowConfidenceBtn = document.getElementById("next-low-confidence");
 	if (nextLowConfidenceBtn) {
@@ -194,8 +204,9 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
  * final. Duplo clique no trecho abre a edição direto (sem precisar mirar
  * no botão "editar") e já toca o áudio em loop nele, pra corrigir
  * ouvindo repetidas vezes. */
-function initInlineEditing(lessonId, playSegmentLooped) {
-	document.querySelectorAll(".segment").forEach((segmentEl) => {
+function initInlineEditing(lessonId, segments, playSegmentLooped) {
+	segments.forEach((seg) => {
+		const segmentEl = seg.el;
 		const btn = segmentEl.querySelector(".segment-edit-btn");
 		if (!btn) return; // transcrição aprovada — sem edição
 
@@ -277,13 +288,7 @@ function initInlineEditing(lessonId, playSegmentLooped) {
 
 		segmentEl.addEventListener("dblclick", (ev) => {
 			if (ev.target.closest("textarea, .segment-edit-actions")) return;
-			if (playSegmentLooped) {
-				playSegmentLooped({
-					start: parseFloat(segmentEl.dataset.start),
-					end: parseFloat(segmentEl.dataset.end),
-					el: segmentEl,
-				});
-			}
+			if (playSegmentLooped) playSegmentLooped(seg);
 			startEditing();
 		});
 	});

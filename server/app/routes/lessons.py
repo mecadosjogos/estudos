@@ -15,7 +15,7 @@ from .. import config, db
 from ..auth import require_session
 from ..db import get_session
 from ..models import Lesson, Subject, Transcript, TranscriptionJob, TranscriptSegment
-from ..transcript_confidence import is_low_confidence_segment
+from ..transcript_confidence import is_suspicious_segment
 from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
 
 router = APIRouter(prefix="/lessons", dependencies=[Depends(require_session)])
@@ -185,8 +185,9 @@ def lesson_transcript(request: Request, lesson_id: int, session: Session = Depen
     if lesson is None or lesson.transcript is None:
         raise HTTPException(status_code=404, detail="transcrição não encontrada")
 
+    ordered_segments = lesson.transcript.segments  # já vem ordenado por idx (models.py)
     low_confidence_ids = {
-        s.id for s in lesson.transcript.segments if is_low_confidence_segment(s)
+        seg.id for i, seg in enumerate(ordered_segments) if is_suspicious_segment(ordered_segments, i)
     }
     segments_json = json.dumps(
         [
