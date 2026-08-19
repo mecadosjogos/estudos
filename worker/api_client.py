@@ -57,6 +57,11 @@ def submit_result(
 ) -> dict:
     import json
 
+    # payload vai como arquivo, não como campo de formulário comum: uma aula
+    # de verdade tem milhares de segmentos com timestamp por palavra, e o
+    # Starlette limita campo de formulário a 1MB -- só arquivo escapa desse
+    # teto (bug real: só apareceu com uma aula de ~2h, nunca nos testes com
+    # aula de segundos).
     with mp3_path.open("rb") as f:
         response = httpx.post(
             f"{config.SERVER_URL}/api/jobs/{job_id}/result",
@@ -66,9 +71,11 @@ def submit_result(
                 "worker_name": worker_name,
                 "engine": engine,
                 "duration_s": str(duration_s),
-                "payload": json.dumps(payload),
             },
-            files={"audio": (mp3_path.name, f, "audio/mpeg")},
+            files={
+                "audio": (mp3_path.name, f, "audio/mpeg"),
+                "payload": ("payload.json", json.dumps(payload).encode("utf-8"), "application/json"),
+            },
             timeout=600,
         )
     response.raise_for_status()

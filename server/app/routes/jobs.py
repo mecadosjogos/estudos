@@ -250,10 +250,14 @@ async def submit_result(
     worker_name: str = Form(...),
     engine: str = Form(...),
     duration_s: float = Form(...),
-    payload: str = Form(...),
+    payload: UploadFile = File(...),
     audio: UploadFile = File(...),
     session: Session = Depends(get_session),
 ):
+    """`payload` chega como arquivo, não como campo de formulário comum —
+    o Starlette limita um campo de formulário a 1MB, e uma aula de ~2h
+    facilmente passa disso com timestamp por palavra em milhares de
+    segmentos. Só peças com filename escapam desse teto."""
     job = session.get(TranscriptionJob, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job não encontrado")
@@ -266,7 +270,7 @@ async def submit_result(
             status_code=409, detail="claim inválido ou expirado — outro worker já processou"
         )
 
-    data = json.loads(payload)
+    data = json.loads(await payload.read())
     ingest_result(
         session,
         job,

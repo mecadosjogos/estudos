@@ -140,11 +140,9 @@ def test_result_submission_is_idempotent(app_env):
         "worker_name": "desktop-4070",
         "engine": "faster-whisper-large-v3",
         "duration_s": "1.0",
-        "payload": payload,
     }
-    first = client.post(
-        f"/api/jobs/{claim['id']}/result", data=form, files={"audio": ("a.mp3", b"fake-mp3")}
-    )
+    files = {"audio": ("a.mp3", b"fake-mp3"), "payload": ("payload.json", payload)}
+    first = client.post(f"/api/jobs/{claim['id']}/result", data=form, files=files)
     assert first.status_code == 200
     assert first.json() == {"ok": True, "already_received": False}
 
@@ -152,9 +150,7 @@ def test_result_submission_is_idempotent(app_env):
         assert session.query(Transcript).filter_by(lesson_id=lesson_id).count() == 1
 
     # reenvio depois de um timeout de rede: mesmo claim_token, não duplica
-    second = client.post(
-        f"/api/jobs/{claim['id']}/result", data=form, files={"audio": ("a.mp3", b"fake-mp3")}
-    )
+    second = client.post(f"/api/jobs/{claim['id']}/result", data=form, files=files)
     assert second.status_code == 200
     assert second.json() == {"ok": True, "already_received": True}
 
@@ -164,6 +160,51 @@ def test_result_submission_is_idempotent(app_env):
     with holder.SessionLocal() as session:
         job = session.get(TranscriptionJob, claim["id"])
         assert job.status == "done"
+
+
+def test_result_submission_accepts_payload_over_1mb(app_env):
+    """Regressão real: uma aula de ~2h gera milhares de segmentos com
+    timestamp por palavra, passando fácil de 1MB de JSON. O Starlette
+    limita CAMPO de formulário a 1MB — só passou a funcionar depois de o
+    payload virar parte de arquivo no multipart, não campo de texto."""
+    client = _authed_client()
+    from app.db import holder
+    from app.models import Transcript
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_lesson_with_segment(session)
+        from app.models import TranscriptionJob
+
+        session.add(TranscriptionJob(lesson_id=lesson_id, target="gpu_worker"))
+        session.commit()
+
+    claim = client.get("/api/jobs/next", params={"worker_name": "desktop-4070"}).json()["job"]
+
+    # ~2500 segmentos com palavras -- facilmente > 1MB de JSON, como numa
+    # aula real de ~2h.
+    segments = [
+        {
+            "idx": i, "start_s": float(i), "end_s": float(i + 1),
+            "text": "uma frase de teste razoavelmente longa para inflar o payload",
+            "words": [{"text": "palavra", "start_s": float(i), "end_s": float(i) + 0.5, "probability": 0.9}] * 8,
+        }
+        for i in range(2500)
+    ]
+    payload = json.dumps({"full_text": "x" * 1000, "segments": segments})
+    assert len(payload.encode("utf-8")) > 1024 * 1024  # confirma que o teste testa o cenário real
+
+    form = {
+        "claim_token": claim["claim_token"], "worker_name": "desktop-4070",
+        "engine": "faster-whisper-large-v3", "duration_s": "6661.0",
+    }
+    files = {"audio": ("a.mp3", b"fake-mp3"), "payload": ("payload.json", payload)}
+    response = client.post(f"/api/jobs/{claim['id']}/result", data=form, files=files)
+
+    assert response.status_code == 200
+    with holder.SessionLocal() as session:
+        transcript = session.query(Transcript).filter_by(lesson_id=lesson_id).first()
+        assert transcript is not None
+        assert len(transcript.segments) == 2500
 
 
 def test_result_submission_rejects_wrong_claim_token(app_env):
@@ -183,11 +224,12 @@ def test_result_submission_rejects_wrong_claim_token(app_env):
         "worker_name": "desktop-4070",
         "engine": "faster-whisper-large-v3",
         "duration_s": "1.0",
-        "payload": json.dumps({"full_text": "x", "segments": []}),
     }
-    response = client.post(
-        f"/api/jobs/{claim['id']}/result", data=form, files={"audio": ("a.mp3", b"fake-mp3")}
-    )
+    files = {
+        "audio": ("a.mp3", b"fake-mp3"),
+        "payload": ("payload.json", json.dumps({"full_text": "x", "segments": []})),
+    }
+    response = client.post(f"/api/jobs/{claim['id']}/result", data=form, files=files)
     assert response.status_code == 409
 
 
@@ -224,9 +266,12 @@ def test_original_deleted_from_vps_after_successful_result(app_env, tmp_path):
     form = {
         "claim_token": claim["claim_token"], "worker_name": "w",
         "engine": "e", "duration_s": "1.0",
-        "payload": json.dumps({"full_text": "x", "segments": []}),
     }
-    client.post(f"/api/jobs/{claim['id']}/result", data=form, files={"audio": ("a.mp3", b"fake")})
+    files = {
+        "audio": ("a.mp3", b"fake"),
+        "payload": ("payload.json", json.dumps({"full_text": "x", "segments": []})),
+    }
+    client.post(f"/api/jobs/{claim['id']}/result", data=form, files=files)
 
     assert not real_original.exists()
 
