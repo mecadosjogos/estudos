@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Feynman — {{ term.rotulo }}{% endblock %}
+{% block content %}
+<p><a href="/termos/{{ term.id }}">← {{ term.rotulo }}</a></p>
+<h1>Explique: {{ term.rotulo }}</h1>
+<p class="muted">Grave-se explicando o termo em voz alta, como se estivesse ensinando alguém — ~60 segundos bastam. Depois o sistema compara com a definição do professor e mostra o que faltou.</p>
+
+<div class="card">
+	<p id="feynman-status" class="muted">Pronto pra gravar.</p>
+	<p class="button-row">
+		<button type="button" id="feynman-start">● Gravar</button>
+		<button type="button" id="feynman-stop" disabled>■ Parar</button>
+	</p>
+	<audio id="feynman-preview" controls hidden style="width:100%"></audio>
+	<p class="button-row">
+		<button type="button" id="feynman-send" disabled>Enviar e transcrever</button>
+	</p>
+</div>
+
+{% if attempts %}
+<div class="card">
+	<h2>Tentativas anteriores</h2>
+	{% for a in attempts %}
+	<p><a href="/termos/{{ term.id }}/feynman/{{ a.id }}">{{ a.criado_em }}</a> — <span class="badge">{{ a.status }}</span></p>
+	{% endfor %}
+</div>
+{% endif %}
+
+<script>
+	const startBtn = document.getElementById("feynman-start");
+	const stopBtn = document.getElementById("feynman-stop");
+	const sendBtn = document.getElementById("feynman-send");
+	const statusEl = document.getElementById("feynman-status");
+	const preview = document.getElementById("feynman-preview");
+
+	let mediaRecorder = null;
+	let chunks = [];
+	let recordedBlob = null;
+
+	startBtn.addEventListener("click", async () => {
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+		chunks = [];
+		mediaRecorder = new MediaRecorder(stream);
+		mediaRecorder.addEventListener("dataavailable", (e) => { if (e.data.size > 0) chunks.push(e.data); });
+		mediaRecorder.addEventListener("stop", () => {
+			recordedBlob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+			preview.src = URL.createObjectURL(recordedBlob);
+			preview.hidden = false;
+			sendBtn.disabled = false;
+			statusEl.textContent = "Gravação pronta — confira e envie.";
+			stream.getTracks().forEach((t) => t.stop());
+		});
+		mediaRecorder.start();
+		startBtn.disabled = true;
+		stopBtn.disabled = false;
+		statusEl.textContent = "Gravando...";
+	});
+
+	stopBtn.addEventListener("click", () => {
+		if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+		startBtn.disabled = false;
+		stopBtn.disabled = true;
+	});
+
+	sendBtn.addEventListener("click", async () => {
+		if (!recordedBlob) return;
+		sendBtn.disabled = true;
+		statusEl.textContent = "Enviando e transcrevendo...";
+		const formData = new FormData();
+		const ext = (recordedBlob.type.split("/")[1] || "webm").split(";")[0];
+		formData.append("audio", recordedBlob, `gravacao.${ext}`);
+		const response = await fetch("/termos/{{ term.id }}/feynman", { method: "POST", body: formData });
+		if (response.redirected) {
+			window.location.href = response.url;
+		} else {
+			statusEl.textContent = "Erro ao enviar — tente de novo.";
+			sendBtn.disabled = false;
+		}
+	});
+</script>
+{% endblock %}

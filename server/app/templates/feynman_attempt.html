@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Feynman — {{ term.rotulo }}{% endblock %}
+{% block content %}
+<p><a href="/termos/{{ term.id }}/feynman">← Gravar de novo</a></p>
+<h1>{{ term.rotulo }}</h1>
+
+{% if request.query_params.get("erro_ia") %}
+<div class="card error">{{ request.query_params.get("erro_ia") }}</div>
+{% endif %}
+
+<div class="card">
+	<h2>Sua explicação</h2>
+	<audio controls src="/termos/{{ term.id }}/feynman/{{ attempt.id }}/audio" style="width:100%"></audio>
+	{% if attempt.transcript_text %}
+	<p>{{ attempt.transcript_text }}</p>
+	{% else %}
+	<p class="muted">Transcrição indisponível{% if attempt.erro %}: {{ attempt.erro }}{% endif %}.</p>
+	{% endif %}
+</div>
+
+{% if attempt.status == "avaliado" %}
+<div class="card">
+	<h2>Avaliação</h2>
+	<p><strong>Você cobriu:</strong> {{ pontos_cobertos | join(" · ") if pontos_cobertos else "—" }}</p>
+	{% if pontos_faltantes %}
+	<p><strong>Faltou:</strong></p>
+	<ul>{% for f in pontos_faltantes %}<li>{{ f }}</li>{% endfor %}</ul>
+	{% else %}
+	<p class="muted">Nada faltando — cobriu tudo que a definição do professor tem.</p>
+	{% endif %}
+	{% if divergencias %}
+	<p><strong>Divergência de termo:</strong></p>
+	<ul>{% for d in divergencias %}<li>{{ d }}</li>{% endfor %}</ul>
+	{% endif %}
+	{% if attempt.comentario_geral %}<p>{{ attempt.comentario_geral }}</p>{% endif %}
+</div>
+{% else %}
+<div class="card">
+	<h2>Avaliar contra a definição do professor</h2>
+	<form method="post" action="/termos/{{ term.id }}/feynman/{{ attempt.id }}/avaliar">
+		<button type="submit">Avaliar (automático)</button>
+	</form>
+	<p class="button-row" style="margin-top: var(--space-3)">
+		<a class="button" href="/termos/{{ term.id }}/feynman/{{ attempt.id }}/prompt.md">Baixar pacote (.md)</a>
+		<a class="button" href="/termos/{{ term.id }}/feynman/{{ attempt.id }}/colar-resposta">Colar resposta</a>
+	</p>
+</div>
+{% endif %}
+
+<div class="card">
+	<h2>Definições do professor usadas na comparação</h2>
+	{% for d in definitions %}
+	<p>{% if d.subject %}<span class="badge">{{ d.subject.sigla }}</span>{% endif %} {{ d.definicao_md }}
+		{% if d.lesson_id and d.start_s is not none %}<a href="/lessons/{{ d.lesson_id }}/transcricao?t={{ d.start_s }}">▸ ouvir</a>{% endif %}
+	</p>
+	{% else %}
+	<p class="muted">Nenhuma definição ativa pra este termo ainda.</p>
+	{% endfor %}
+</div>
+{% endblock %}

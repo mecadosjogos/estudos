@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Mapa de taxonomia — {{ lesson.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
+<h1>Mapa de taxonomia</h1>
+<p class="muted">A estrutura de classificação que o professor construiu nesta aula. Um nó sublinhado leva ao verbete do glossário.</p>
+
+<div class="card">
+	<pre class="mermaid">{{ mermaid_src }}</pre>
+</div>
+
+<script src="/static/mermaid.min.js"></script>
+<script>
+	mermaid.initialize({ startOnLoad: true, securityLevel: "loose", theme: "neutral" });
+</script>
+{% endblock %}

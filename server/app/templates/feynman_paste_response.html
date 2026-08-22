@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Colar avaliação — {{ term.rotulo }}{% endblock %}
+{% block content %}
+<p><a href="/termos/{{ term.id }}/feynman/{{ attempt.id }}">← {{ term.rotulo }}</a></p>
+<h1>Colar avaliação</h1>
+<p class="muted">Cole aqui a resposta que você recebeu do Claude (pode vir com conversa em volta do bloco <code>```json</code> — o parser é tolerante).</p>
+
+{% if request.query_params.get("erro") %}
+<div class="card error">{{ request.query_params.get("erro") }}</div>
+{% endif %}
+
+<form method="post" action="/termos/{{ term.id }}/feynman/{{ attempt.id }}/colar-resposta">
+	<textarea name="resposta" rows="16" style="width:100%; font-family: monospace;" required></textarea>
+	<p><button type="submit">Processar resposta</button></p>
+</form>
+{% endblock %}

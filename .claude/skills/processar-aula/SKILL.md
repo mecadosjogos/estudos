@@ -30,12 +30,21 @@ completar a primeira** — a etapa 0 do RUNBOOK.md, seguida da etapa 1:
 - **Etapa 0:** é **um script só**, não passos pra você reimplementar —
   `worker/main.py` já enfileira sozinho (via
   `POST /api/jobs/enqueue-pending-transcriptions`) e drena a fila. Rode
-  `& .\worker\run_local.ps1` (PowerShell tool, background, espere
-  terminar) e leia o log. Isso não é IA, é só o Whisper — não tem "não
-  invente" nenhum aqui, e você não precisa escrever a query de novo.
+  `& .\worker\run_local.ps1` **em primeiro plano, nunca em background**
+  (`run_in_background: false`/sem essa opção) — espere o comando em si
+  retornar, não um aviso de conclusão depois. Isso é essencial em execução
+  não-interativa (`claude -p`, sem sessão aberta): não existe um "turno
+  seguinte" pra uma notificação de background chegar, então rodar em
+  background ali abandona o job **reivindicado e travado** sem ninguém
+  transcrevendo (bug real, já aconteceu: job ficou "claimed" por 15 min
+  até o timeout de reivindicação obsoleta liberar de novo). Isso não é
+  IA, é só o Whisper — não tem "não invente" nenhum aqui, e você não
+  precisa escrever a query de novo.
 - **Etapa 1:** só depois disso, aulas com transcrição **já aprovada**
-  (`Transcript.aprovado_em` preenchido) e ainda sem `resumo` → processa
-  aula editada **e** guia de aula, as duas.
+  (`Transcript.aprovado_em` preenchido) e ainda sem `resumo` → processa.
+  **Uma leitura só da transcrição gera tudo**: aula editada, cards,
+  propostas e o guia de aula (`guia_md`) saem do mesmo JSON — não baixe
+  nem cole nada duas vezes por aula.
 
 **Aula com transcrição pendente de revisão humana (sem aprovar) NUNCA
 entra na etapa 1** — ela fica esperando você revisar em

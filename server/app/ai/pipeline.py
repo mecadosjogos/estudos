@@ -16,6 +16,7 @@ from ..models import (
     AnnouncementProposal,
     ArticleMention,
     CardProposal,
+    Definition,
     EditedBlock,
     Lesson,
     LessonAssunto,
@@ -158,6 +159,15 @@ def _ingest(
         raise ProcessingError(f"resposta não bate com o formato esperado: {exc}") from exc
 
     lesson.resumo = output.resumo
+    # Guia de aula (fase 6): antes uma segunda chamada separada (ai/guia.py),
+    # agora sai da mesma leitura -- regenerado por inteiro a cada
+    # reprocessamento, sem deriv_key, igual sempre foi (é um documento
+    # único, não uma lista de artefatos com identidade própria).
+    lesson.guia_md = output.guia_md
+    lesson.guia_gerado_em = datetime.now(timezone.utc)
+    # Mapa de taxonomia (fase 15): mesmo motivo do guia -- documento único,
+    # regenerado por inteiro, sem deriv_key.
+    lesson.mapa_mermaid = output.mapa_mermaid
     transcript_segments = lesson.transcript.segments if lesson.transcript else []
 
     block_counts: dict[tuple, int] = {}
@@ -252,7 +262,52 @@ def _ingest(
         )
         for c in output.cards
     ]
-    reconcile(session, CardProposal, lesson.id, card_items, has_versao_nova=True)
+
+    # Pares confundíveis (fase 8b) viram card de discriminação na mesma
+    # tabela. Sem intervalo único de origem (o par cobre dois momentos, não
+    # um) -- a chave estável é a identidade dos dois termos, canonizada em
+    # ordem alfabética pra "A x B" e "B x A" entre reprocessamentos caírem
+    # na mesma chave. Junta com card_items num reconcile só: chamar duas
+    # vezes marcaria os cards órfãos enquanto reconcilia os pares (e
+    # vice-versa) -- reconcile varre TODA a tabela pelo lesson_id, não só
+    # os itens que recebeu nesta chamada.
+    pair_counts: dict[tuple, int] = {}
+    pair_items = []
+    for p in output.pares_confundiveis:
+        if p.termo_a.strip().lower() <= p.termo_b.strip().lower():
+            termo_a, termo_b = p.termo_a, p.termo_b
+            start_s_a, end_s_a, start_s_b, end_s_b = p.start_s_a, p.end_s_a, p.start_s_b, p.end_s_b
+        else:
+            termo_a, termo_b = p.termo_b, p.termo_a
+            start_s_a, end_s_a, start_s_b, end_s_b = p.start_s_b, p.end_s_b, p.start_s_a, p.end_s_a
+
+        pair_ident = (termo_a.strip().lower(), termo_b.strip().lower())
+        occurrence = pair_counts.get(pair_ident, 0)
+        pair_counts[pair_ident] = occurrence + 1
+        source_text = "|".join(pair_ident) if occurrence == 0 else "|".join(pair_ident) + f"|{occurrence}"
+        key = compute_deriv_key("par", 0.0, 0.0, source_text)
+
+        pair_items.append(
+            (
+                key,
+                {
+                    "tipo": "discriminacao",
+                    "frente": f"{termo_a} × {termo_b}: qual a diferença?",
+                    "verso": p.eixo_distincao,
+                    "start_s": start_s_a or 0.0,
+                    "end_s": end_s_a or 0.0,
+                    "termo_a": termo_a,
+                    "termo_b": termo_b,
+                    "eixo_distincao": p.eixo_distincao,
+                    "start_s_a": start_s_a,
+                    "end_s_a": end_s_a,
+                    "start_s_b": start_s_b,
+                    "end_s_b": end_s_b,
+                },
+            )
+        )
+
+    reconcile(session, CardProposal, lesson.id, card_items + pair_items, has_versao_nova=True)
 
     # Assunto (fase 8): sem intervalo -- a proposta é sobre a aula inteira,
     # então a chave de dedup é o slug do texto, não um hash de intervalo.
@@ -260,6 +315,32 @@ def _ingest(
         (f"assunto:{normalize_slug(texto)}", {"texto_proposto": texto}) for texto in output.assuntos
     ]
     reconcile(session, LessonAssunto, lesson.id, assunto_items)
+
+    # Termo (fase 11): mesmo adiamento de resolução do assunto -- term_id
+    # só é preenchido na aceitação (routes/glossary.py), pra grafia errada
+    # da IA não virar Term global antes de você poder corrigir.
+    term_counts: dict[tuple, int] = {}
+    term_items = [
+        (
+            _disambiguated_key(
+                term_counts,
+                "termo",
+                t.start_s,
+                t.start_s,
+                _source_text_for_interval(transcript_segments, t.start_s, t.start_s + 1),
+            ),
+            {
+                "termo_proposto": t.termo,
+                "variantes_propostas_json": json.dumps(t.variantes, ensure_ascii=False),
+                "definicao_md": t.definicao,
+                "citacao_literal": t.citacao_literal,
+                "start_s": t.start_s,
+                "subject_id": lesson.subject_id,
+            },
+        )
+        for t in output.termos
+    ]
+    reconcile(session, Definition, lesson.id, term_items)
 
     cost = (
         estimate_cost_usd(model, input_tokens, output_tokens, cache_read_input_tokens)

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Biblioteca{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Biblioteca</h1>
+<p class="muted">Livros, capítulos e fotos de página — a obra é permanente, o uso é datado por matéria.</p>
+
+<div class="card">
+	<h2>Estante ({{ works|length }})</h2>
+	<ul class="timeline">
+		{% for w in works %}
+		<li>
+			<a href="/works/{{ w.id }}"><strong>{{ w.titulo }}</strong></a>
+			{% if w.autores %}<span class="muted">— {{ w.autores }}</span>{% endif %}
+		</li>
+		{% else %}
+		<li class="muted">Nenhuma obra cadastrada ainda.</li>
+		{% endfor %}
+	</ul>
+</div>
+
+<div class="card">
+	<h2>Cadastrar obra</h2>
+	<form method="post" action="/works">
+		<p><label>Título<br><input type="text" name="titulo" required></label></p>
+		<p><label>Subtítulo<br><input type="text" name="subtitulo"></label></p>
+		<p><label>Autores (separe vários por ";")<br><input type="text" name="autores" placeholder="Sobrenome Nome; Sobrenome Nome"></label></p>
+		<p><label>Organizadores<br><input type="text" name="organizadores"></label></p>
+		<p><label>Tradutor<br><input type="text" name="tradutor"></label></p>
+		<div class="button-row">
+			<label>Edição<br><input type="text" name="edicao" placeholder="4. ed."></label>
+			<label>Volume<br><input type="text" name="volume"></label>
+			<label>Tomo<br><input type="text" name="tomo"></label>
+		</div>
+		<div class="button-row">
+			<label>Local<br><input type="text" name="local"></label>
+			<label>Editora<br><input type="text" name="editora"></label>
+			<label>Ano<br><input type="text" name="ano"></label>
+		</div>
+		<p><label>ISBN<br><input type="text" name="isbn"></label></p>
+		<button type="submit">Cadastrar</button>
+	</form>
+</div>
+{% endblock %}

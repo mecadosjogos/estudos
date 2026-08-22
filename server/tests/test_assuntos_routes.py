@@ -44,6 +44,7 @@ def _pasted_response(assuntos) -> str:
             {"tipo": "conceito", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0},
         ],
         "indice": [{"titulo": "Posse", "start_s": 0.0, "end_s": 5.0}],
+        "guia_md": "# Posse\n\nGuia de teste.",
         "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": assuntos,
     }
@@ -96,6 +97,48 @@ def test_accept_lesson_assunto_creates_assunto_and_cobertura(app_env):
             select(AssuntoCobertura).where(AssuntoCobertura.assunto_id == assunto.id)
         )
         assert cobertura is not None
+
+
+def test_approval_screen_suggests_merge_for_similar_assunto(app_env):
+    client = _authed_client()
+    from app.assuntos import find_or_create_assunto
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        find_or_create_assunto(session, "Capacidade de Fato")
+        session.commit()
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response(["Capacidade"])})
+
+    response = client.get(f"/lessons/{lesson_id}/aprovacao")
+    assert "juntar em" in response.text
+    assert "Capacidade de Fato" in response.text
+
+
+def test_accepting_existing_spelling_does_not_create_second_assunto(app_env):
+    client = _authed_client()
+    from sqlalchemy import select
+
+    from app.assuntos import find_or_create_assunto
+    from app.db import holder
+    from app.models import Assunto, LessonAssunto
+
+    with holder.SessionLocal() as session:
+        find_or_create_assunto(session, "Capacidade de Fato")
+        session.commit()
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response(["Capacidade"])})
+
+    with holder.SessionLocal() as session:
+        proposal_id = session.scalar(select(LessonAssunto.id).where(LessonAssunto.lesson_id == lesson_id))
+
+    client.post(f"/lessons/{lesson_id}/assuntos/{proposal_id}/aceitar", data={"titulo": "Capacidade de Fato"})
+
+    with holder.SessionLocal() as session:
+        assuntos = session.scalars(select(Assunto)).all()
+        assert len(assuntos) == 1
 
 
 def test_accept_two_lessons_same_topic_dedupe_into_one_assunto(app_env):
@@ -155,6 +198,59 @@ def test_assunto_detail_page_shows_linked_lessons_and_cards(app_env):
     assert response.status_code == 200
     assert "Aula assuntos" in response.text
     assert "1 card(s) ativo(s)" in response.text
+
+
+def test_assunto_detail_page_shows_termos_artigos_e_material(app_env):
+    """Fase 12: "une informações antigas" — termos aceitos, artigos
+    citados e material usado nas aulas vinculadas ao assunto, sem tabela
+    de vínculo nova (derivado de lesson_id)."""
+    import json as jsonlib
+
+    client = _authed_client()
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import Assunto, Definition, LessonAssunto, Material, MaterialUse, Subject
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+        subject_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
+        material = Material(titulo="Resumo de posse", origem="texto", conteudo_md="x", status="ok")
+        session.add(material)
+        session.flush()
+        session.add(MaterialUse(material_id=material.id, subject_id=subject_id, lesson_id=lesson_id, rotulo="cap. 3"))
+        session.commit()
+
+    payload = {
+        "resumo": "R.",
+        "aula_editada": [{"tipo": "conceito", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0}],
+        "indice": [], "guia_md": "# G",
+        "artigos": [{"texto_citado": "art. 1.196 CC", "start_s": 0.0}],
+        "datas_anunciadas": [], "cards": [],
+        "termos": [{"termo": "Posse", "definicao": "Def.", "citacao_literal": "cit.", "start_s": 0.0, "variantes": []}],
+        "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": ["Posse"],
+    }
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": "```json\n" + jsonlib.dumps(payload, ensure_ascii=False) + "\n```"},
+    )
+
+    with holder.SessionLocal() as session:
+        assunto_proposal_id = session.scalar(select(LessonAssunto.id).where(LessonAssunto.lesson_id == lesson_id))
+        termo_proposal_id = session.scalar(select(Definition.id).where(Definition.lesson_id == lesson_id))
+
+    client.post(f"/lessons/{lesson_id}/assuntos/{assunto_proposal_id}/aceitar", data={"titulo": "Posse"})
+    client.post(f"/lessons/{lesson_id}/termos/{termo_proposal_id}/aceitar", data={"termo": "Posse"})
+
+    with holder.SessionLocal() as session:
+        assunto_id = session.scalar(select(Assunto.id).where(Assunto.slug == "posse"))
+
+    response = client.get(f"/assuntos/{assunto_id}")
+    assert response.status_code == 200
+    assert "Posse" in response.text  # termo relacionado
+    assert "art. 1.196 CC" in response.text
+    assert "Resumo de posse" in response.text
+    assert "cap. 3" in response.text
 
 
 def test_fundir_migrates_links_and_redirects_to_target(app_env):

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Destaques em áudio{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Destaques em áudio</h1>
+<p class="muted">Os momentos marcados como destaque-prova e ditado nas últimas aulas — melhor ouvir 15 minutos de destaque do que 2 horas de aula inteira.</p>
+
+<div class="card">
+	<p id="destaques-status" class="muted">{{ blocks|length }} clipe(s) na fila.</p>
+	<audio id="destaques-player" controls style="width:100%"></audio>
+	<p class="button-row">
+		<button type="button" id="destaques-prev">◂ anterior</button>
+		<button type="button" id="destaques-play">▸ tocar</button>
+		<button type="button" id="destaques-next">próximo ▸</button>
+	</p>
+	<p id="destaques-atual" class="muted"></p>
+</div>
+
+<ul class="search-results" id="destaques-lista">
+	{% for block in blocks %}
+	<li data-index="{{ loop.index0 }}" data-src="/destaques/{{ block.id }}/clip.mp3">
+		<button type="button" class="destaque-tocar">▸ tocar</button>
+		<span class="badge">{{ block.tipo }}</span>
+		<span class="badge destaque-subject">{{ block.lesson.subject.sigla }}</span>
+		<strong>{{ block.lesson.titulo }}</strong>
+		<span class="muted">{{ block.lesson.data.strftime("%d/%m/%Y") }}</span>
+		<a href="/lessons/{{ block.lesson_id }}/aula-editada#bloco-{{ block.id }}" class="muted">ver na aula →</a>
+		<p class="snippet">{{ block.texto[:160] }}{% if block.texto|length > 160 %}…{% endif %}</p>
+	</li>
+	{% else %}
+	<p class="muted">Nenhum destaque ainda — processe algumas aulas primeiro.</p>
+	{% endfor %}
+</ul>
+
+<script>
+	const items = Array.from(document.querySelectorAll("#destaques-lista li"));
+	const player = document.getElementById("destaques-player");
+	const statusEl = document.getElementById("destaques-atual");
+	let current = -1;
+
+	function load(index) {
+		if (index < 0 || index >= items.length) return;
+		current = index;
+		const item = items[index];
+		player.src = item.dataset.src;
+		player.play();
+		const titulo = item.querySelector("strong").textContent;
+		statusEl.textContent = `${index + 1}/${items.length} — ${titulo}`;
+		items.forEach((el) => el.classList.remove("destaque-atual"));
+		item.classList.add("destaque-atual");
+
+		if ("mediaSession" in navigator) {
+			navigator.mediaSession.metadata = new MediaMetadata({
+				title: titulo,
+				artist: item.querySelector(".destaque-subject").textContent,
+				album: "Destaques — Estudos",
+			});
+		}
+	}
+
+	document.getElementById("destaques-play").addEventListener("click", () => {
+		if (current === -1) load(0);
+		else if (player.paused) player.play();
+		else player.pause();
+	});
+	document.getElementById("destaques-prev").addEventListener("click", () => load(Math.max(current - 1, 0)));
+	document.getElementById("destaques-next").addEventListener("click", () => load(Math.min(current + 1, items.length - 1)));
+	player.addEventListener("ended", () => load(current + 1));
+
+	items.forEach((item, index) => {
+		item.querySelector(".destaque-tocar").addEventListener("click", () => load(index));
+	});
+
+	if ("mediaSession" in navigator) {
+		navigator.mediaSession.setActionHandler("play", () => player.play());
+		navigator.mediaSession.setActionHandler("pause", () => player.pause());
+		navigator.mediaSession.setActionHandler("previoustrack", () => load(Math.max(current - 1, 0)));
+		navigator.mediaSession.setActionHandler("nexttrack", () => load(Math.min(current + 1, items.length - 1)));
+	}
+</script>
+{% endblock %}

@@ -44,6 +44,7 @@ def _pasted_response(overrides=None) -> str:
             {"tipo": "destaque-prova", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0},
         ],
         "indice": [{"titulo": "Posse", "start_s": 0.0, "end_s": 5.0}],
+        "guia_md": "# Posse\n\nGuia de teste.",
         "artigos": [],
         "datas_anunciadas": [{"texto": "prova dia 12", "data_anunciada": "2026-04-12", "start_s": 1.0}],
         "cards": [{"frente": "Pergunta", "verso": "Resposta", "start_s": 0.0, "end_s": 5.0}],
@@ -249,6 +250,154 @@ def test_block_observacao_and_confirmacao(app_env):
         assert session.get(EditedBlock, block_id).confirmado_em is not None
 
 
+def test_approval_screen_lists_pending_pairs_separately_from_cards(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response({
+            "pares_confundiveis": [
+                {
+                    "termo_a": "dolo eventual", "termo_b": "culpa consciente",
+                    "eixo_distincao": "assumir o risco x confiar que não ocorrerá",
+                    "start_s_a": 1.0, "end_s_a": 2.0, "start_s_b": 3.0, "end_s_b": 4.0,
+                },
+            ],
+        })},
+    )
+    response = client.get(f"/lessons/{lesson_id}/aprovacao")
+
+    assert "Pares de discriminação propostos (1)" in response.text
+    assert "dolo eventual" in response.text
+    assert "culpa consciente" in response.text
+    assert "assumir o risco" in response.text
+    assert "Cards propostos (1)" in response.text
+
+
+def test_accept_all_pairs_activates_only_pairs(app_env):
+    client = _authed_client()
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import CardProposal
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response({
+            "pares_confundiveis": [
+                {"termo_a": "nulidade", "termo_b": "anulabilidade", "eixo_distincao": "interesse público x privado"},
+            ],
+        })},
+    )
+
+    client.post(f"/lessons/{lesson_id}/pares/aceitar-todos")
+
+    with holder.SessionLocal() as session:
+        flashcard = session.scalar(select(CardProposal).where(CardProposal.tipo == "flashcard"))
+        pair = session.scalar(select(CardProposal).where(CardProposal.tipo == "discriminacao"))
+        assert flashcard.status == "pendente"
+        assert pair.status == "aceito"
+
+
+def test_accept_all_cards_redirects_with_summary_and_undo(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response()})
+
+    response = client.post(f"/lessons/{lesson_id}/cards/aceitar-todos", follow_redirects=False)
+    location = response.headers["location"]
+    assert "aceitos=1" in location
+    assert "desfazer=" in location
+
+
+def test_undo_accept_returns_cards_to_pending(app_env):
+    client = _authed_client()
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import CardProposal
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response()})
+    accept_response = client.post(f"/lessons/{lesson_id}/cards/aceitar-todos", follow_redirects=False)
+    location = accept_response.headers["location"]
+    ids = location.split("desfazer=")[1]
+
+    client.post(f"/lessons/{lesson_id}/cards/desfazer-aceite", data={"ids": ids})
+
+    with holder.SessionLocal() as session:
+        card = session.scalar(select(CardProposal).where(CardProposal.tipo == "flashcard"))
+        assert card.status == "pendente"
+        assert card.due_date is None
+
+
+def test_undo_skips_already_reviewed_card(app_env):
+    client = _authed_client()
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.db import holder
+    from app.models import CardProposal
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response()})
+    accept_response = client.post(f"/lessons/{lesson_id}/cards/aceitar-todos", follow_redirects=False)
+    location = accept_response.headers["location"]
+    ids = location.split("desfazer=")[1]
+
+    with holder.SessionLocal() as session:
+        card = session.scalar(select(CardProposal).where(CardProposal.tipo == "flashcard"))
+        card.last_reviewed_at = datetime.now(timezone.utc)
+        session.commit()
+
+    client.post(f"/lessons/{lesson_id}/cards/desfazer-aceite", data={"ids": ids})
+
+    with holder.SessionLocal() as session:
+        card = session.scalar(select(CardProposal).where(CardProposal.tipo == "flashcard"))
+        assert card.status == "aceito"
+
+
+def test_edited_lesson_marks_cloze_words_only_on_ditado_and_conceito(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response({
+            "aula_editada": [
+                {"tipo": "conceito", "texto": "Usucapião extraordinária exige posse mansa e pacífica.", "start_s": 0.0, "end_s": 5.0},
+                {"tipo": "normal", "texto": "Segue explicação complementar sobre o assunto.", "start_s": 5.0, "end_s": 10.0},
+            ],
+        })},
+    )
+
+    response = client.get(f"/lessons/{lesson_id}/aula-editada")
+    assert response.status_code == 200
+    assert 'class="cloze-word"' in response.text
+    # o bloco "normal" não ganha cloze -- só ditado/conceito -- e continua
+    # aparecendo por inteiro, sem nenhuma palavra virando span
+    assert "Segue explicação complementar sobre o assunto." in response.text
+
+
 def test_lesson_detail_shows_processing_buttons_disabled_when_transcribed(app_env):
     """Os botões de processamento de IA na tela da aula estão desligados
     temporariamente (decisão do usuário) — as rotas continuam existindo
@@ -263,5 +412,21 @@ def test_lesson_detail_shows_processing_buttons_disabled_when_transcribed(app_en
     response = client.get(f"/lessons/{lesson_id}")
     assert f"/lessons/{lesson_id}/processar" in response.text
     assert "disabled" in response.text
+    assert f"/lessons/{lesson_id}/pacote.md" not in response.text
+    assert f"/lessons/{lesson_id}/colar-resposta" not in response.text
+
+
+def test_lesson_detail_explains_where_processing_happens(app_env):
+    """A tela não some com o caminho manual quando desliga os botões --
+    explica que quem processa é uma conversa do Claude Code, sem citar
+    as URLs que o teste acima garante que não aparecem na página."""
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    response = client.get(f"/lessons/{lesson_id}")
+    assert "processar-aula" in response.text
     assert f"/lessons/{lesson_id}/pacote.md" not in response.text
     assert f"/lessons/{lesson_id}/colar-resposta" not in response.text

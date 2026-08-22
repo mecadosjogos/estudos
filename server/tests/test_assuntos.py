@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.assuntos import ensure_cobertura, find_or_create_assunto, merge_assuntos, normalize_slug
+from app.assuntos import ensure_cobertura, find_or_create_assunto, merge_assuntos, normalize_slug, similar_slugs
 
 
 def test_normalize_slug_strips_accent_and_case():
@@ -9,6 +9,23 @@ def test_normalize_slug_strips_accent_and_case():
 
 def test_normalize_slug_never_empty():
     assert normalize_slug("!!!") == "assunto"
+
+
+def test_similar_slugs_catches_extension():
+    assert similar_slugs("capacidade", ["capacidade-de-fato"]) == ["capacidade-de-fato"]
+
+
+def test_similar_slugs_catches_plural_drift():
+    assert similar_slugs("negocio-juridico", ["negocios-juridicos"]) == ["negocios-juridicos"]
+
+
+def test_similar_slugs_ignores_unrelated():
+    assert similar_slugs("posse", ["responsabilidade-civil"]) == []
+
+
+def test_similar_slugs_respects_limit():
+    outros = ["capacidade-a", "capacidade-b", "capacidade-c", "capacidade-d"]
+    assert len(similar_slugs("capacidade", outros, limit=3)) == 3
 
 
 def test_find_or_create_assunto_dedupes_by_slug(app_env):

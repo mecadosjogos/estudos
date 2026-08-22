@@ -72,13 +72,21 @@ de drenar a fila. Não gaste turno de agente reimplementando essa consulta
 trabalho — mesma coisa, sem terminal, sem precisar de mim.)
 
 Isso pode levar bastante tempo numa aula longa — se for você (agente)
-quem está rodando isso via PowerShell tool, rode em background e espere
-terminar antes de seguir pra etapa 1. Aulas com transcrição pendente de
-revisão **continuam esperando**: a etapa 1 não toca nelas até o usuário
-aprovar. No fim, cada aula fica com transcrição pronta mas **`aprovado_em`
-ainda nulo** — a revisão humana (`/lessons/{id}/transcricao`, conferir os
-trechos de baixa confiança do Whisper e clicar "Aprovar transcrição") é
-sempre manual, o runbook/script nunca aprova sozinho.
+quem está rodando isso via PowerShell tool, **rode em primeiro plano
+(nunca `run_in_background: true`) e deixe o próprio comando retornar**,
+não um aviso de conclusão numa notificação depois. Isso importa
+especialmente em execução não-interativa (`claude -p`, sem sessão
+aberta, usada pelo atalho "Processar aulas pendentes"): não existe um
+"turno seguinte" pra uma notificação de background chegar ali, então
+rodar em background abandona o job **reivindicado e travado**, sem
+ninguém de fato transcrevendo — bug real, já aconteceu (o job ficou
+"claimed" até o timeout de 15 min de reivindicação obsoleta liberar de
+novo, `server/app/routes/jobs.py::_reclaim_stale`). Aulas com transcrição
+pendente de revisão **continuam esperando**: a etapa 1 não toca nelas até
+o usuário aprovar. No fim, cada aula fica com transcrição pronta mas
+**`aprovado_em` ainda nulo** — a revisão humana (`/lessons/{id}/transcricao`,
+conferir os trechos de baixa confiança do Whisper e clicar "Aprovar
+transcrição") é sempre manual, o runbook/script nunca aprova sozinho.
 
 **Etapa 1 — achar aulas com transcrição aprovada, ainda sem `resumo`.**
 Só entra aqui o que passou pela revisão humana da etapa 0 — é isso que
@@ -107,9 +115,12 @@ with holder.SessionLocal() as session:
 "
 ```
 
-Para cada aula encontrada aqui, faça **as duas** "outras atividades" —
-aula editada (passos 2–5 abaixo) e guia de aula (seção própria, mais
-adiante neste arquivo) — não só uma das duas.
+Para cada aula encontrada aqui, siga os passos 2–5 abaixo. **Uma única
+leitura da transcrição gera tudo de uma vez** — aula editada, cards,
+propostas e o guia de aula (`Lesson.guia_md`) saem da mesma resposta;
+não tem passo separado pra guia (isso mudou — até esta versão do
+runbook, guia de aula era uma segunda chamada, lendo a transcrição de
+novo do zero, puro desperdício).
 
 **2. Baixar o pacote** (prompt + transcrição + schema, tudo num arquivo):
 
@@ -179,6 +190,7 @@ with holder.SessionLocal() as session:
 ```bash
 curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aula-editada" | grep -o "Resumo\|error" 
 curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aprovacao" -o /dev/null -w "%{http_code}\n"
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/guia" -o /dev/null -w "%{http_code}\n"
 ```
 
 Reprocessar a mesma aula depois é seguro — o `reconcile()` por `deriv_key`
@@ -218,52 +230,257 @@ a transcrição literal de cada aula vinculada (nunca a aula editada) — hoje
 marca onde começa/termina dentro da aula (simplificação deliberada da fase
 8a; ver o módulo pra decisão completa).
 
-### Guia de aula (complementar à fase 6, não é uma fase própria)
+**Guia de aula** (`Lesson.guia_md`) vem no mesmo `resposta.md` acima, campo
+`guia_md` do JSON — não é mais um passo separado. Reprocessar substitui o
+guia inteiro — não há `deriv_key` nem reconcile aqui (é um documento
+único, não uma lista de artefatos com identidade própria), mas segue
+saindo da mesma leitura da aula editada, cards e propostas.
 
-Mesma regra da etapa 1 acima: só gere para aula com `Transcript.aprovado_em`
-preenchido, fora da matéria LIXO. É a segunda das "duas outras atividades"
-— faça junto com a aula editada, não como passo isolado.
+### Fase 8b — Cloze e cards de discriminação
 
-Diferente da aula editada (schema JSON tipado): é um prompt simples que
-devolve markdown corrido, reorganizando a transcrição em seções com
-título — sem inventar, sem parafrasear conteúdo jurídico, preservando a
-voz do professor. O prompt inteiro mora em `server/app/ai/guia.py`
-(`INSTRUCTIONS_GUIA`).
+**Não é uma passada de IA nova.** As duas features nascem do que a
+etapa 1 da fase 6 já processa — não tem pacote pra baixar nem resposta pra
+colar aqui.
 
-**1. Baixar o pacote:**
+**Cloze** é puro código: `server/app/study/cloze.py` escolhe as palavras a
+mascarar dentro dos blocos `ditado`/`conceito` da aula editada, direto na
+tela `/lessons/{id}/aula-editada` — botão "Modo estudo (cloze)" no topo,
+clique numa palavra mascarada revela. Nada a rodar manualmente.
+
+**Cards de discriminação** vêm do campo `pares_confundiveis`, que já fazia
+parte do schema da fase 6 mas ficava só guardado cru em
+`AiCall.raw_response_json`, sem virar nada visível — a fase 8b passa a
+persistir cada par como um `CardProposal` com `tipo="discriminacao"`
+(mesma tabela dos cards de sempre, mesma fila SM-2, mesma tela de
+aprovação, numa seção própria "Pares de discriminação propostos").
+
+**Isso muda a etapa 3 (gerar a resposta) da fase 6**: além de
+termo_a/termo_b/eixo_distincao, preencha também `start_s_a`/`end_s_a` e
+`start_s_b`/`end_s_b` — o instante em que cada termo foi explicado na
+transcrição — sempre que der pra identificar um trecho claro. Se não der,
+deixe os quatro como `null`; o par ainda funciona, só sem os botões de
+▸ ouvir de cada lado. `server/app/ai/schemas.py` (`ConfusablePairOut`) e a
+seção "PARES CONFUNDÍVEIS" de `server/app/ai/bridge.py` (`INSTRUCTIONS`)
+têm o texto completo — já vêm dentro do `pacote.md` que você baixa na
+etapa 2, nada de novo pra decorar.
+
+**Aulas já processadas antes desta versão do schema** (resposta colada sem
+esses quatro campos) simplesmente não tinham `pares_confundiveis` virando
+card nenhum — o campo era validado e descartado. Pra elas ganharem cards
+de discriminação, **reprocesse a aula** (etapa 1 de novo, mesma aula):
+reprocessar é seguro, preserva o que você já editou/aceitou
+(`reconcile()` por `deriv_key`, igual ao resto da fase 6).
+
+**Validar:**
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/guia-pacote.md" -o guia-pacote.md
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aprovacao" | grep -o "Pares de discriminação propostos ([0-9]*)"
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aula-editada" | grep -o "cloze-word" | head -1
 ```
 
-**2. Gerar a resposta** seguindo as instruções que já vêm no pacote.
-Devolva só o markdown do guia, começando com `# título` — nada de
-conversa em volta (o parser corta tudo antes do primeiro `# `, mas é mais
-limpo já mandar só o markdown).
+### Fase 10 — Transcrever páginas de livro
 
-**3. Enviar de volta** (mesma regra de encoding do resto do runbook —
-arquivo, nunca argumento inline):
+**Não usa a API de visão da Anthropic.** Decisão do usuário: em vez de
+`claude-haiku-4-5` via API paga (o que o PLANO.md descrevia originalmente),
+o próprio Claude Code lê a foto direto — o Read tool já lê imagem
+nativamente. Zero chamada paga, mesmo princípio do resto do runbook.
+
+**Sem portão de aprovação antes de transcrever.** Diferente de áudio
+(Whisper transcreve sozinho, sem curadoria — por isso existe
+`Transcript.aprovado_em`), aqui **você já escolheu e fotografou a página**
+antes de subir — a curadoria da fonte já aconteceu. `MaterialPage.status
+= "pendente"` significa só "ainda não transcrita", não "aguardando
+revisão". A etapa abaixo pode rodar direto em qualquer página pendente.
+
+**1. Achar páginas pendentes** (fora de materiais cuja obra não existe —
+não deveria acontecer, mas a query já filtra por garantia):
 
 ```bash
-WINPATH=$(cygpath -w /caminho/para/guia.md)
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/lessons/{id}/colar-guia" \
+docker compose exec server python -c "
+from sqlalchemy import select
+from app.db import holder
+from app.models import Material, MaterialPage, Work
+
+with holder.SessionLocal() as session:
+    rows = session.execute(
+        select(MaterialPage.id, MaterialPage.material_id, Material.titulo, Work.titulo)
+        .join(Material, MaterialPage.material_id == Material.id)
+        .join(Work, Material.work_id == Work.id)
+        .where(MaterialPage.status == 'pendente')
+        .order_by(Work.id, Material.id, MaterialPage.ordem)
+    ).all()
+    for r in rows:
+        print(r)
+"
+```
+
+**2. Baixar a foto** (ela vive dentro do volume Docker, não no filesystem
+do host — precisa baixar antes de ler, exatamente como `pacote.md`):
+
+```bash
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/materials/{material_id}/paginas/{page_id}/imagem" -o pagina.png
+```
+
+**3. Ler a foto e transcrever.** Use a ferramenta Read na `pagina.png`
+baixada (lê imagem nativamente). Regras (PLANO.md, "Fotos de páginas de
+livro"):
+
+- **Transcrição literal, nunca paráfrase** — isto não é a aula editada,
+  é o equivalente da transcrição bruta. Preserve a estrutura: nota de
+  rodapé, citação recuada, tabela.
+- Devolva **Markdown limpo** (itálico, recuo de citação onde fizer
+  sentido), sem inventar o que a foto não deixa ler.
+- Se a página estiver ilegível (letra miúda, tipografia antiga, sombra
+  cobrindo texto), **não invente** — poste o erro em vez de um texto
+  chutado (passo 4b).
+
+**4a. Enviar a transcrição** (mesma regra de encoding do resto do
+runbook — arquivo, nunca argumento inline):
+
+```bash
+WINPATH=$(cygpath -w transcricao.md)
+curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/materials/{material_id}/paginas/{page_id}/colar" \
+  --data-urlencode "texto@${WINPATH}"
+```
+
+Recusa com **409** se a página já tiver sido corrigida à mão
+(`editado_em` preenchido) — isso é a proteção funcionando, não um bug:
+não tente contornar, pule para a próxima página.
+
+**4b. Ou marcar como erro**, se a foto não deu pra ler:
+
+```bash
+curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/materials/{material_id}/paginas/{page_id}/erro" \
+  --data-urlencode "erro=letra ilegível, sombra cobrindo metade da página"
+```
+
+Uma página com erro **não trava as outras** — continue para a próxima.
+
+**5. Validar:**
+
+```bash
+docker compose exec server python -c "
+from app.db import holder
+from app.models import MaterialPage
+with holder.SessionLocal() as session:
+    print(repr(session.get(MaterialPage, {page_id}).texto))
+"
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/works/{work_id}/ler" | grep -o "p\. [0-9]*" | head -5
+```
+
+**Atalho automatizado:** `transcrever-paginas.bat` na raiz do repo (ou o
+atalho "Transcrever páginas (Estudos)" na área de trabalho) dispara isso
+sozinho via `claude -p --dangerously-skip-permissions --model opus
+"/transcrever-paginas"`, mesmo mecanismo de `processar-aulas.bat` —
+ver `.claude/skills/transcrever-paginas/SKILL.md`.
+
+### Fase 11 — Glossário
+
+**Não é uma passada de IA separada.** O campo `termos` (lista de
+termo/definição/citação literal/variantes) já vem na mesma resposta da
+fase 6 — mesmo `colar-resposta` de sempre, mesmo `pacote.md`. O gatilho
+que a IA usa é o **ato definitório** ("isso a gente chama de...",
+"define-se X como...") — mera menção não conta; ver `TermDefinitionOut`
+em `server/app/ai/schemas.py` pro texto completo da instrução.
+
+Depois de colar, as propostas aparecem na tela de aprovação da aula
+(`/lessons/{id}/aprovacao`), numa seção própria "Termos propostos".
+
+**Aceitar** (`POST /lessons/{id}/termos/{proposal_id}/aceitar`, campo
+`termo`) resolve ou cria o `Term` global pelo slug da grafia — mesma
+regra do assunto, duas aulas propondo "Posse" e "posse" caem no mesmo
+registro. Edite a grafia antes de aceitar se quiser juntar com um termo
+que já existe com outro nome. As variantes que a IA propôs (`variantes`)
+viram `TermAlias` automaticamente na aceitação, sem passo extra.
+
+**Ferramentas de correção**: `/termos` lista tudo, com busca, três
+ordenações (alfabética · recentes · mais definições) e um filtro
+`?pendentes=1` que junta as propostas de todas as aulas num lugar só,
+pra limpar em lote depois de uma semana. `/termos/{id}` é a página do
+termo, com **renomear** (só o rótulo, o slug não muda), **destacar
+on/off** (some do texto corrido sem sair do glossário), **variantes**
+(adicionar/remover), **fundir** (escolhe outro termo, este desaparece e
+tudo migra — inclusive a grafia antiga vira alias do que ficou),
+**separar** um vínculo de definição pra outro termo, **editar/descartar**
+uma definição sem apagar as outras do mesmo termo, e **fixar** qual
+definição abre primeiro numa matéria (`TermPin`, sobrepõe a ordenação
+padrão que hoje é só cronológica).
+
+**Onde a marcação aparece:** aula editada e leitura de obra, em tempo de
+renderização — nunca gravada no texto. Um termo destacado é um clique
+que leva pra `/termos/{id}`; ainda não é o card sobreposto que o
+PLANO.md desenha (fica pra quando essa UI existir).
+
+**Validar:**
+
+```bash
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aprovacao" | grep -o "Termos propostos ([0-9]*)"
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aula-editada" | grep -o "glossary-term" | head -1
+```
+
+### Fase 13 — Feynman por voz e dissertativa avaliada
+
+**A transcrição do Feynman nunca passa por aqui.** Diferente de tudo mais
+neste runbook, gravar-se explicando um termo (`/termos/{id}/feynman`) é
+transcrito **automaticamente**, sempre — `faster-whisper small` rodando
+na CPU da própria VPS (`server/app/media/asr.py`), não é chamada paga,
+não tem ponte manual pra esse passo. Só as duas passadas de IA de
+verdade (avaliar o Feynman, gerar/corrigir a dissertativa) seguem a
+ponte manual de sempre.
+
+**1. Feynman — avaliar uma explicação gravada.** Depois de gravar em
+`/termos/{id}/feynman`, a página da tentativa (`/termos/{id}/feynman/{attempt_id}`)
+mostra a transcrição e os botões de sempre: **Avaliar (automático)**,
+**Baixar pacote (.md)**, **Colar resposta**. O pacote compara a
+explicação transcrita contra **todas** as definições ativas do termo
+(não uma só — "todas as definições, lado a lado" vale aqui também). Cole
+a resposta em `/termos/{id}/feynman/{attempt_id}/colar-resposta`.
+
+```bash
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/termos/{id}/feynman/{attempt_id}/prompt.md" -o pacote.md
+WINPATH=$(cygpath -w resposta.md)
+curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/termos/{id}/feynman/{attempt_id}/colar-resposta" \
   --data-urlencode "resposta@${WINPATH}"
 ```
 
-**4. Validar:** `GET /lessons/{id}/guia` renderiza o markdown; confira
-`repr(lesson.guia_md)` no banco pra descartar corrupção de acento, como
-sempre.
+**2. Dissertativa — gerar a questão.** Duas fontes possíveis, cada uma
+com seu próprio par pacote/colar: a partir de **uma aula**
+(`/lessons/{id}/dissertativas/gerar-pacote.md` →
+`/lessons/{id}/dissertativas/colar-questao`) ou a partir de **um
+assunto inteiro** (`/assuntos/{id}/dissertativas/gerar-pacote.md` →
+`/assuntos/{id}/dissertativas/colar-questao`, concatenando a transcrição
+literal de toda aula vinculada via `context/window.py`, mesmo recorte da
+fase 8a). Sempre a partir da transcrição literal, nunca da aula editada
+— mesma regra do resto do app. Um assunto sem nenhuma aula aceita
+vinculada não tem o que gerar (erro claro, não pacote vazio).
 
-Reprocessar substitui o guia inteiro — não há `deriv_key` nem reconcile
-aqui (é um documento único, não uma lista de artefatos com identidade
-própria).
+**3. Dissertativa — responder e corrigir.** Depois que a questão existe
+(`/dissertativas/{question_id}`), responda no formulário da própria
+página — isso só grava a tentativa (`status="respondido"`), sem custo
+nenhum. A correção segue o mesmo par pacote/colar de sempre, agora por
+tentativa: `/dissertativas/{question_id}/attempts/{attempt_id}/prompt.md`
+→ `/dissertativas/{question_id}/attempts/{attempt_id}/colar-correcao`.
+O histórico de tentativas fica todo na mesma página da questão — nada é
+sobrescrito, cada resposta é uma linha nova.
 
-### Fase 8b em diante
+```bash
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/dissertativas/gerar-pacote.md" -o pacote.md
+WINPATH=$(cygpath -w questao.md)
+curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/lessons/{id}/dissertativas/colar-questao" \
+  --data-urlencode "resposta@${WINPATH}"
 
-Ainda não implementadas (cloze, cards de discriminação). **Ao
-implementar**: descreva aqui como achar o trabalho pendente, onde baixar o
-prompt/pacote se houver, o schema esperado, e o endpoint equivalente — no
-mesmo formato das seções acima.
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/dissertativas/{question_id}/attempts/{attempt_id}/prompt.md" -o pacote.md
+WINPATH=$(cygpath -w correcao.md)
+curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/dissertativas/{question_id}/attempts/{attempt_id}/colar-correcao" \
+  --data-urlencode "resposta@${WINPATH}"
+```
+
+**Validar:**
+
+```bash
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/termos/{id}/feynman/{attempt_id}" | grep -o "Faltou\|Nada faltando"
+curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/dissertativas" | grep -o "search-results"
+```
 
 ## Custo
 

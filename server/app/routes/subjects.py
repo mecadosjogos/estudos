@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_session
 from ..db import get_session
-from ..models import Lesson, Subject
+from ..models import Assunto, AssuntoCobertura, Ementa, Exam, Lesson, Subject
 
 router = APIRouter(prefix="/subjects", dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -42,6 +42,24 @@ def create_subject(
     return RedirectResponse(url="/subjects", status_code=303)
 
 
+@router.post("/{subject_id}/drive")
+def update_subject_drive(
+    subject_id: int,
+    drive_folder_id: str = Form(""),
+    doc_modelo_id: str = Form(""),
+    session: Session = Depends(get_session),
+):
+    """Configuração de sync do Drive (fase 9): a pasta é o sinal de maior
+    confiança do vinculador automático, o modelo alimenta o botão "Criar
+    doc desta aula"."""
+    subject = session.get(Subject, subject_id)
+    if subject is not None:
+        subject.drive_folder_id = drive_folder_id.strip() or None
+        subject.doc_modelo_id = doc_modelo_id.strip() or None
+        session.commit()
+    return RedirectResponse(url=f"/subjects/{subject_id}", status_code=303)
+
+
 @router.post("/{subject_id}/encerrar")
 def encerrar_subject(subject_id: int, session: Session = Depends(get_session)):
     subject = session.get(Subject, subject_id)
@@ -67,10 +85,30 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
         select(Lesson).where(Lesson.subject_id == subject_id).order_by(Lesson.data)
     ).all()
     all_subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
+
+    ementa = session.scalar(select(Ementa).where(Ementa.subject_id == subject_id))
+    exams = session.scalars(
+        select(Exam).where(Exam.subject_id == subject_id).order_by(Exam.data)
+    ).all()
+    assuntos_da_materia = session.scalars(
+        select(Assunto)
+        .join(AssuntoCobertura, AssuntoCobertura.assunto_id == Assunto.id)
+        .where(AssuntoCobertura.subject_id == subject_id)
+        .order_by(Assunto.titulo)
+        .distinct()
+    ).all()
+
     return templates.TemplateResponse(
         request,
         "subject_detail.html",
-        {"subject": subject, "lessons": lessons, "all_subjects": all_subjects},
+        {
+            "subject": subject,
+            "lessons": lessons,
+            "all_subjects": all_subjects,
+            "ementa": ementa,
+            "exams": exams,
+            "assuntos_da_materia": assuntos_da_materia,
+        },
     )
 
 

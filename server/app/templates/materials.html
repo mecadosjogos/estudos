@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Materiais{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Materiais</h1>
+<p class="muted">Tudo que não é áudio — PDF, foto, texto, link e Google Doc — numa fonte só.</p>
+
+{% if erro %}<p class="error">{{ erro }}</p>{% endif %}
+{% if sync_resumo %}<p class="badge">sincronizado: {{ sync_resumo }}</p>{% endif %}
+
+<div class="card">
+	<h2>Sincronização do Drive</h2>
+	<p class="muted">{{ gdocs|length }} doc(s) sincronizado(s) no total.</p>
+	<form method="post" action="/materials/sync">
+		<button type="submit">Sincronizar agora</button>
+	</form>
+	{% for m in gdocs %}
+		{% if m.status == "erro" %}
+		<p class="error">{{ m.titulo }} — {{ m.sync_error }}</p>
+		{% endif %}
+	{% endfor %}
+</div>
+
+<div class="card">
+	<h2>Não vinculados ({{ unlinked|length }})</h2>
+	<p class="muted">Sem pasta reconhecida — escolha a matéria (e a aula, se for o caso) num clique.</p>
+	{% for m in unlinked %}
+	<div class="card approval-item">
+		<p><strong>{{ m.titulo }}</strong> <span class="badge">{{ m.origem }}</span></p>
+		<form method="post" action="/materials/{{ m.id }}/vincular" class="button-row">
+			<select name="subject_id" required>
+				<option value="">matéria...</option>
+				{% for s in subjects %}
+				<option value="{{ s.id }}">{{ s.sigla }}</option>
+				{% endfor %}
+			</select>
+			<input type="text" name="lesson_id" placeholder="id da aula (opcional)">
+			<button type="submit">Vincular</button>
+		</form>
+	</div>
+	{% else %}
+	<p class="muted">Nada pendente.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
+	<h2>Adicionar material</h2>
+	<form method="post" action="/materials" enctype="multipart/form-data">
+		<p><label>Título<br><input type="text" name="titulo" required></label></p>
+		<p><label>Origem<br>
+			<select name="origem" id="origem-select">
+				<option value="texto">Texto colado</option>
+				<option value="link">Link</option>
+				<option value="pdf">PDF</option>
+				<option value="foto">Foto</option>
+			</select>
+		</label></p>
+		<p><label>Tipo<br>
+			<select name="tipo_id">
+				<option value="">— sem tipo —</option>
+				{% for t in tipos %}
+				<option value="{{ t.id }}">{{ t.rotulo }}</option>
+				{% endfor %}
+			</select>
+		</label></p>
+		<p id="campo-texto"><label>Texto<br><textarea name="texto" rows="4"></textarea></label></p>
+		<p id="campo-url" hidden><label>URL<br><input type="text" name="url" placeholder="https://..."></label></p>
+		<p id="campo-arquivo" hidden><label>Arquivo<br><input type="file" name="arquivo"></label></p>
+		<p><label>Matéria (opcional)<br>
+			<select name="subject_id">
+				<option value="">— sem matéria por enquanto —</option>
+				{% for s in subjects %}
+				<option value="{{ s.id }}">{{ s.sigla }}</option>
+				{% endfor %}
+			</select>
+		</label></p>
+		<p><label>Id da aula (opcional)<br><input type="text" name="lesson_id"></label></p>
+		<button type="submit">Adicionar</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Todos os materiais ({{ materials|length }})</h2>
+	<ul class="timeline">
+		{% for m in materials %}
+		<li>
+			<a href="/materials/{{ m.id }}">{{ m.titulo }}</a>
+			<span class="badge">{{ m.origem }}</span>
+			{% if m.tipo %}<span class="badge">{{ m.tipo.rotulo }}</span>{% endif %}
+			{% if not m.uses %}<span class="badge error">não vinculado</span>{% endif %}
+		</li>
+		{% else %}
+		<li class="muted">Nenhum material ainda.</li>
+		{% endfor %}
+	</ul>
+</div>
+
+<script>
+	const origemSelect = document.getElementById("origem-select");
+	const campos = {
+		texto: document.getElementById("campo-texto"),
+		link: document.getElementById("campo-url"),
+		pdf: document.getElementById("campo-arquivo"),
+		foto: document.getElementById("campo-arquivo"),
+	};
+	function updateCampos() {
+		const origem = origemSelect.value;
+		document.getElementById("campo-texto").hidden = origem !== "texto";
+		document.getElementById("campo-url").hidden = origem !== "link";
+		document.getElementById("campo-arquivo").hidden = !(origem === "pdf" || origem === "foto");
+	}
+	origemSelect.addEventListener("change", updateCampos);
+	updateCampos();
+</script>
+{% endblock %}

@@ -44,6 +44,46 @@ Tipos de bloco (use exatamente um destes por bloco, em `tipo`):
 - atencao: erro comum, pegadinha, autocorreção do professor
 - normal: corpo do texto, sem sinal especial
 
+PARES CONFUNDÍVEIS (`pares_confundiveis`): quando o professor contrastar
+dois conceitos que costumam ser confundidos (ex.: dolo eventual × culpa
+consciente, prescrição × decadência), registre o par com o eixo da
+distinção — a frase que resume o que exatamente os separa. Preencha
+start_s_a/end_s_a e start_s_b/end_s_b com o intervalo em que cada termo foi
+explicado, sempre que der pra identificar um trecho claro na transcrição;
+se não der, deixe esses quatro campos como null em vez de inventar um
+horário. Não force pares que o professor não contrastou de verdade.
+
+GUIA DE AULA (campo `guia_md`, uma string markdown só): além dos blocos
+tipados acima, produza também um guia de leitura corrido — um artefato
+diferente, não uma cópia dos blocos, com uma liberdade que os blocos de
+`aula_editada` NÃO têm: dentro de uma seção, você pode REORDENAR o
+raciocínio (conceito → explicação → exemplo → observações) desde que seja
+só reorganização do que já foi dito, nunca reescrita de conteúdo — os
+blocos de `aula_editada` continuam presos à ordem/tempo originais, porque
+▸ ouvir o original depende disso. As mesmas regras de fidelidade
+("não invente", preserve a voz do professor) valem aqui também; não
+resuma a ponto de perder conteúdo — o objetivo é organizar, não encurtar.
+
+Estrutura do `guia_md`, nesta ordem:
+1. Título da aula (se identificável, senão "Aula sem título identificado").
+2. "## Árvore de conhecimento" — lista aninhada em Markdown (marcadores
+   "-", indentada por nível) só com a hierarquia de classificações que o
+   professor efetivamente construiu na fala (ex.: "a lei penal se divide
+   em incriminadora ou não incriminadora; a não incriminadora se divide em
+   explicativa ou permissiva" vira três níveis aninhados). Nunca complete
+   com uma classificação "padrão" da doutrina que não foi mencionada nesta
+   aula — um ramo não subdividido pelo professor fica como folha. Uma ou
+   duas palavras por nó, não frases.
+3. Sumário dos tópicos abordados.
+4. Corpo organizado por seções/subtítulos. Quando um aluno ou outra pessoa
+   fala, identifique com "Aluno:" ou "Pergunta de aluno:", separado da
+   fala do professor — só inclua quando relevante pro raciocínio que vem
+   em seguida. Use negrito nos pontos que o próprio professor tratou como
+   centrais (ênfase na fala, repetição, "isso cai em prova", "atenção",
+   "gravem isso").
+5. Ao final, se houver, uma lista dos trechos marcados como
+   "[trecho incompleto/inaudível na transcrição]".
+
 Devolva JSON válido no formato do schema abaixo — nada além do JSON."""
 
 

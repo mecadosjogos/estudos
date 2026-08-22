@@ -19,9 +19,16 @@
 	<p><a class="button" href="/lessons/{{ lesson.id }}/aprovacao">Ver cards e datas propostas →</a></p>
 </div>
 
+<p class="button-row">
+	<button type="button" id="toggle-study-mode">Modo estudo (cloze)</button>
+	<span class="muted">Mascara os trechos-chave dos blocos ditado/conceito — clique numa palavra escondida pra revelar.</span>
+</p>
+
+<p><a class="button" href="/lessons/{{ lesson.id }}/aula-editada.pdf">Baixar aula editada (PDF)</a></p>
+
 <div id="blocks">
 	{% for block in blocks %}
-	<div class="edited-block block-{{ block.tipo }}" data-start="{{ block.start_s }}">
+	<div class="edited-block block-{{ block.tipo }}" data-start="{{ block.start_s }}" id="bloco-{{ block.id }}">
 		<div class="block-header">
 			<span class="badge block-tipo-badge">{{ block.tipo }}</span>
 			{% if block.repeticoes > 1 %}<span class="badge">repetido {{ block.repeticoes }}x</span>{% endif %}
@@ -29,7 +36,7 @@
 			{% if block.versao_nova_json %}<span class="badge error">há versão nova da IA</span>{% endif %}
 			<button type="button" class="ouvir-original" data-start="{{ block.start_s }}">▸ ouvir o original</button>
 		</div>
-		<p>{{ block.texto }}</p>
+		<p>{{ glossary_html[block.id] | safe }}</p>
 
 		{% if block.baixa_confianca %}
 			{% if block.confirmado_em %}
@@ -61,6 +68,24 @@
 		btn.addEventListener("click", () => {
 			audio.currentTime = parseFloat(btn.dataset.start);
 			audio.play();
+		});
+	});
+
+	const blocksEl = document.getElementById("blocks");
+	document.getElementById("toggle-study-mode").addEventListener("click", () => {
+		blocksEl.classList.toggle("study-mode");
+	});
+	document.querySelectorAll(".cloze-word").forEach((word) => {
+		word.addEventListener("click", () => {
+			if (blocksEl.classList.contains("study-mode")) {
+				word.classList.toggle("revealed");
+			}
+		});
+	});
+
+	document.querySelectorAll(".glossary-term").forEach((term) => {
+		term.addEventListener("click", () => {
+			window.location.href = `/termos/${term.dataset.termId}`;
 		});
 	});
 </script>

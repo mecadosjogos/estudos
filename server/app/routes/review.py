@@ -42,9 +42,14 @@ def daily_queue_json(session: Session = Depends(get_session)):
                 {
                     "id": card.id,
                     "lesson_id": card.lesson_id,
+                    "tipo": card.tipo,
                     "frente": card.frente,
                     "verso": card.verso,
                     "start_s": card.start_s,
+                    "termo_a": card.termo_a,
+                    "termo_b": card.termo_b,
+                    "start_s_a": card.start_s_a,
+                    "start_s_b": card.start_s_b,
                     "subject_sigla": card.lesson.subject.sigla,
                 }
                 for card in queue

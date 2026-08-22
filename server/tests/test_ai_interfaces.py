@@ -21,13 +21,3 @@ def test_fake_asr_client_records_calls():
 
     assert result.text == "ola"
     assert client.calls == ["aula.mp3"]
-
-
-def test_fake_vision_client_records_calls():
-    from app.library.vision import FakeVisionClient, VisionResult
-
-    client = FakeVisionClient(VisionResult(text="pagina 1", cost_usd=0.01))
-    result = client.transcribe_page("p1.jpg")
-
-    assert result.text == "pagina 1"
-    assert client.calls == ["p1.jpg"]

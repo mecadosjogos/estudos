@@ -23,6 +23,68 @@
 </div>
 
 <div class="card">
+	<h2>Sync do Drive</h2>
+	<p class="muted">A pasta desta matéria dentro do Drive compartilhado com a service account — é o sinal de maior confiança do vinculador automático. O modelo alimenta o botão "Criar doc desta aula".</p>
+	<form method="post" action="/subjects/{{ subject.id }}/drive">
+		<p><label>ID da pasta no Drive<br><input type="text" name="drive_folder_id" value="{{ subject.drive_folder_id or '' }}"></label></p>
+		<p><label>ID do Google Doc modelo<br><input type="text" name="doc_modelo_id" value="{{ subject.doc_modelo_id or '' }}"></label></p>
+		<button type="submit">Salvar</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Provas</h2>
+	<p class="muted">Data e escopo por assunto — o painel calcula dias restantes, cobertura, cards vencidos e o ritmo necessário.</p>
+	{% for exam in exams %}
+	<p><a href="/exams/{{ exam.id }}">{{ exam.titulo }}</a> — {{ exam.data.strftime("%d/%m/%Y") }}</p>
+	{% else %}
+	<p class="muted">Nenhuma prova cadastrada ainda.</p>
+	{% endfor %}
+	<details>
+		<summary class="muted">Cadastrar prova</summary>
+		<form method="post" action="/subjects/{{ subject.id }}/exams">
+			<p><label>Título<br><input type="text" name="titulo" placeholder="P1, Final..." required></label></p>
+			<p><label>Data<br><input type="date" name="data" required></label></p>
+			<p>Escopo (assuntos já emergidos das aulas):</p>
+			{% for a in assuntos_da_materia %}
+			<label><input type="checkbox" name="assunto_ids" value="{{ a.id }}"> {{ a.titulo }}</label><br>
+			{% else %}
+			<p class="muted">Nenhum assunto ainda — aceite propostas na aprovação de uma aula primeiro.</p>
+			{% endfor %}
+			<button type="submit">Criar prova</button>
+		</form>
+	</details>
+</div>
+
+<div class="card">
+	<h2>Ementa <span class="muted">(opcional)</span></h2>
+	<p class="muted">Enriquece a ordem e os títulos oficiais dos assuntos já emergidos das aulas — nunca um pré-requisito. Um tópico sem nenhuma aula ainda vira um assunto "pendente".</p>
+	{% if ementa %}
+	<ol>
+		{% for t in ementa.topicos %}<li><a href="/assuntos/{{ t.assunto_id }}">{{ t.titulo }}</a></li>{% endfor %}
+	</ol>
+	{% else %}
+	<p class="muted">Nenhuma ementa cadastrada ainda.</p>
+	{% endif %}
+	<details>
+		<summary class="muted">{{ "Recadastrar" if ementa else "Cadastrar" }} ementa</summary>
+		<form method="post" action="/subjects/{{ subject.id }}/ementa">
+			<textarea name="topicos" rows="10" style="width:100%" placeholder="Um tópico por linha, na ordem do plano de ensino">{% for t in ementa.topicos if ementa %}{{ t.titulo }}
+{% endfor %}</textarea>
+			<button type="submit">Salvar ementa</button>
+		</form>
+	</details>
+</div>
+
+<div class="card">
+	<h2>Exportar</h2>
+	<p class="button-row">
+		<a class="button" href="/subjects/{{ subject.id }}/bibliografia.txt">Bibliografia (ABNT)</a>
+		<a class="button" href="/export/corpus.zip">Exportar corpus inteiro (.zip)</a>
+	</p>
+</div>
+
+<div class="card">
 	<h2>Nova aula</h2>
 	<p class="muted">Pode ficar sem áudio — seminário, aula de slides, ou o dia em que você esqueceu de gravar. Para subir áudio, use a <a href="/upload">página de upload</a>.</p>
 	<form method="post" action="/subjects/{{ subject.id }}/lessons">

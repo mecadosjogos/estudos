@@ -207,6 +207,143 @@ def test_lesson_audio_route_serves_file(app_env):
     assert response.content == b"fake-mp3-bytes"
 
 
+def test_search_finds_material_content(app_env):
+    client = _authed_client()
+    from app.db import holder
+    from sqlalchemy import select
+    from app.models import Subject
+
+    with holder.SessionLocal() as session:
+        subject_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
+
+    client.post(
+        "/materials",
+        data={
+            "titulo": "Resumo de posse",
+            "origem": "texto",
+            "texto": "posse exige corpus e animus segundo a doutrina majoritária",
+            "subject_id": str(subject_id),
+        },
+    )
+
+    response = client.get("/search", params={"q": "corpus"})
+    assert response.status_code == 200
+    assert "Resumo de posse" in response.text
+    assert "Material" in response.text
+
+
+def test_search_finds_material_page_content(app_env):
+    import io
+
+    import fitz
+
+    client = _authed_client()
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "A posse exige corpus e animus de verdade nesta pagina.")
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    response = client.post("/works", data={"titulo": "Obra de busca"}, follow_redirects=True)
+    work_id = int(response.url.path.split("/")[-1])
+    client.post(
+        f"/works/{work_id}/materiais",
+        data={"titulo": "Cap 1", "origem": "pdf", "pagina_inicial": "1", "pagina_final": "1"},
+        files={"arquivo": ("c.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
+    )
+
+    response = client.get("/search", params={"q": "animus"})
+    assert response.status_code == 200
+    assert "Obra de busca" in response.text
+    assert "Página de obra" in response.text
+
+
+def test_search_finds_observacao_content(app_env):
+    client = _authed_client()
+    from app.db import holder
+    from sqlalchemy import select
+    from app.models import EditedBlock
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    payload = {
+        "resumo": "R.", "aula_editada": [
+            {"tipo": "conceito", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0}
+        ],
+        "indice": [], "guia_md": "# G", "artigos": [], "datas_anunciadas": [], "cards": [],
+        "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
+    }
+    import json as jsonlib
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": "```json\n" + jsonlib.dumps(payload, ensure_ascii=False) + "\n```"},
+    )
+
+    with holder.SessionLocal() as session:
+        block_id = session.scalar(select(EditedBlock.id).where(EditedBlock.lesson_id == lesson_id))
+
+    client.post(
+        f"/lessons/{lesson_id}/blocks/{block_id}/observacao",
+        data={"observacao": "lembrar de revisar isto antes da prova de reivindicatória"},
+    )
+
+    response = client.get("/search", params={"q": "reivindicatória"})
+    assert response.status_code == 200
+    assert "Observação" in response.text
+    assert f"/lessons/{lesson_id}/aula-editada#bloco-{block_id}" in response.text
+
+
+def test_search_finds_active_definitions_and_pins_matched_term(app_env):
+    client = _authed_client()
+    client.post("/termos/criar", data={"termo": "Usucapião", "definicao_md": "Modo de aquisição pela posse prolongada.", "citacao_literal": ""})
+
+    response = client.get("/search", params={"q": "aquisição"})
+    assert response.status_code == 200
+    assert "Definição" in response.text
+    assert "Usucapião" in response.text
+
+    pinned = client.get("/search", params={"q": "usucapiao"})
+    assert "🔖" in pinned.text
+    assert "Usucapião" in pinned.text
+
+
+def test_search_subject_filter_excludes_other_subjects(app_env):
+    client = _authed_client()
+    from app.db import holder
+    from sqlalchemy import select
+    from app.models import Subject
+
+    with holder.SessionLocal() as session:
+        tgdc_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
+        outra_id = session.scalar(select(Subject.id).where(Subject.sigla != "TGDC"))
+
+    client.post(
+        "/materials",
+        data={"titulo": "Material TGDC", "origem": "texto", "texto": "conteudo filtravel exclusivo", "subject_id": str(tgdc_id)},
+    )
+
+    response = client.get("/search", params={"q": "filtravel", "subject_id": str(outra_id)})
+    assert "Material TGDC" not in response.text
+
+    response = client.get("/search", params={"q": "filtravel", "subject_id": str(tgdc_id)})
+    assert "Material TGDC" in response.text
+
+
+def test_search_tipo_filter_limits_sources(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        _make_transcribed_lesson(session, ["um trecho bem especifico sobre limitacao de tipo"])
+
+    response = client.get("/search", params={"q": "limitacao", "tipo": "material"})
+    assert "Nada encontrado" in response.text
+
+    response = client.get("/search", params={"q": "limitacao", "tipo": "transcricao"})
+    assert "Aula com transcrição" in response.text
+
+
 def test_save_position_persists(app_env):
     client = _authed_client()
     from app.db import holder

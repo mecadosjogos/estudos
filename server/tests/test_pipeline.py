@@ -71,6 +71,7 @@ def _fake_response(overrides=None):
             {"tipo": "normal", "texto": "Segue explicação complementar.", "start_s": 5.0, "end_s": 10.0},
         ],
         "indice": [{"titulo": "Posse", "start_s": 0.0, "end_s": 10.0}],
+        "guia_md": "# Posse\n\nGuia de teste.",
         "artigos": [{"texto_citado": "art. 1.196 CC", "start_s": 1.0}],
         "datas_anunciadas": [{"texto": "prova dia 12 de abril", "data_anunciada": "2026-04-12", "start_s": 8.0}],
         "cards": [{"frente": "O que é posse?", "verso": "Exercício de fato de poderes de propriedade.", "start_s": 0.0, "end_s": 5.0}],
@@ -96,7 +97,12 @@ def test_process_lesson_automatically_persists_everything(app_env):
 
         assert ai_call.via == "automatico"
         assert ai_call.custo_usd > 0
-        assert session.get(Lesson, lesson_id).resumo.startswith("Resumo")
+        persisted = session.get(Lesson, lesson_id)
+        assert persisted.resumo.startswith("Resumo")
+        # Guia de aula (fase 6 revisada): sai da MESMA chamada, sem
+        # segunda leitura da transcrição -- ver ai/schemas.py, guia_md.
+        assert persisted.guia_md.startswith("# Posse")
+        assert persisted.guia_gerado_em is not None
         assert session.query(EditedBlock).filter_by(lesson_id=lesson_id).count() == 2
         assert session.query(OutlineItem).filter_by(lesson_id=lesson_id).count() == 1
         assert session.query(ArticleMention).filter_by(lesson_id=lesson_id).count() == 1
@@ -109,6 +115,46 @@ def test_process_lesson_automatically_persists_everything(app_env):
         stored_calls = session.query(AiCall).all()
         assert len(stored_calls) == 1
         assert json.loads(stored_calls[0].raw_response_json)["assuntos"] == ["Posse"]
+
+
+def test_process_lesson_persists_termos_as_pending_definitions(app_env):
+    """Fase 11: `termos` vira `Definition` pendente, com `term_id` ainda
+    nulo -- só a aceitação (routes/glossary.py) resolve/cria o `Term`
+    global, pra grafia errada da IA não poluir o glossário antes de você
+    poder corrigir (PLANO.md)."""
+    from app.db import holder
+    from app.ai.pipeline import process_lesson_automatically
+    from app.models import Definition, Lesson
+
+    with holder.SessionLocal() as session:
+        lesson_id = _default_lesson_id(session)
+        lesson = session.get(Lesson, lesson_id)
+        response = _fake_response(
+            {
+                "termos": [
+                    {
+                        "termo": "Posse",
+                        "definicao": "Exercício de fato de poderes de propriedade.",
+                        "citacao_literal": "a gente chama isso de posse",
+                        "start_s": 0.0,
+                        "variantes": ["posse direta", "posse indireta"],
+                    }
+                ]
+            }
+        )
+        process_lesson_automatically(session, lesson, FakeAIClient(response))
+
+        definitions = session.query(Definition).filter_by(lesson_id=lesson_id).all()
+        assert len(definitions) == 1
+        d = definitions[0]
+        assert d.term_id is None
+        assert d.termo_proposto == "Posse"
+        assert d.definicao_md == "Exercício de fato de poderes de propriedade."
+        assert d.citacao_literal == "a gente chama isso de posse"
+        assert json.loads(d.variantes_propostas_json) == ["posse direta", "posse indireta"]
+        assert d.status == "proposto"
+        assert d.origem == "ia"
+        assert d.subject_id == lesson.subject_id
 
 
 def test_reprocessing_preserves_edited_card_and_flags_new_version(app_env):
@@ -336,6 +382,110 @@ def test_ingest_manual_response_rejects_garbage(app_env):
         lesson = session.get(Lesson, lesson_id)
         with pytest.raises(Exception):
             ingest_manual_response(session, lesson, "isso não é json nenhum")
+
+
+def test_pares_confundiveis_become_discrimination_cards(app_env):
+    from app.db import holder
+    from app.ai.pipeline import process_lesson_automatically
+    from app.models import CardProposal, Lesson
+
+    with holder.SessionLocal() as session:
+        lesson_id = _default_lesson_id(session)
+        lesson = session.get(Lesson, lesson_id)
+        client = FakeAIClient(_fake_response({
+            "pares_confundiveis": [
+                {
+                    "termo_a": "dolo eventual",
+                    "termo_b": "culpa consciente",
+                    "eixo_distincao": "assumir o risco x confiar que não ocorrerá",
+                    "start_s_a": 12.0,
+                    "end_s_a": 20.0,
+                    "start_s_b": 40.0,
+                    "end_s_b": 48.0,
+                },
+            ],
+        }))
+        process_lesson_automatically(session, lesson, client)
+
+    with holder.SessionLocal() as session:
+        pairs = session.query(CardProposal).filter_by(lesson_id=lesson_id, tipo="discriminacao").all()
+        assert len(pairs) == 1
+        pair = pairs[0]
+        assert pair.termo_a == "culpa consciente"  # canonizado em ordem alfabética
+        assert pair.termo_b == "dolo eventual"
+        assert pair.start_s_a == 40.0
+        assert pair.start_s_b == 12.0
+        assert pair.eixo_distincao == "assumir o risco x confiar que não ocorrerá"
+        assert pair.status == "pendente"
+        # cards normais continuam intactos, na mesma tabela
+        flashcards = session.query(CardProposal).filter_by(lesson_id=lesson_id, tipo="flashcard").all()
+        assert len(flashcards) == 1
+
+
+def test_pares_confundiveis_without_timestamps_are_tolerated(app_env):
+    from app.db import holder
+    from app.ai.pipeline import process_lesson_automatically
+    from app.models import CardProposal, Lesson
+
+    with holder.SessionLocal() as session:
+        lesson_id = _default_lesson_id(session)
+        lesson = session.get(Lesson, lesson_id)
+        client = FakeAIClient(_fake_response({
+            "pares_confundiveis": [
+                {"termo_a": "nulidade", "termo_b": "anulabilidade", "eixo_distincao": "interesse público x privado"},
+            ],
+        }))
+        process_lesson_automatically(session, lesson, client)
+
+    with holder.SessionLocal() as session:
+        pair = session.query(CardProposal).filter_by(lesson_id=lesson_id, tipo="discriminacao").one()
+        assert pair.start_s_a is None
+        assert pair.start_s_b is None
+        assert pair.start_s == 0.0  # placeholder, nunca lido pra este tipo
+
+
+def test_pares_confundiveis_reconcile_preserves_edit_across_reprocessing(app_env):
+    from app.db import holder
+    from app.ai.pipeline import process_lesson_automatically
+    from app.models import CardProposal, Lesson
+
+    pares = [
+        {
+            "termo_a": "prescrição",
+            "termo_b": "decadência",
+            "eixo_distincao": "extingue a pretensão x extingue o direito",
+            "start_s_a": 5.0, "end_s_a": 9.0, "start_s_b": 15.0, "end_s_b": 19.0,
+        },
+    ]
+
+    with holder.SessionLocal() as session:
+        lesson_id = _default_lesson_id(session)
+        lesson = session.get(Lesson, lesson_id)
+        process_lesson_automatically(session, lesson, FakeAIClient(_fake_response({"pares_confundiveis": pares})))
+
+        pair = session.query(CardProposal).filter_by(lesson_id=lesson_id, tipo="discriminacao").one()
+        pair.verso = "Minha própria explicação do eixo."
+        pair.editado_em = datetime.now(timezone.utc)
+        session.commit()
+        edited_id = pair.id
+
+    with holder.SessionLocal() as session:
+        lesson = session.get(Lesson, lesson_id)
+        # mesma dupla de termos (ordem trocada), eixo reformulado -- deve
+        # cair na MESMA linha por identidade de termos, não duplicar
+        client2 = FakeAIClient(_fake_response({
+            "pares_confundiveis": [
+                {**pares[0], "termo_a": "decadência", "termo_b": "prescrição", "eixo_distincao": "reformulado pela IA"},
+            ],
+        }))
+        process_lesson_automatically(session, lesson, client2)
+
+    with holder.SessionLocal() as session:
+        pairs = session.query(CardProposal).filter_by(lesson_id=lesson_id, tipo="discriminacao").all()
+        assert len(pairs) == 1, "mesma dupla de termos não deve duplicar"
+        preserved = pairs[0]
+        assert preserved.id == edited_id
+        assert preserved.verso == "Minha própria explicação do eixo.", "edição do usuário precisa sobreviver"
 
 
 def test_process_without_transcript_raises_clear_error(app_env):

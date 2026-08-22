@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}{{ work.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/works">← Biblioteca</a></p>
+<h1>{{ work.titulo }}</h1>
+{% if work.subtitulo %}<p class="muted">{{ work.subtitulo }}</p>{% endif %}
+
+{% if erro %}<p class="error">{{ erro }}</p>{% endif %}
+
+<div class="card">
+	<h2>Referência ABNT</h2>
+	<p>{{ referencia }}</p>
+	<p><a class="button" href="/works/{{ work.id }}/ler">Ler →</a> <a class="button" href="/works/{{ work.id }}/baixar">Baixar tudo (.md)</a></p>
+</div>
+
+<div class="card">
+	<h2>Imagens</h2>
+	<div class="button-row">
+		{% for img in work.images %}
+		<a href="/works/{{ work.id }}/imagens/{{ img.id }}" target="_blank"><span class="badge">{{ img.tipo }}</span></a>
+		{% else %}
+		<span class="muted">Nenhuma imagem ainda.</span>
+		{% endfor %}
+	</div>
+	<form method="post" action="/works/{{ work.id }}/imagens" enctype="multipart/form-data" class="button-row" style="margin-top: var(--space-3)">
+		<select name="tipo">
+			<option value="capa">Capa</option>
+			<option value="contracapa">Contracapa</option>
+			<option value="folha_rosto">Folha de rosto</option>
+			<option value="ficha">Ficha catalográfica</option>
+			<option value="sumario">Sumário</option>
+		</select>
+		<input type="file" name="arquivo" accept="image/*" required>
+		<button type="submit">Enviar</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Estrutura (sumário)</h2>
+	<ul class="timeline">
+		{% for c in cobertura %}
+		<li>
+			<span class="badge {% if not c.coberto %}error{% endif %}">{{ "✓" if c.coberto else "ausente" }}</span>
+			<span style="padding-left: calc(var(--space-3) * {{ c.section.nivel - 1 }})">{{ c.section.titulo }}</span>
+			<span class="muted">p. {{ c.section.pagina_inicial }}{% if c.section.pagina_final %}–{{ c.section.pagina_final }}{% endif %}</span>
+			<form method="post" action="/works/{{ work.id }}/sections/{{ c.section.id }}/remover" style="display:inline">
+				<button type="submit" style="min-height:auto; padding: 0 var(--space-2)">✗</button>
+			</form>
+		</li>
+		{% else %}
+		<li class="muted">Nenhuma seção cadastrada — a estrutura fica plana até você cadastrar o sumário.</li>
+		{% endfor %}
+	</ul>
+	<details>
+		<summary class="muted">Adicionar seção</summary>
+		<form method="post" action="/works/{{ work.id }}/sections">
+			<p><label>Título<br><input type="text" name="titulo" required></label></p>
+			<div class="button-row">
+				<label>Nível<br><input type="text" name="nivel" value="1"></label>
+				<label>Página inicial<br><input type="text" name="pagina_inicial" required></label>
+				<label>Página final<br><input type="text" name="pagina_final"></label>
+			</div>
+			<button type="submit">Adicionar</button>
+		</form>
+	</details>
+</div>
+
+<div class="card">
+	<h2>Materiais ({{ materials|length }})</h2>
+	<ul class="timeline">
+		{% for m in materials %}
+		<li>
+			<a href="/materials/{{ m.id }}">{{ m.titulo }}</a>
+			<span class="badge">{{ m.origem }}</span>
+			{% if m.pagina_inicial %}<span class="muted">p. {{ m.pagina_inicial }}{% if m.pagina_final %}–{{ m.pagina_final }}{% endif %}</span>{% else %}<span class="muted">ordem manual #{{ m.ordem_manual }}</span>{% endif %}
+			<span class="muted">{{ m.pages|selectattr("status", "equalto", "ok")|list|length }}/{{ m.pages|length }} páginas prontas</span>
+		</li>
+		{% else %}
+		<li class="muted">Nenhum material subido ainda.</li>
+		{% endfor %}
+	</ul>
+
+	<details>
+		<summary class="muted">Subir porção nova (PDF ou fotos)</summary>
+		<form method="post" action="/works/{{ work.id }}/materiais" enctype="multipart/form-data">
+			<p><label>Título<br><input type="text" name="titulo" required placeholder="Capítulo 7 — Posse"></label></p>
+			<p><label>Origem<br>
+				<select name="origem" id="origem-select">
+					<option value="pdf">PDF</option>
+					<option value="foto">Fotos de página</option>
+				</select>
+			</label></p>
+			<div class="button-row">
+				<label>Página inicial na obra<br><input type="text" name="pagina_inicial" placeholder="247"></label>
+				<label>Página final na obra<br><input type="text" name="pagina_final" placeholder="290"></label>
+			</div>
+			<p><label><input type="checkbox" name="ordem_manual_confirmado" value="1"> Numeração desconhecida (ordena pela ordem de envio)</label></p>
+			<p><label><input type="checkbox" name="sobrepor_confirmado" value="1"> Sobrepor mesmo se colidir com material já existente</label></p>
+			<p id="campo-pdf"><label>Arquivo PDF<br><input type="file" name="arquivo" accept="application/pdf"></label></p>
+			<p id="campo-fotos" hidden><label>Fotos (em ordem)<br><input type="file" name="arquivos" accept="image/*" multiple></label></p>
+			<button type="submit">Enviar</button>
+		</form>
+	</details>
+</div>
+
+<div class="card">
+	<h2>Onde é usado</h2>
+	<ul class="timeline">
+		{% for u in uses %}
+		<li>
+			<span>{{ u.subject.sigla }}</span>
+			{% if u.pagina_inicial %}<span class="muted">p. {{ u.pagina_inicial }}{% if u.pagina_final %}–{{ u.pagina_final }}{% endif %}</span>{% endif %}
+			{% if u.rotulo %}<span class="muted">{{ u.rotulo }}</span>{% endif %}
+		</li>
+		{% else %}
+		<li class="muted">Ainda não marcado como usado em nenhuma matéria.</li>
+		{% endfor %}
+	</ul>
+	<details>
+		<summary class="muted">Marcar trecho por matéria</summary>
+		<form method="post" action="/works/{{ work.id }}/usos">
+			<p><label>Material<br>
+				<select name="material_id" required>
+					{% for m in materials %}
+					<option value="{{ m.id }}">{{ m.titulo }}</option>
+					{% endfor %}
+				</select>
+			</label></p>
+			<p><label>Matéria<br>
+				<select name="subject_id" required>
+					{% for s in subjects %}
+					<option value="{{ s.id }}">{{ s.sigla }}</option>
+					{% endfor %}
+				</select>
+			</label></p>
+			<div class="button-row">
+				<label>Página inicial<br><input type="text" name="pagina_inicial"></label>
+				<label>Página final<br><input type="text" name="pagina_final"></label>
+			</div>
+			<p><label>Rótulo<br><input type="text" name="rotulo" placeholder="ex.: arts. 1º-4º"></label></p>
+			<button type="submit">Marcar</button>
+		</form>
+	</details>
+</div>
+
+<div class="card">
+	<h2>Editar ficha</h2>
+	<form method="post" action="/works/{{ work.id }}">
+		<p><label>Título<br><input type="text" name="titulo" value="{{ work.titulo }}" required></label></p>
+		<p><label>Subtítulo<br><input type="text" name="subtitulo" value="{{ work.subtitulo or '' }}"></label></p>
+		<p><label>Autores<br><input type="text" name="autores" value="{{ work.autores or '' }}"></label></p>
+		<p><label>Organizadores<br><input type="text" name="organizadores" value="{{ work.organizadores or '' }}"></label></p>
+		<p><label>Tradutor<br><input type="text" name="tradutor" value="{{ work.tradutor or '' }}"></label></p>
+		<div class="button-row">
+			<label>Edição<br><input type="text" name="edicao" value="{{ work.edicao or '' }}"></label>
+			<label>Volume<br><input type="text" name="volume" value="{{ work.volume or '' }}"></label>
+			<label>Tomo<br><input type="text" name="tomo" value="{{ work.tomo or '' }}"></label>
+		</div>
+		<div class="button-row">
+			<label>Local<br><input type="text" name="local" value="{{ work.local or '' }}"></label>
+			<label>Editora<br><input type="text" name="editora" value="{{ work.editora or '' }}"></label>
+			<label>Ano<br><input type="text" name="ano" value="{{ work.ano or '' }}"></label>
+		</div>
+		<p><label>ISBN<br><input type="text" name="isbn" value="{{ work.isbn or '' }}"></label></p>
+		<p><label>Referência manual (sobrepõe a ABNT automática)<br><textarea name="referencia_manual" rows="2">{{ work.referencia_manual or '' }}</textarea></label></p>
+		<button type="submit">Salvar</button>
+	</form>
+</div>
+
+<script>
+	const origemSelect = document.getElementById("origem-select");
+	function updateCampos() {
+		document.getElementById("campo-pdf").hidden = origemSelect.value !== "pdf";
+		document.getElementById("campo-fotos").hidden = origemSelect.value !== "foto";
+	}
+	origemSelect.addEventListener("change", updateCampos);
+	updateCampos();
+</script>
+{% endblock %}

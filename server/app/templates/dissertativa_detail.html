@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Dissertativa{% endblock %}
+{% block content %}
+<p><a href="/dissertativas">← Dissertativas</a></p>
+
+{% if request.query_params.get("erro_ia") %}
+<div class="card error">{{ request.query_params.get("erro_ia") }}</div>
+{% endif %}
+
+<div class="card">
+	{% if question.subject %}<span class="badge">{{ question.subject.sigla }}</span>{% endif %}
+	{% if question.assunto %}<span class="badge">{{ question.assunto.titulo }}</span>{% endif %}
+	<h1>{{ question.enunciado }}</h1>
+	<details>
+		<summary class="muted">Rubrica (o que uma resposta completa precisa cobrir)</summary>
+		<ul>{% for item in rubrica %}<li>{{ item }}</li>{% endfor %}</ul>
+	</details>
+</div>
+
+<div class="card">
+	<h2>Responder</h2>
+	<form method="post" action="/dissertativas/{{ question.id }}/responder">
+		<textarea name="resposta_texto" rows="10" style="width:100%" placeholder="Escreva sua resposta..." required></textarea>
+		<p><button type="submit">Enviar resposta</button></p>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Tentativas ({{ attempts|length }})</h2>
+	{% for ctx in attempts_context %}
+	{% set attempt = ctx.attempt %}
+	<div class="card approval-item" id="tentativa-{{ attempt.id }}">
+		<p class="muted">{{ attempt.criado_em }} — <span class="badge">{{ attempt.status }}</span></p>
+		<p>{{ attempt.resposta_texto }}</p>
+
+		{% if attempt.status == "avaliado" %}
+		<p><strong>Cobriu:</strong> {{ ctx.pontos_cobertos | join(" · ") if ctx.pontos_cobertos else "—" }}</p>
+		{% if ctx.pontos_faltantes %}
+		<p><strong>Faltou:</strong></p>
+		<ul>{% for f in ctx.pontos_faltantes %}<li>{{ f }}</li>{% endfor %}</ul>
+		{% else %}
+		<p class="muted">Nada faltando.</p>
+		{% endif %}
+		{% if attempt.comentario %}<p>{{ attempt.comentario }}</p>{% endif %}
+		{% else %}
+		<form method="post" action="/dissertativas/{{ question.id }}/attempts/{{ attempt.id }}/avaliar">
+			<button type="submit">Corrigir (automático)</button>
+		</form>
+		<p class="button-row">
+			<a class="button" href="/dissertativas/{{ question.id }}/attempts/{{ attempt.id }}/prompt.md">Baixar pacote (.md)</a>
+			<a class="button" href="/dissertativas/{{ question.id }}/attempts/{{ attempt.id }}/colar-correcao">Colar correção</a>
+		</p>
+		{% endif %}
+	</div>
+	{% else %}
+	<p class="muted">Nenhuma tentativa ainda.</p>
+	{% endfor %}
+</div>
+{% endblock %}

@@ -9,3 +9,8 @@ python-dotenv
 faster-whisper
 anthropic
 markdown
+markdownify
+google-api-python-client
+google-auth
+pypdf
+pymupdf

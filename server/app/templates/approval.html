@@ -4,12 +4,48 @@
 <p><a href="/lessons/{{ lesson.id }}/aula-editada">← Aula editada</a></p>
 <h1>Aprovação</h1>
 <p class="muted">Nada gerado por IA entra na sua fila de revisão sem você ter visto.</p>
+<p class="muted">Aceitar põe o card na fila de revisão espaçada <strong>imediatamente</strong> — vence hoje mesmo.</p>
+
+{% if request.query_params.get("aceitos") %}
+<div class="card card-primary">
+	<p><strong>{{ request.query_params.get("aceitos") }}</strong> proposta(s) aceita(s) — já estão na fila de revisão de hoje.</p>
+	{% if request.query_params.get("desfazer") %}
+	<form method="post" action="/lessons/{{ lesson.id }}/cards/desfazer-aceite">
+		<input type="hidden" name="ids" value="{{ request.query_params.get('desfazer') }}">
+		<button type="submit" class="button-ghost">↩ Desfazer</button>
+	</form>
+	{% endif %}
+</div>
+{% endif %}
+{% if request.query_params.get("desfeitos") %}
+<div class="card">{{ request.query_params.get("desfeitos") }} proposta(s) voltaram para pendente.</div>
+{% endif %}
+{% if request.query_params.get("assunto_aceito") %}
+<div class="card">
+	{% if request.query_params.get("novo") == "1" %}
+	Assunto <strong>{{ request.query_params.get("assunto_aceito") }}</strong> criado.
+	{% else %}
+	Assunto <strong>{{ request.query_params.get("assunto_aceito") }}</strong> — juntado ao que já existia.
+	{% endif %}
+</div>
+{% endif %}
+{% if request.query_params.get("termo_aceito") %}
+<div class="card">
+	{% if request.query_params.get("novo") == "1" %}
+	Termo <strong>{{ request.query_params.get("termo_aceito") }}</strong> criado.
+	{% else %}
+	Termo <strong>{{ request.query_params.get("termo_aceito") }}</strong> — juntado ao que já existia.
+	{% endif %}
+</div>
+{% endif %}
+
+<audio id="approval-audio" src="/lessons/{{ lesson.id }}/audio" preload="none"></audio>
 
 <div class="card">
 	<h2>Cards propostos ({{ cards|length }})</h2>
 	{% if cards %}
 	<form method="post" action="/lessons/{{ lesson.id }}/cards/aceitar-todos">
-		<button type="submit">✓ Aceitar todos</button>
+		<button type="submit">✓ Aceitar todos os {{ cards|length }}</button>
 	</form>
 	{% endif %}
 	{% for card in cards %}
@@ -21,7 +57,7 @@
 				<button type="submit">✓ Aceitar</button>
 			</form>
 			<form method="post" action="/lessons/{{ lesson.id }}/cards/{{ card.id }}/descartar">
-				<button type="submit">✗ Descartar</button>
+				<button type="submit" class="button-ghost">✗ Descartar</button>
 			</form>
 		</div>
 		<details>
@@ -39,6 +75,40 @@
 </div>
 
 <div class="card">
+	<h2>Pares de discriminação propostos ({{ pairs|length }})</h2>
+	<p class="muted">Termos que o professor contrastou e que costumam ser confundidos — comparação lado a lado, com o áudio dos dois momentos.</p>
+	{% if pairs %}
+	<form method="post" action="/lessons/{{ lesson.id }}/pares/aceitar-todos">
+		<button type="submit">✓ Aceitar todos os {{ pairs|length }} pares</button>
+	</form>
+	{% endif %}
+	{% for pair in pairs %}
+	<div class="card approval-item">
+		<p><strong>{{ pair.termo_a }}</strong> × <strong>{{ pair.termo_b }}</strong></p>
+		<p>{{ pair.eixo_distincao }}</p>
+		<div class="button-row">
+			{% if pair.start_s_a is not none %}
+			<button type="button" class="ouvir-original" data-start="{{ pair.start_s_a }}">▸ ouvir "{{ pair.termo_a }}"</button>
+			{% endif %}
+			{% if pair.start_s_b is not none %}
+			<button type="button" class="ouvir-original" data-start="{{ pair.start_s_b }}">▸ ouvir "{{ pair.termo_b }}"</button>
+			{% endif %}
+		</div>
+		<div class="button-row">
+			<form method="post" action="/lessons/{{ lesson.id }}/cards/{{ pair.id }}/aceitar">
+				<button type="submit">✓ Aceitar</button>
+			</form>
+			<form method="post" action="/lessons/{{ lesson.id }}/cards/{{ pair.id }}/descartar">
+				<button type="submit" class="button-ghost">✗ Descartar</button>
+			</form>
+		</div>
+	</div>
+	{% else %}
+	<p class="muted">Nenhum par pendente.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
 	<h2>Assuntos propostos ({{ assuntos|length }})</h2>
 	<p class="muted">Assunto é global — atravessa matérias e semestres. Ajuste o título antes de aceitar se quiser juntar com um assunto que já existe.</p>
 	{% for a in assuntos %}
@@ -48,11 +118,55 @@
 			<button type="submit">✓ Aceitar</button>
 		</form>
 		<form method="post" action="/lessons/{{ lesson.id }}/assuntos/{{ a.id }}/descartar">
-			<button type="submit">✗ Descartar</button>
+			<button type="submit" class="button-ghost">✗ Descartar</button>
 		</form>
+		{% if similares_assunto.get(a.id) %}
+		<p class="muted">Parecido com o que já existe — juntar em vez de criar um novo:</p>
+		<div class="button-row">
+			{% for cand in similares_assunto[a.id] %}
+			<form method="post" action="/lessons/{{ lesson.id }}/assuntos/{{ a.id }}/aceitar">
+				<input type="hidden" name="titulo" value="{{ cand.titulo }}">
+				<button type="submit" class="button-ghost">⇢ juntar em "{{ cand.titulo }}"</button>
+			</form>
+			{% endfor %}
+		</div>
+		{% endif %}
 	</div>
 	{% else %}
 	<p class="muted">Nenhum assunto pendente.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
+	<h2>Termos propostos ({{ termos|length }})</h2>
+	<p class="muted">Glossário é global — atravessa matérias e semestres. Ajuste a grafia antes de aceitar se quiser juntar com um termo que já existe.</p>
+	{% for t in termos %}
+	<div class="card approval-item">
+		<form method="post" action="/lessons/{{ lesson.id }}/termos/{{ t.id }}/aceitar" class="button-row">
+			<input type="text" name="termo" value="{{ t.termo_proposto }}">
+			<button type="submit">✓ Aceitar</button>
+		</form>
+		<p>{{ t.definicao_md }}</p>
+		{% if t.citacao_literal %}<p class="muted">🔊 "{{ t.citacao_literal }}"
+			{% if t.start_s is not none %}<button type="button" class="ouvir-original" data-start="{{ t.start_s }}">▸ ouvir</button>{% endif %}
+		</p>{% endif %}
+		<form method="post" action="/lessons/{{ lesson.id }}/termos/{{ t.id }}/descartar">
+			<button type="submit" class="button-ghost">✗ Descartar</button>
+		</form>
+		{% if similares_termo.get(t.id) %}
+		<p class="muted">Parecido com o que já existe — juntar em vez de criar um novo:</p>
+		<div class="button-row">
+			{% for cand in similares_termo[t.id] %}
+			<form method="post" action="/lessons/{{ lesson.id }}/termos/{{ t.id }}/aceitar">
+				<input type="hidden" name="termo" value="{{ cand.rotulo }}">
+				<button type="submit" class="button-ghost">⇢ juntar em "{{ cand.rotulo }}"</button>
+			</form>
+			{% endfor %}
+		</div>
+		{% endif %}
+	</div>
+	{% else %}
+	<p class="muted">Nenhum termo pendente.</p>
 	{% endfor %}
 </div>
 
@@ -67,7 +181,7 @@
 				<button type="submit">✓ Aceitar</button>
 			</form>
 			<form method="post" action="/lessons/{{ lesson.id }}/announcements/{{ ann.id }}/descartar">
-				<button type="submit">✗ Descartar</button>
+				<button type="submit" class="button-ghost">✗ Descartar</button>
 			</form>
 		</div>
 	</div>
@@ -75,4 +189,14 @@
 	<p class="muted">Nenhuma data pendente.</p>
 	{% endfor %}
 </div>
+
+<script>
+	const audio = document.getElementById("approval-audio");
+	document.querySelectorAll(".ouvir-original").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			audio.currentTime = parseFloat(btn.dataset.start);
+			audio.play();
+		});
+	});
+</script>
 {% endblock %}

@@ -21,6 +21,9 @@ def app_env(tmp_path, monkeypatch):
     monkeypatch.setenv("MEDIA_ORIGINAL_DIR", str(tmp_path / "media" / "original"))
     monkeypatch.setenv("MEDIA_WEB_DIR", str(tmp_path / "media" / "web"))
     monkeypatch.setenv("UPLOAD_STAGING_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("MATERIAL_FILES_DIR", str(tmp_path / "materials"))
+    monkeypatch.setenv("FEYNMAN_AUDIO_DIR", str(tmp_path / "media" / "feynman"))
+    monkeypatch.setenv("DESTAQUES_CLIPS_DIR", str(tmp_path / "media" / "destaques"))
 
     # Módulos já podem ter sido importados por outro teste com config antiga;
     # força reimport para pegar as env vars isoladas deste teste.

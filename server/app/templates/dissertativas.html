@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Dissertativas{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Dissertativas</h1>
+<p class="muted">Prova de Direito é escrita — treine no formato certo, corrigido contra o que o professor realmente disse.</p>
+
+<ul class="search-results">
+	{% for q in questions %}
+	<li>
+		<a href="/dissertativas/{{ q.id }}">
+			{% if q.subject %}<span class="badge">{{ q.subject.sigla }}</span>{% endif %}
+			{% if q.assunto %}<span class="badge">{{ q.assunto.titulo }}</span>{% endif %}
+			<strong>{{ q.enunciado[:120] }}{% if q.enunciado|length > 120 %}…{% endif %}</strong>
+		</a>
+	</li>
+	{% else %}
+	<p class="muted">Nenhuma questão ainda — gere uma a partir de uma aula ou de um assunto.</p>
+	{% endfor %}
+</ul>
+{% endblock %}

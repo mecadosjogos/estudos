@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 from starlette.testclient import TestClient
@@ -35,53 +36,35 @@ def _make_transcribed_lesson(session, texts, titulo="Aula com transcrição"):
     return lesson.id
 
 
-def test_guia_pacote_contains_prompt_and_transcript(app_env):
+def _pasted_response(guia_md="# Aula sem título identificado\n\nConteúdo do guia.") -> str:
+    """O guia sai da MESMA resposta que a aula editada (fase 6 revisada) --
+    não existe mais um `colar-guia` separado. Ver ai/schemas.py, guia_md."""
+    payload = {
+        "resumo": "Resumo curto.",
+        "aula_editada": [
+            {"tipo": "destaque-prova", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0},
+        ],
+        "indice": [{"titulo": "Posse", "start_s": 0.0, "end_s": 5.0}],
+        "guia_md": guia_md,
+        "artigos": [], "datas_anunciadas": [], "cards": [],
+        "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
+    }
+    return "```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```"
+
+
+def test_colar_resposta_saves_guia_alongside_aula_editada(app_env):
     client = _authed_client()
     from app.db import holder
 
     with holder.SessionLocal() as session:
         lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
 
-    response = client.get(f"/lessons/{lesson_id}/guia-pacote.md")
-    assert response.status_code == 200
-    assert "FIDELIDADE AO CONTEÚDO" in response.text
-    assert "ÁRVORE DE CONHECIMENTO" in response.text
-    assert "a posse exige corpus e animus" in response.text
-
-
-def test_guia_pacote_sem_transcricao_da_erro_400(app_env):
-    client = _authed_client()
-    from sqlalchemy import select
-
-    from app.db import holder
-    from app.models import Lesson, Subject
-
-    with holder.SessionLocal() as session:
-        subject_id = session.scalar(select(Subject.id).where(Subject.sigla == "TGDC"))
-        lesson = Lesson(subject_id=subject_id, titulo="Sem transcrição", data=date(2026, 3, 12))
-        session.add(lesson)
-        session.commit()
-        lesson_id = lesson.id
-
-    response = client.get(f"/lessons/{lesson_id}/guia-pacote.md")
-    assert response.status_code == 400
-
-
-def test_colar_guia_saves_markdown_and_redirects_to_view(app_env):
-    client = _authed_client()
-    from app.db import holder
-
-    with holder.SessionLocal() as session:
-        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
-
-    resposta = "# Aula sem título identificado\n\n## Sumário\n\n1. Posse\n\n---\n\n## 1. Posse\n\n> A posse exige **corpus** e **animus**."
+    resposta = _pasted_response("# Aula sem título identificado\n\n> A posse exige **corpus** e **animus**.")
     response = client.post(
-        f"/lessons/{lesson_id}/colar-guia", data={"resposta": resposta}, follow_redirects=True
+        f"/lessons/{lesson_id}/colar-resposta", data={"resposta": resposta}, follow_redirects=True
     )
     assert response.status_code == 200
-    assert response.url.path == f"/lessons/{lesson_id}/guia"
-    assert "<strong>corpus</strong>" in response.text
-    assert "<blockquote>" in response.text
+    assert response.url.path == f"/lessons/{lesson_id}/aula-editada"
 
     with holder.SessionLocal() as session:
         from app.models import Lesson
@@ -89,65 +72,23 @@ def test_colar_guia_saves_markdown_and_redirects_to_view(app_env):
         lesson = session.get(Lesson, lesson_id)
         assert lesson.guia_md.startswith("# Aula sem título identificado")
         assert lesson.guia_gerado_em is not None
+        assert lesson.resumo == "Resumo curto."  # aula editada veio junto, mesma chamada
 
 
-def test_colar_guia_strips_chatter_before_the_title(app_env):
-    """O parser corta a partir do primeiro '# ' -- conversa de chat em
-    volta ("aqui está o resultado:") não deve virar parte do guia."""
+def test_view_guia_renders_markdown(app_env):
     client = _authed_client()
     from app.db import holder
 
     with holder.SessionLocal() as session:
-        lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
 
-    resposta = "Claro, aqui está o guia organizado:\n\n# Aula de Posse\n\nConteúdo real aqui."
-    client.post(f"/lessons/{lesson_id}/colar-guia", data={"resposta": resposta})
+    resposta = _pasted_response("# Aula sem título identificado\n\n> A posse exige **corpus** e **animus**.")
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": resposta})
 
-    with holder.SessionLocal() as session:
-        from app.models import Lesson
-
-        lesson = session.get(Lesson, lesson_id)
-        assert lesson.guia_md == "# Aula de Posse\n\nConteúdo real aqui."
-        assert "Claro, aqui está" not in lesson.guia_md
-
-
-def test_colar_guia_rejects_empty_response(app_env):
-    client = _authed_client()
-    from app.db import holder
-
-    with holder.SessionLocal() as session:
-        lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
-
-    response = client.post(
-        f"/lessons/{lesson_id}/colar-guia", data={"resposta": "   "}, follow_redirects=True
-    )
-    assert "erro" in str(response.url)
-
-    with holder.SessionLocal() as session:
-        from app.models import Lesson
-
-        lesson = session.get(Lesson, lesson_id)
-        assert lesson.guia_md is None
-
-
-def test_colar_guia_logs_ai_call_as_manual_and_free(app_env):
-    client = _authed_client()
-    from sqlalchemy import select
-
-    from app.db import holder
-
-    with holder.SessionLocal() as session:
-        lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
-
-    client.post(f"/lessons/{lesson_id}/colar-guia", data={"resposta": "# Guia\n\nconteúdo"})
-
-    with holder.SessionLocal() as session:
-        from app.models import AiCall
-
-        call = session.scalar(select(AiCall).where(AiCall.lesson_id == lesson_id))
-        assert call.tipo_acao == "guia_aula"
-        assert call.via == "manual"
-        assert call.custo_usd == 0.0
+    response = client.get(f"/lessons/{lesson_id}/guia")
+    assert response.status_code == 200
+    assert "<strong>corpus</strong>" in response.text
+    assert "<blockquote>" in response.text
 
 
 def test_view_guia_404_before_generated(app_env):
@@ -168,24 +109,12 @@ def test_download_guia_md_returns_raw_markdown(app_env):
     with holder.SessionLocal() as session:
         lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
 
-    client.post(f"/lessons/{lesson_id}/colar-guia", data={"resposta": "# Guia\n\nconteúdo real"})
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response("# Guia\n\nconteúdo real")})
 
     response = client.get(f"/lessons/{lesson_id}/guia.md")
     assert response.status_code == 200
     assert response.text.strip() == "# Guia\n\nconteúdo real"
     assert "Content-Disposition" in response.headers
-
-
-def test_lesson_detail_shows_generate_guia_button_before_generated(app_env):
-    client = _authed_client()
-    from app.db import holder
-
-    with holder.SessionLocal() as session:
-        lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
-
-    response = client.get(f"/lessons/{lesson_id}")
-    assert f"/lessons/{lesson_id}/guia-pacote.md" in response.text
-    assert f"/lessons/{lesson_id}/colar-guia" in response.text
 
 
 def test_lesson_detail_shows_view_guia_button_after_generated(app_env):
@@ -195,7 +124,32 @@ def test_lesson_detail_shows_view_guia_button_after_generated(app_env):
     with holder.SessionLocal() as session:
         lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
 
-    client.post(f"/lessons/{lesson_id}/colar-guia", data={"resposta": "# Guia\n\nconteúdo"})
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response("# Guia\n\nconteúdo")})
 
     response = client.get(f"/lessons/{lesson_id}")
     assert f"/lessons/{lesson_id}/guia\"" in response.text
+
+
+def test_lesson_detail_hides_guia_button_before_generated(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
+
+    response = client.get(f"/lessons/{lesson_id}")
+    assert f"/lessons/{lesson_id}/guia\"" not in response.text
+
+
+def test_guia_pacote_and_colar_guia_routes_no_longer_exist(app_env):
+    """Rotas removidas na fase 6 revisada -- guia sai do mesmo
+    pacote.md/colar-resposta da aula editada (ver ai/schemas.py, guia_md)."""
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["texto qualquer"])
+
+    assert client.get(f"/lessons/{lesson_id}/guia-pacote.md").status_code == 404
+    assert client.get(f"/lessons/{lesson_id}/colar-guia").status_code == 404
+    assert client.post(f"/lessons/{lesson_id}/colar-guia", data={"resposta": "# x"}).status_code == 404

@@ -30,6 +30,7 @@
 		--border: #34343a;
 		--accent: #a78bfa;
 		--accent-text: #16161a;
+		--danger: #f87171;
 	}
 }
 
@@ -41,6 +42,7 @@
 	--border: #34343a;
 	--accent: #a78bfa;
 	--accent-text: #16161a;
+	--danger: #f87171;
 }
 
 * {
@@ -82,6 +84,11 @@ a {
 	margin-bottom: var(--space-3);
 }
 
+.card-primary {
+	border-color: var(--accent);
+	border-width: 2px;
+}
+
 .subject-list {
 	list-style: none;
 	padding: 0;
@@ -117,6 +124,12 @@ button, .button {
 	cursor: pointer;
 }
 
+.button-ghost {
+	background: transparent;
+	border-color: var(--border);
+	color: var(--text-muted);
+}
+
 .muted {
 	color: var(--text-muted);
 }
@@ -132,6 +145,16 @@ button, .button {
 	border-radius: 999px;
 	background: var(--border);
 	font-size: 0.85em;
+}
+
+.badge-danger {
+	background: var(--danger);
+	color: var(--accent-text);
+}
+
+.destaque-subject {
+	background: var(--accent);
+	color: var(--accent-text);
 }
 
 .dot {
@@ -311,6 +334,10 @@ input[type="text"], input[type="date"], input[type="search"], select {
 	text-decoration: none;
 }
 
+.destaque-atual {
+	border-color: var(--accent, #7c3aed);
+}
+
 .snippet {
 	margin: var(--space-2) 0 0;
 	color: var(--text-muted);
@@ -384,8 +411,45 @@ textarea {
 	border-left-color: var(--border);
 }
 
+.block-destaque-prova .block-tipo-badge::before {
+	content: "⚠ ";
+}
+
+.block-atencao .block-tipo-badge::before {
+	content: "! ";
+}
+
+.block-ditado .block-tipo-badge::before {
+	content: "✎ ";
+}
+
 .approval-item {
 	margin-bottom: var(--space-3);
+}
+
+.cloze-word {
+	cursor: default;
+}
+
+.study-mode .cloze-word {
+	background: var(--text-muted);
+	color: transparent;
+	border-radius: 0.2em;
+	cursor: pointer;
+	user-select: none;
+}
+
+.study-mode .cloze-word.revealed {
+	background: none;
+	color: inherit;
+	user-select: text;
+}
+
+.glossary-term {
+	text-decoration: underline dotted;
+	text-decoration-color: var(--text-muted);
+	text-underline-offset: 0.15em;
+	cursor: pointer;
 }
 
 .markdown-body {

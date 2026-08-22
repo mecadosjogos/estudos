@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.titulo }} — {{ exam.subject.sigla }}{% endblock %}
+{% block content %}
+<p><a href="/subjects/{{ exam.subject_id }}">← {{ exam.subject.sigla }}</a></p>
+<h1>{{ exam.titulo }} — {{ exam.subject.sigla }}</h1>
+<p class="muted">{{ exam.data.strftime("%d/%m/%Y") }}</p>
+
+<div class="card">
+	<h2>Plano regressivo</h2>
+	<p><strong>{{ panel.dias_restantes }}</strong> dia(s) restante(s)</p>
+	<p>{{ panel.dados }} de {{ panel.total_topicos }} tópico(s) dados · {{ panel.estudados }} estudado(s) · {{ panel.sem_material }} sem material nenhum</p>
+	<p>{{ panel.cards_vencidos }} card(s) vencido(s) no escopo · ritmo necessário: <strong>{{ panel.ritmo_por_dia }}/dia</strong></p>
+	{% if panel.mais_fracos %}
+	<p>Mais fraco em:
+		{% for f in panel.mais_fracos %}{{ f.titulo }} ({{ "%.0f"|format(f.taxa_acerto * 100) }}%){% if not loop.last %} · {% endif %}{% endfor %}
+	</p>
+	{% endif %}
+	<p><a class="button" href="/exams/{{ exam.id }}/apanhado.pdf">Baixar apanhado do escopo (PDF)</a></p>
+</div>
+
+<div class="card">
+	<h2>Escopo ({{ exam.escopo|length }} assunto(s))</h2>
+	{% for s in exam.escopo %}
+	<p><a href="/assuntos/{{ s.assunto_id }}">{{ s.assunto.titulo }}</a>
+		<form method="post" action="/exams/{{ exam.id }}/escopo/{{ s.assunto_id }}/remover" style="display:inline">
+			<button type="submit">remover</button>
+		</form>
+	</p>
+	{% else %}
+	<p class="muted">Nenhum assunto no escopo ainda.</p>
+	{% endfor %}
+
+	{% if outros_assuntos %}
+	<form method="post" action="/exams/{{ exam.id }}/escopo">
+		<select name="assunto_id">
+			{% for a in outros_assuntos %}
+			<option value="{{ a.id }}">{{ a.titulo }}</option>
+			{% endfor %}
+		</select>
+		<button type="submit">Adicionar ao escopo</button>
+	</form>
+	{% endif %}
+</div>
+{% endblock %}

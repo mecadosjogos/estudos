@@ -3,28 +3,69 @@
 {% block content %}
 <p><a href="/">← Início</a></p>
 <h1>Buscar</h1>
+<p class="muted">Transcrição, materiais, páginas de obra, suas observações e definições do glossário — tudo numa busca só.</p>
 
 <form method="get" action="/search" class="search-form">
-	<input type="search" name="q" value="{{ q }}" placeholder="Buscar na transcrição das aulas..." autofocus>
+	<input type="search" name="q" value="{{ q }}" placeholder="Buscar em tudo..." autofocus>
 	<button type="submit">Buscar</button>
+
+	<details {% if subject_id or data_inicio or data_fim or tipos_ativos|length < source_labels|length %}open{% endif %}>
+		<summary class="muted">Filtros</summary>
+		<p class="button-row">
+			{% for tipo_key, tipo_label in source_labels.items() %}
+			<label><input type="checkbox" name="tipo" value="{{ tipo_key }}" {% if tipo_key in tipos_ativos %}checked{% endif %}> {{ tipo_label }}</label>
+			{% endfor %}
+		</p>
+		<p>
+			<select name="subject_id">
+				<option value="">Todas as matérias</option>
+				{% for s in subjects %}
+				<option value="{{ s.id }}" {% if subject_id == s.id|string %}selected{% endif %}>{{ s.sigla }} — {{ s.nome }}</option>
+				{% endfor %}
+			</select>
+			De <input type="date" name="data_inicio" value="{{ data_inicio }}">
+			até <input type="date" name="data_fim" value="{{ data_fim }}">
+		</p>
+	</details>
 </form>
 
 {% if q.strip() %}
+	{% for pin in pinned_terms %}
+	<div class="card">
+		<p>🔖 <a href="/termos/{{ pin.term.id }}"><strong>{{ pin.term.rotulo }}</strong></a> — {{ pin.count }} definição(ões){% if pin.subjects %} · {{ pin.subjects|join(", ") }}{% endif %} <span class="muted">▸ ver termo</span></p>
+	</div>
+	{% endfor %}
+
 	{% if results %}
 	<ul class="search-results">
 		{% for r in results %}
 		<li>
-			<a href="/lessons/{{ r.lesson_id }}/transcricao?t={{ r.start_s }}">
-				<span class="badge">{{ r.subject_sigla }}</span>
-				<strong>{{ r.lesson_titulo }}</strong>
-				<span class="muted">{{ r.lesson_data }} · {{ "%02d:%02d"|format((r.start_s // 60)|int, (r.start_s % 60)|int) }}</span>
+			<a href="{{ r.url }}">
+				<span class="badge">{{ source_labels[r.source_type] }}</span>
+				{% if r.subject_sigla %}<span class="badge">{{ r.subject_sigla }}</span>{% endif %}
+				<strong>{{ r.titulo }}</strong>
+				{% if r.data %}<span class="muted">{{ r.data }}</span>{% endif %}
 			</a>
 			<p class="snippet">{{ r.snippet | safe }}</p>
+			{% if r.cite_url %}<button type="button" class="copiar-citacao" data-src="{{ r.cite_url }}">📋 copiar citação</button>{% endif %}
 		</li>
 		{% endfor %}
 	</ul>
-	{% else %}
+	{% elif not pinned_terms %}
 	<p class="muted">Nada encontrado para "{{ q }}".</p>
 	{% endif %}
 {% endif %}
+
+<script>
+	document.querySelectorAll(".copiar-citacao").forEach((btn) => {
+		btn.addEventListener("click", async () => {
+			const response = await fetch(btn.dataset.src);
+			const texto = await response.text();
+			await navigator.clipboard.writeText(texto);
+			const original = btn.textContent;
+			btn.textContent = "copiado!";
+			setTimeout(() => { btn.textContent = original; }, 1500);
+		});
+	});
+</script>
 {% endblock %}

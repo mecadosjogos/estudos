@@ -25,14 +25,6 @@
 			<a class="button" href="/lessons/{{ lesson.id }}/transcricao">Ver transcrição</a>
 			<a class="button" href="/lessons/{{ lesson.id }}/transcricao.txt">Baixar transcrição (.txt)</a>
 		</p>
-		<p>
-			{% if lesson.guia_md %}
-				<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia de aula</a>
-			{% else %}
-				<a class="button" href="/lessons/{{ lesson.id }}/guia-pacote.md">Gerar guia de aula</a>
-			{% endif %}
-			<a class="button" href="/lessons/{{ lesson.id }}/colar-guia">Colar guia</a>
-		</p>
 	{% elif latest_job is not none and latest_job.status == "pending" and latest_job.target == "vps_cpu" %}
 		<p><span class="badge muted">na fila da CPU da VPS</span></p>
 	{% elif latest_job is not none and latest_job.status == "pending" %}
@@ -45,7 +37,7 @@
 		<p><span class="badge muted">transcrevendo... ({{ latest_job.claimed_by }})</span></p>
 	{% else %}
 		{% if latest_job is not none and latest_job.status == "failed" %}
-			<p><span class="badge" style="background: var(--danger); color: white">falhou</span> {{ latest_job.error }}</p>
+			<p><span class="badge badge-danger">falhou</span> {{ latest_job.error }}</p>
 		{% else %}
 			<p class="muted">Sem transcrição ainda.</p>
 		{% endif %}
@@ -65,7 +57,7 @@
 
 {% if lesson.transcript %}
 <div class="card">
-	<h2>Aula editada (IA)</h2>
+	<h2>Aula editada (IA) <span class="badge badge-danger">fluxo em revisão</span></h2>
 	{% if request.query_params.get("erro_ia") %}
 	<p class="error">{{ request.query_params.get("erro_ia") }}</p>
 	{% endif %}
@@ -74,16 +66,37 @@
 		<div class="button-row">
 			<a class="button" href="/lessons/{{ lesson.id }}/aula-editada">Ver aula editada</a>
 			<a class="button" href="/lessons/{{ lesson.id }}/aprovacao">Aprovar propostas</a>
+			{% if lesson.guia_md %}<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia de aula</a>{% endif %}
+			{% if lesson.mapa_mermaid %}<a class="button" href="/lessons/{{ lesson.id }}/mapa">Ver mapa de taxonomia</a>{% endif %}
 		</div>
 	{% else %}
-		<p class="muted">Ainda não processada. Automático precisa da chave da API configurada; manual funciona sempre.</p>
+		<p class="muted">Ainda não processada. Uma passada só gera aula editada, cards, propostas e o guia de aula juntos.</p>
 	{% endif %}
 	<div class="button-row" style="margin-top: var(--space-3)">
 		<form method="post" action="/lessons/{{ lesson.id }}/processar">
-			<button type="submit" disabled title="Desabilitado temporariamente">Processar (automático)</button>
+			<button type="submit" disabled title="Fluxo em revisão — o processamento não sai desta tela">Processar (automático)</button>
 		</form>
-		<span class="button" aria-disabled="true" title="Desabilitado temporariamente">Baixar pacote (.md)</span>
-		<span class="button" aria-disabled="true" title="Desabilitado temporariamente">Colar resposta</span>
+	</div>
+	<p class="muted">
+		<strong>O processamento não sai desta tela.</strong> Este botão está desligado
+		de propósito enquanto o fluxo automático é revisto — a passada de IA não usa a
+		API paga. Quem processa é uma conversa do Claude Code no repositório: rode
+		<code>/processar-aula {{ lesson.id }}</code> (ou o atalho "Processar aulas
+		pendentes" na área de trabalho). Ele segue o RUNBOOK.md, seção "Fase 6", fala
+		direto com o servidor e devolve aula editada, cards, propostas e guia de uma
+		passada só. Quando terminar, recarregue esta página.
+	</p>
+</div>
+
+<div class="card">
+	<h2>Dissertativa <span class="badge">funciona aqui</span></h2>
+	<p class="muted">Gera uma questão no estilo do professor, com rubrica, a partir do conteúdo desta aula.</p>
+	<div class="button-row">
+		<form method="post" action="/lessons/{{ lesson.id }}/dissertativas/gerar">
+			<button type="submit">Gerar questão (automático)</button>
+		</form>
+		<a class="button" href="/lessons/{{ lesson.id }}/dissertativas/gerar-pacote.md">Baixar pacote (.md)</a>
+		<a class="button" href="/lessons/{{ lesson.id }}/dissertativas/colar-questao">Colar questão</a>
 	</div>
 </div>
 {% endif %}
@@ -96,7 +109,26 @@
 		<p><label>Link do Google Doc<br><input type="text" name="google_doc_url" value="{{ lesson.google_doc_url or '' }}" placeholder="https://docs.google.com/..."></label></p>
 		<button type="submit">Salvar</button>
 	</form>
-	{% if lesson.google_doc_url %}<p><a class="button" href="{{ lesson.google_doc_url }}" target="_blank">Abrir no Docs</a></p>{% endif %}
+	<div class="button-row">
+		{% if lesson.google_doc_url %}<a class="button" href="{{ lesson.google_doc_url }}" target="_blank">Abrir no Docs</a>{% endif %}
+		{% if criar_doc_url %}<a class="button" href="{{ criar_doc_url }}" target="_blank">Criar doc desta aula</a>{% endif %}
+	</div>
+</div>
+
+<div class="card">
+	<h2>Materiais ({{ materials|length }})</h2>
+	<ul class="timeline">
+		{% for m in materials %}
+		<li>
+			<a href="/materials/{{ m.id }}">{{ m.titulo }}</a>
+			<span class="badge">{{ m.origem }}</span>
+			{% if m.origem == "gdoc" %}<a class="button" href="https://docs.google.com/document/d/{{ m.gdoc_id }}/edit" target="_blank">Abrir no Docs</a>{% endif %}
+		</li>
+		{% else %}
+		<li class="muted">Nenhum material vinculado ainda.</li>
+		{% endfor %}
+	</ul>
+	<p><a href="/materials">gerenciar materiais →</a></p>
 </div>
 
 <div class="card">

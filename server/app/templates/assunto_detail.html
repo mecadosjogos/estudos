@@ -44,8 +44,47 @@
 </div>
 
 <div class="card">
-	<h2>Termos, artigos e material</h2>
-	<p class="muted">Chegam nas fases 9–12 (livros, glossário e busca unificada) — esta página já está pronta pra mostrar quando existirem.</p>
+	<h2>Termos relacionados</h2>
+	<p class="button-row">
+		{% for termo in termos %}
+		<a class="badge" href="/termos/{{ termo.id }}">{{ termo.rotulo }}</a>
+		{% else %}
+		<span class="muted">Nenhum termo do glossário nestas aulas ainda.</span>
+		{% endfor %}
+	</p>
+</div>
+
+<div class="card">
+	<h2>Artigos citados</h2>
+	<p>
+		{% for artigo in artigos %}
+		<span class="badge">{{ artigo }}</span>
+		{% else %}
+		<span class="muted">Nenhum artigo citado nestas aulas ainda.</span>
+		{% endfor %}
+	</p>
+</div>
+
+<div class="card">
+	<h2>Material</h2>
+	{% for uso in materiais %}
+	<p><a href="/materials/{{ uso.material_id }}">{{ uso.material.titulo }}</a>{% if uso.rotulo %} — {{ uso.rotulo }}{% endif %}</p>
+	{% else %}
+	<p class="muted">Nenhum material vinculado a estas aulas ainda.</p>
+	{% endfor %}
+	<p class="muted">Trechos de obra e anotações marcados especificamente para este assunto ainda não têm essa ligação — hoje eles vivem por matéria, não por assunto.</p>
+</div>
+
+<div class="card">
+	<h2>Dissertativa</h2>
+	<p class="muted">Gera uma questão a partir de todas as aulas vinculadas a este assunto (qualquer semestre).</p>
+	<div class="button-row">
+		<form method="post" action="/assuntos/{{ assunto.id }}/dissertativas/gerar">
+			<button type="submit">Gerar questão (automático)</button>
+		</form>
+		<a class="button" href="/assuntos/{{ assunto.id }}/dissertativas/gerar-pacote.md">Baixar pacote (.md)</a>
+		<a class="button" href="/assuntos/{{ assunto.id }}/dissertativas/colar-questao">Colar questão</a>
+	</div>
 </div>
 
 <div class="card">

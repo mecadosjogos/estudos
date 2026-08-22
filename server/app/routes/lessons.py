@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from .. import config, db
 from ..auth import require_session
 from ..db import get_session
-from ..models import Lesson, Subject, Transcript, TranscriptionJob, TranscriptSegment
+from ..library.gdocs import build_create_doc_url
+from ..models import Lesson, Material, MaterialUse, Subject, Transcript, TranscriptionJob, TranscriptSegment
 from ..transcript_confidence import is_suspicious_segment
 from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
 
@@ -34,10 +35,26 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
         .order_by(TranscriptionJob.criado_em.desc())
         .limit(1)
     )
+
+    materials = session.scalars(
+        select(Material).join(MaterialUse, MaterialUse.material_id == Material.id).where(MaterialUse.lesson_id == lesson_id)
+    ).all()
+
+    criar_doc_url = None
+    if lesson.subject.doc_modelo_id:
+        titulo = f"{lesson.data.isoformat()} {lesson.titulo}"
+        criar_doc_url = build_create_doc_url(lesson.subject.doc_modelo_id, titulo, lesson.subject.drive_folder_id)
+
     return templates.TemplateResponse(
         request,
         "lesson_detail.html",
-        {"lesson": lesson, "all_subjects": all_subjects, "latest_job": latest_job},
+        {
+            "lesson": lesson,
+            "all_subjects": all_subjects,
+            "latest_job": latest_job,
+            "materials": materials,
+            "criar_doc_url": criar_doc_url,
+        },
     )
 
 
@@ -288,60 +305,6 @@ def download_transcript_txt(lesson_id: int, session: Session = Depends(get_sessi
     )
 
 
-@router.get("/{lesson_id}/guia-pacote.md")
-def download_guia_pacote(lesson_id: int, session: Session = Depends(get_session)):
-    """Baixa o prompt + transcrição pra colar num chat do Claude (ponte
-    manual) — mesmo padrão de pacote.md/colar-resposta da fase 6, mas
-    para o guia de aula (mais simples, sem schema)."""
-    from ..ai.guia import build_guia_prompt, package_guia_as_markdown
-
-    lesson = session.get(Lesson, lesson_id)
-    if lesson is None or lesson.transcript is None:
-        raise HTTPException(status_code=400, detail="aula sem transcrição — transcreva antes")
-
-    prompt = build_guia_prompt(lesson.titulo, lesson.data.isoformat(), lesson.transcript.full_text)
-    content = package_guia_as_markdown(lesson.titulo, prompt)
-    filename = f"guia-aula-{lesson_id}.md"
-    return PlainTextResponse(
-        content,
-        media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@router.get("/{lesson_id}/colar-guia")
-def paste_guia_form(request: Request, lesson_id: int, session: Session = Depends(get_session)):
-    lesson = session.get(Lesson, lesson_id)
-    if lesson is None:
-        raise HTTPException(status_code=404, detail="aula não encontrada")
-    return templates.TemplateResponse(request, "paste_guia.html", {"lesson": lesson})
-
-
-@router.post("/{lesson_id}/colar-guia")
-def paste_guia_submit(lesson_id: int, resposta: str = Form(...), session: Session = Depends(get_session)):
-    from ..ai.guia import parse_guia_response
-    from ..models import AiCall
-
-    lesson = session.get(Lesson, lesson_id)
-    if lesson is None:
-        raise HTTPException(status_code=404, detail="aula não encontrada")
-
-    try:
-        guia_md = parse_guia_response(resposta)
-    except ValueError as exc:
-        from urllib.parse import quote
-
-        return RedirectResponse(
-            url=f"/lessons/{lesson_id}/colar-guia?erro={quote(str(exc))}", status_code=303
-        )
-
-    lesson.guia_md = guia_md
-    lesson.guia_gerado_em = datetime.now(timezone.utc)
-    session.add(AiCall(lesson_id=lesson_id, tipo_acao="guia_aula", via="manual", modelo="manual", custo_usd=0.0))
-    session.commit()
-    return RedirectResponse(url=f"/lessons/{lesson_id}/guia", status_code=303)
-
-
 @router.get("/{lesson_id}/guia")
 def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_session)):
     import markdown as markdown_lib
@@ -352,6 +315,18 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
 
     guia_html = markdown_lib.markdown(lesson.guia_md, extensions=["extra"])
     return templates.TemplateResponse(request, "guia.html", {"lesson": lesson, "guia_html": guia_html})
+
+
+@router.get("/{lesson_id}/mapa")
+def view_mapa(request: Request, lesson_id: int, session: Session = Depends(get_session)):
+    from ..glossary.mermaid import link_mermaid_nodes_to_glossary
+
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or not lesson.mapa_mermaid:
+        raise HTTPException(status_code=404, detail="mapa de taxonomia não gerado ainda")
+
+    mermaid_src = link_mermaid_nodes_to_glossary(lesson.mapa_mermaid, session)
+    return templates.TemplateResponse(request, "mapa.html", {"lesson": lesson, "mermaid_src": mermaid_src})
 
 
 @router.get("/{lesson_id}/guia.md")

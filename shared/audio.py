@@ -55,3 +55,18 @@ def probe_duration_s(path: Path) -> float:
     if result.returncode != 0:
         raise RuntimeError(f"ffprobe falhou: {result.stderr[-2000:]}")
     return float(result.stdout.strip())
+
+
+def cut_clip(source_path: Path, start_s: float, end_s: float, output_path: Path) -> None:
+    """Corta um trecho do mp3 já comprimido (fase 15, destaques em áudio) --
+    `-c copy` (sem reencodar) porque é audição casual num trecho de
+    segundos, não edição de precisão; o ffmpeg já ajusta o corte pro
+    keyframe/frame de áudio mais próximo sozinho."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y", "-ss", str(max(start_s, 0.0)), "-to", str(end_s),
+        "-i", str(source_path), "-c", "copy", str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg falhou ao cortar clipe: {result.stderr[-2000:]}")

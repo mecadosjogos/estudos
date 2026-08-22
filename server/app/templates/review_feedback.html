@@ -10,7 +10,18 @@
 	<p class="badge">✓ acertou</p>
 	{% else %}
 	<p class="badge error">✗ errou</p>
+	{% if card.tipo == "discriminacao" %}
+	<div class="button-row">
+		{% if card.start_s_a is not none %}
+		<button type="button" class="ouvir-termo" data-start="{{ card.start_s_a }}">▸ ouvir "{{ card.termo_a }}"</button>
+		{% endif %}
+		{% if card.start_s_b is not none %}
+		<button type="button" class="ouvir-termo" data-start="{{ card.start_s_b }}">▸ ouvir "{{ card.termo_b }}"</button>
+		{% endif %}
+	</div>
+	{% else %}
 	<button type="button" id="ouvir-original">▸ ouvir os 30s de origem</button>
+	{% endif %}
 	{% endif %}
 
 	<p><strong>Frente:</strong> {{ card.frente }}</p>
@@ -22,13 +33,17 @@
 
 <script>
 	const audio = document.getElementById("feedback-audio");
+	function playOriginal(btn, start) {
+		audio.currentTime = start;
+		audio.play();
+		setTimeout(() => audio.pause(), 30000);
+	}
 	const btn = document.getElementById("ouvir-original");
 	if (btn) {
-		btn.addEventListener("click", () => {
-			audio.currentTime = {{ card.start_s }};
-			audio.play();
-			setTimeout(() => audio.pause(), 30000);
-		});
+		btn.addEventListener("click", () => playOriginal(btn, {{ card.start_s }}));
 	}
+	document.querySelectorAll(".ouvir-termo").forEach((termoBtn) => {
+		termoBtn.addEventListener("click", () => playOriginal(termoBtn, parseFloat(termoBtn.dataset.start)));
+	});
 </script>
 {% endblock %}

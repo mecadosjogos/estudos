@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Ler — {{ work.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/works/{{ work.id }}">← {{ work.titulo }}</a></p>
+<h1>{{ work.titulo }}</h1>
+<p class="muted">Texto literal — nunca paráfrase. Qualquer trecho estranho, toque ▸ ver a página original.</p>
+
+<div class="markdown-body">
+	{% for page in pages %}
+	<div class="edited-block" id="pagina-{{ page.id }}">
+		<div class="block-header">
+			<span class="badge">{{ "— p. " ~ page.pagina_obra ~ " —" if page.pagina_obra is not none else "página s/n" }}</span>
+			{% if page.status == "pendente" %}<span class="badge error">aguardando transcrição</span>{% endif %}
+			{% if page.status == "erro" %}<span class="badge error">erro: {{ page.erro }}</span>{% endif %}
+			{% if page.editado_em %}<span class="badge">editado por você</span>{% endif %}
+			<button type="button" class="ver-original" data-src="/materials/{{ page.material_id }}/paginas/{{ page.id }}/imagem">▸ ver a página original</button>
+		</div>
+		{% if page.texto %}
+		<p>{{ glossary_html[page.id] | safe }}</p>
+		{% else %}
+		<p class="muted">Sem texto ainda.</p>
+		{% endif %}
+		<details>
+			<summary class="muted">Corrigir</summary>
+			<form method="post" action="/materials/{{ page.material_id }}/paginas/{{ page.id }}/editar">
+				<textarea name="texto" rows="6" style="width:100%">{{ page.texto or "" }}</textarea>
+				<button type="submit">Salvar correção</button>
+			</form>
+		</details>
+	</div>
+	{% else %}
+	<p class="muted">Nenhuma página ainda — suba um PDF ou fotos na página da obra.</p>
+	{% endfor %}
+</div>
+
+<div class="card" id="imagem-original" hidden>
+	<img id="imagem-original-img" style="max-width:100%; border-radius: var(--radius)">
+	<p><button type="button" id="fechar-imagem">Fechar</button></p>
+</div>
+
+<script>
+	const painel = document.getElementById("imagem-original");
+	const img = document.getElementById("imagem-original-img");
+	document.querySelectorAll(".ver-original").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			img.src = btn.dataset.src;
+			painel.hidden = false;
+			painel.scrollIntoView({ behavior: "smooth" });
+		});
+	});
+	document.getElementById("fechar-imagem").addEventListener("click", () => {
+		painel.hidden = true;
+	});
+
+	document.querySelectorAll(".glossary-term").forEach((term) => {
+		term.addEventListener("click", () => {
+			window.location.href = `/termos/${term.dataset.termId}`;
+		});
+	});
+</script>
+{% endblock %}

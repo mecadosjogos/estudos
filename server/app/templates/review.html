@@ -37,6 +37,10 @@
 	<div id="feedback-step" hidden>
 		<p id="feedback-result"></p>
 		<button type="button" id="ouvir-original" hidden>▸ ouvir os 30s de origem</button>
+		<div id="pair-audio-row" class="button-row" hidden>
+			<button type="button" id="ouvir-termo-a" hidden></button>
+			<button type="button" id="ouvir-termo-b" hidden></button>
+		</div>
 		<p><button type="button" class="button" id="next-btn">Próximo card →</button></p>
 	</div>
 </div>
@@ -63,6 +67,9 @@
 		feedbackStep: document.getElementById("feedback-step"),
 		feedbackResult: document.getElementById("feedback-result"),
 		ouvirOriginal: document.getElementById("ouvir-original"),
+		pairAudioRow: document.getElementById("pair-audio-row"),
+		ouvirTermoA: document.getElementById("ouvir-termo-a"),
+		ouvirTermoB: document.getElementById("ouvir-termo-b"),
 		nextBtn: document.getElementById("next-btn"),
 		emptyState: document.getElementById("empty-state"),
 		audio: document.getElementById("review-audio"),
@@ -177,22 +184,43 @@
 		els.feedbackStep.hidden = false;
 		els.feedbackResult.textContent = acertou ? "✓ acertou" : "✗ errou";
 		els.feedbackResult.className = acertou ? "badge" : "badge error";
-		els.ouvirOriginal.hidden = acertou;
+
+		const isPair = current.tipo === "discriminacao";
+		els.ouvirOriginal.hidden = acertou || isPair;
 		els.ouvirOriginal.dataset.start = current.start_s;
+
+		els.pairAudioRow.hidden = !(isPair && !acertou);
+		if (isPair && !acertou) {
+			setupTermoButton(els.ouvirTermoA, current.termo_a, current.start_s_a);
+			setupTermoButton(els.ouvirTermoB, current.termo_b, current.start_s_b);
+		}
 
 		queue.shift();
 		saveQueue();
+	}
+
+	function setupTermoButton(btn, termo, start) {
+		if (start === null || start === undefined) {
+			btn.hidden = true;
+			return;
+		}
+		btn.hidden = false;
+		btn.textContent = `▸ ouvir "${termo}"`;
+		btn.dataset.start = start;
 	}
 
 	document.querySelectorAll(".quality-btn").forEach((btn) => {
 		btn.addEventListener("click", () => answer(parseInt(btn.dataset.shortcut, 10)));
 	});
 
-	els.ouvirOriginal.addEventListener("click", () => {
-		els.audio.currentTime = parseFloat(els.ouvirOriginal.dataset.start);
+	function playOriginal(btn) {
+		els.audio.currentTime = parseFloat(btn.dataset.start);
 		els.audio.play();
 		setTimeout(() => els.audio.pause(), 30000);
-	});
+	}
+	els.ouvirOriginal.addEventListener("click", () => playOriginal(els.ouvirOriginal));
+	els.ouvirTermoA.addEventListener("click", () => playOriginal(els.ouvirTermoA));
+	els.ouvirTermoB.addEventListener("click", () => playOriginal(els.ouvirTermoB));
 
 	els.nextBtn.addEventListener("click", render);
 

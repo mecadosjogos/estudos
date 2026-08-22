@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Estudos</h1>
 
-<div class="card">
+<div class="card{% if review_count %} card-primary{% endif %}">
 	<h2>Revisão</h2>
 	{% if review_count %}
 	<p>Hoje: <strong>{{ review_count }}</strong> card(s) para revisar{% if review_recovery %} <span class="badge error">recuperação</span>{% endif %}</p>
@@ -14,11 +14,9 @@
 </div>
 
 <form method="get" action="/search" class="search-form">
-	<input type="search" name="q" placeholder="Buscar na transcrição das aulas...">
+	<input type="search" name="q" placeholder="Buscar em tudo — aulas, materiais, glossário...">
 	<button type="submit">Buscar</button>
 </form>
-
-<p><a class="button" href="/upload">Subir aula</a> <a class="button" href="/assuntos">Assuntos</a> <a class="button" href="/admin/gasto">Gasto de IA</a></p>
 
 <div class="card">
 	<h2>Matérias</h2>
@@ -33,4 +31,15 @@
 	</ul>
 	<p><a href="/subjects">gerenciar matérias →</a></p>
 </div>
+
+<nav class="button-row">
+	<a class="button button-ghost" href="/upload">Subir aula</a>
+	<a class="button button-ghost" href="/assuntos">Assuntos</a>
+	<a class="button button-ghost" href="/termos">Termos</a>
+	<a class="button button-ghost" href="/materials">Materiais</a>
+	<a class="button button-ghost" href="/works">Biblioteca</a>
+	<a class="button button-ghost" href="/dissertativas">Dissertativas</a>
+	<a class="button button-ghost" href="/destaques">Destaques em áudio</a>
+	<a class="button button-ghost" href="/admin/gasto">Gasto de IA</a>
+</nav>
 {% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Termos{% endblock %}
+{% block content %}
+<p><a href="/">← Início</a></p>
+<h1>Glossário</h1>
+<p class="muted">Global — um só para todo o curso, atravessando matérias e semestres. É o dicionário do seu professor, não um genérico.</p>
+
+<p class="button-row">
+	<a class="button" href="/termos">Todos</a>
+	<a class="button" href="/termos?pendentes=1">Pendentes</a>
+</p>
+
+{% if pendentes %}
+<h2>Propostas pendentes ({{ pendentes_rows|length }})</h2>
+<p class="muted">Da IA, de todas as aulas — aceite ou descarte cada uma na aula de origem.</p>
+{% for d in pendentes_rows %}
+<div class="card approval-item">
+	<p><strong>{{ d.termo_proposto }}</strong>{% if d.lesson %} — <a href="/lessons/{{ d.lesson_id }}/aprovacao">{{ d.lesson.titulo }}</a>{% endif %}</p>
+	<p>{{ d.definicao_md }}</p>
+</div>
+{% else %}
+<p class="muted">Nenhuma proposta pendente.</p>
+{% endfor %}
+
+{% else %}
+<form method="get" action="/termos" class="search-form">
+	<input type="search" name="q" value="{{ q }}" placeholder="Buscar termo...">
+	<select name="ordenar" onchange="this.form.submit()">
+		<option value="alfabetica" {% if ordenar == "alfabetica" %}selected{% endif %}>Alfabética</option>
+		<option value="recentes" {% if ordenar == "recentes" %}selected{% endif %}>Mais recentes</option>
+		<option value="definicoes" {% if ordenar == "definicoes" %}selected{% endif %}>Mais definições</option>
+	</select>
+	<button type="submit">Buscar</button>
+</form>
+
+<ul class="subject-list">
+	{% for term in terms %}
+	<li>
+		<a href="/termos/{{ term.id }}"><strong>{{ term.rotulo }}</strong></a>
+		<span class="badge">{{ counts.get(term.id, 0) }} definição(ões)</span>
+		{% if not term.destacar %}<span class="badge">sem destaque</span>{% endif %}
+	</li>
+	{% else %}
+	<p class="muted">Nenhum termo ainda — aceite propostas na tela de aprovação de uma aula, ou crie um na mão.</p>
+	{% endfor %}
+</ul>
+
+<div class="card">
+	<h2>Criar termo na mão</h2>
+	<form method="post" action="/termos/criar">
+		<label>Termo<br><input type="text" name="termo" required></label>
+		<label>Definição<br><textarea name="definicao_md" rows="3" required></textarea></label>
+		<label>Citação literal (opcional)<br><input type="text" name="citacao_literal"></label>
+		<button type="submit">Criar</button>
+	</form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ term.rotulo }}{% endblock %}
+{% block content %}
+<p><a href="/termos">← Termos</a></p>
+<h1>{{ term.rotulo }}</h1>
+<p class="muted">{{ definitions|length }} definição(ões){% if not term.destacar %} · sem destaque no texto{% endif %}</p>
+<p><a class="button" href="/termos/{{ term.id }}/feynman">🎤 Explicar em voz alta (Feynman)</a></p>
+
+<div class="card">
+	<h2>Definições</h2>
+	{% for d in definitions %}
+	<div class="approval-item">
+		<p>
+			{% if d.subject %}<span class="dot" style="background: {{ d.subject.cor or 'var(--border)' }}"></span> <strong>{{ d.subject.sigla }}</strong>{% endif %}
+			{% if d.lesson %} · <a href="/lessons/{{ d.lesson_id }}">{{ d.lesson.data }}</a>{% endif %}
+			{% if pins.get(d.subject_id) == d.id %} · <span class="badge">fixada</span>{% endif %}
+		</p>
+		<p>{{ d.definicao_md }}</p>
+		{% if d.citacao_literal %}
+		<p class="muted">🔊 "{{ d.citacao_literal }}"
+			{% if d.start_s is not none and d.lesson_id %}<button type="button" class="ouvir-original" data-lesson="{{ d.lesson_id }}" data-start="{{ d.start_s }}">▸ ouvir</button>{% endif %}
+		</p>
+		{% endif %}
+		<div class="button-row">
+			<details>
+				<summary class="muted">Editar</summary>
+				<form method="post" action="/termos/{{ term.id }}/definitions/{{ d.id }}/editar">
+					<textarea name="definicao_md" rows="3">{{ d.definicao_md }}</textarea>
+					<button type="submit">Salvar</button>
+				</form>
+			</details>
+			<form method="post" action="/termos/{{ term.id }}/definitions/{{ d.id }}/descartar">
+				<button type="submit">✗ Descartar esta definição</button>
+			</form>
+			{% if d.subject_id %}
+			<form method="post" action="/termos/{{ term.id }}/fixar">
+				<input type="hidden" name="subject_id" value="{{ d.subject_id }}">
+				<input type="hidden" name="definition_id" value="{{ d.id }}">
+				<button type="submit">📌 Fixar para {{ d.subject.sigla if d.subject else "esta matéria" }}</button>
+			</form>
+			{% endif %}
+			<details>
+				<summary class="muted">Separar (mover pra outro termo)</summary>
+				<form method="post" action="/termos/{{ term.id }}/definitions/{{ d.id }}/separar">
+					<input type="text" name="novo_termo" placeholder="Termo certo" required>
+					<button type="submit">Mover</button>
+				</form>
+			</details>
+		</div>
+	</div>
+	{% else %}
+	<p class="muted">Nenhuma definição ativa.</p>
+	{% endfor %}
+</div>
+
+<div class="card">
+	<h2>Variantes de flexão</h2>
+	<p class="muted">Casadas em fronteira de palavra, sem acento — "negócio jurídico" e "negócios jurídicos" são variantes do mesmo termo.</p>
+	{% for alias in term.aliases %}
+	<p>{{ alias.alias }}
+		<form method="post" action="/termos/{{ term.id }}/variantes/{{ alias.id }}/remover" style="display:inline">
+			<button type="submit">remover</button>
+		</form>
+	</p>
+	{% else %}
+	<p class="muted">Nenhuma variante cadastrada.</p>
+	{% endfor %}
+	<form method="post" action="/termos/{{ term.id }}/variantes">
+		<input type="text" name="alias" placeholder="nova variante" required>
+		<button type="submit">Adicionar</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Destaque automático</h2>
+	<p class="muted">Desligar mantém o termo no glossário e na busca, só para de sublinhar no texto corrido.</p>
+	<form method="post" action="/termos/{{ term.id }}/destacar">
+		<input type="hidden" name="destacar" value="{{ "false" if term.destacar else "true" }}">
+		<button type="submit">{{ "Parar de destacar" if term.destacar else "Voltar a destacar" }}</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Renomear</h2>
+	<form method="post" action="/termos/{{ term.id }}/renomear">
+		<input type="text" name="rotulo" value="{{ term.rotulo }}">
+		<button type="submit">Salvar</button>
+	</form>
+</div>
+
+<div class="card">
+	<h2>Fundir com outro termo</h2>
+	<p class="muted">Este termo desaparece; definições e variantes migram para o escolhido.</p>
+	<form method="post" action="/termos/{{ term.id }}/fundir">
+		<select name="target_id">
+			{% for outro in outros %}
+			<option value="{{ outro.id }}">{{ outro.rotulo }}</option>
+			{% endfor %}
+		</select>
+		<button type="submit">Fundir</button>
+	</form>
+</div>
+{% endblock %}

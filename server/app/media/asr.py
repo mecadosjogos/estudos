@@ -37,3 +37,37 @@ class FakeASRClient(ASRClient):
     def transcribe(self, audio_path: str) -> TranscriptionResult:
         self.calls.append(audio_path)
         return self.fixed_result
+
+
+class RealASRClient(ASRClient):
+    """`faster-whisper` de verdade, na CPU da VPS (fase 13) -- mesmo
+    `WhisperTranscriber` da válvula de emergência (`routes/lessons.py`,
+    fase 4), só com modelo pequeno. Carrega o modelo só no primeiro uso
+    (não no import): a suíte de teste nunca instancia esta classe (usa
+    `FakeASRClient`), mas se algum código chegasse a importá-la sem
+    chamar `transcribe`, não faria sentido baixar/carregar o modelo à toa."""
+
+    def __init__(self, model_size: str, compute_type: str):
+        self._model_size = model_size
+        self._compute_type = compute_type
+        self._transcriber = None
+
+    def transcribe(self, audio_path: str) -> TranscriptionResult:
+        from shared.transcriber import WhisperTranscriber
+
+        if self._transcriber is None:
+            self._transcriber = WhisperTranscriber(self._model_size, device="cpu", compute_type=self._compute_type)
+
+        output = self._transcriber.transcribe(audio_path)
+        words = [
+            Word(w.text, w.start_s, w.end_s, w.probability)
+            for seg in output.segments
+            for w in seg.words
+        ]
+        return TranscriptionResult(text=output.full_text, words=words)
+
+
+def get_asr_client() -> ASRClient:
+    from .. import config
+
+    return RealASRClient(config.WHISPER_SHORT_MODEL, config.WHISPER_SHORT_COMPUTE_TYPE)

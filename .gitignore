@@ -13,6 +13,7 @@ data/media/original/*
 data/media/web/*
 !data/media/web/.gitkeep
 data/uploads/
+data/materials/
 
 # Áudios originais arquivados localmente
 archive/*
@@ -23,6 +24,9 @@ worker/tmp/
 
 # Backups
 backups/
+
+# Logs do processamento automático de aulas (processar-aulas.bat)
+logs/
 
 # IDE / SO
 .vscode/
@@ -40,3 +44,4 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+test_debug.db

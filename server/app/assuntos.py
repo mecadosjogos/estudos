@@ -5,6 +5,7 @@ jeito: a IA propõe "Capacidade" numa aula e "Capacidade de Fato" noutra,
 achando que são coisas diferentes -- sem fundir/renomear/separar desde o
 início, em dois meses são 60 assuntos quase-iguais."""
 
+import difflib
 import re
 import unicodedata
 
@@ -21,6 +22,29 @@ def normalize_slug(texto: str) -> str:
     return slug or "assunto"
 
 
+def similar_slugs(slug: str, outros: list[str], *, threshold: float = 0.6, limit: int = 3) -> list[str]:
+    """Candidatos a duplicata pra sugerir fusão na aprovação -- não é
+    detecção de colisão (slug exato já é único no banco), é a IA propondo
+    "Capacidade" numa aula e "Capacidade de Fato" noutra achando que são
+    coisas diferentes. `difflib` sobre o slug, não Jaccard de tokens
+    (ai/signals.py::_normalize_tokens): "negocio-juridico" x
+    "negocios-juridicos" não compartilham token nenhum e zerariam ali; aqui
+    pegam por razão de caracteres. O(n×m) -- roda uma vez por render da
+    tela de aprovação, não é caminho quente."""
+    scored = []
+    for outro in outros:
+        if outro == slug:
+            continue
+        if outro.startswith(slug + "-") or slug.startswith(outro + "-"):
+            score = 1.0
+        else:
+            score = difflib.SequenceMatcher(None, slug, outro).ratio()
+        if score >= threshold:
+            scored.append((score, outro))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [outro for _, outro in scored[:limit]]
+
+
 def find_or_create_assunto(session: Session, titulo: str) -> Assunto:
     """Casamento por slug -- é o que impede duas grafias do mesmo assunto
     virarem dois registros (mesmo padrão do glossário)."""
@@ -34,15 +58,28 @@ def find_or_create_assunto(session: Session, titulo: str) -> Assunto:
     return assunto
 
 
-def ensure_cobertura(session: Session, assunto_id: int, subject_id: int, origem: str = "ia") -> AssuntoCobertura:
+def ensure_cobertura(
+    session: Session, assunto_id: int, subject_id: int, origem: str = "ia", status: str = "dado"
+) -> AssuntoCobertura:
+    """Idempotente pra baixo, nunca pra cima: uma cobertura que já existe
+    NUNCA é rebaixada (fase 14: importar a ementa, que sempre chama com
+    `status="pendente"`, não pode derrubar uma cobertura que já veio de
+    aula de volta pra "pendente"). Mas o inverso PODE acontecer -- se a
+    cobertura existente estava "pendente" (só a ementa sabia do tópico) e
+    esta chamada é `status="dado"` (uma aula de verdade acabou de
+    confirmar o assunto), ela é promovida na hora. Sem isso, aceitar a
+    proposta de uma aula pra um tópico que já estava na ementa deixaria a
+    cobertura "pendente" pra sempre, mesmo já dada."""
     existing = session.scalar(
         select(AssuntoCobertura).where(
             AssuntoCobertura.assunto_id == assunto_id, AssuntoCobertura.subject_id == subject_id
         )
     )
     if existing is not None:
+        if status == "dado" and existing.status == "pendente":
+            existing.status = "dado"
         return existing
-    cobertura = AssuntoCobertura(assunto_id=assunto_id, subject_id=subject_id, origem=origem)
+    cobertura = AssuntoCobertura(assunto_id=assunto_id, subject_id=subject_id, origem=origem, status=status)
     session.add(cobertura)
     session.flush()
     return cobertura

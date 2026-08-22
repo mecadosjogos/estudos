@@ -14,11 +14,15 @@ from ..assuntos import ensure_cobertura, find_or_create_assunto, merge_assuntos
 from ..auth import require_session
 from ..db import get_session
 from ..models import (
+    ArticleMention,
     AssuntoCobertura,
     CardProposal,
+    Definition,
     Lesson,
     LessonAssunto,
+    MaterialUse,
     ReviewLog,
+    Term,
 )
 from ..models import Assunto
 
@@ -85,6 +89,38 @@ def assunto_detail(request: Request, assunto_id: int, session: Session = Depends
 
     outras = session.scalars(select(Assunto).where(Assunto.id != assunto_id).order_by(Assunto.titulo)).all()
 
+    # Termos, artigos e material (fase 12): "une informações antigas" —
+    # tudo que essas aulas específicas já carregam, sem tabela de vínculo
+    # nova. Trechos de obra e anotações ficam de fora desta passada (ver
+    # PLANO.md, status desta fase): nada hoje liga uma obra ou uma
+    # anotação a um assunto especificamente, só a uma matéria inteira.
+    termos = []
+    artigos = []
+    materiais = []
+    if lesson_ids:
+        termos = sorted(
+            session.scalars(
+                select(Term)
+                .join(Definition, Definition.term_id == Term.id)
+                .where(Definition.lesson_id.in_(lesson_ids), Definition.status == "ativo")
+                .distinct()
+            ).all(),
+            key=lambda t: t.rotulo.lower(),
+        )
+        artigos = sorted(
+            {
+                a.texto_citado
+                for a in session.scalars(
+                    select(ArticleMention).where(
+                        ArticleMention.lesson_id.in_(lesson_ids), ArticleMention.orfao_em.is_(None)
+                    )
+                ).all()
+            }
+        )
+        materiais = session.scalars(
+            select(MaterialUse).where(MaterialUse.lesson_id.in_(lesson_ids))
+        ).all()
+
     return templates.TemplateResponse(
         request,
         "assunto_detail.html",
@@ -98,6 +134,9 @@ def assunto_detail(request: Request, assunto_id: int, session: Session = Depends
             "ultima_revisao": ultima_revisao,
             "vencidos": vencidos,
             "outras": outras,
+            "termos": termos,
+            "artigos": artigos,
+            "materiais": materiais,
         },
     )
 
