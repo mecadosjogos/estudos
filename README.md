@@ -12,7 +12,7 @@ O hPanel clona o repositório inteiro no servidor e roda o `docker-compose.yml` 
 
 1. Aponte o campo de repositório do hPanel para `https://github.com/<seu-usuario>/estudos.git`.
 2. **Variáveis de ambiente**: se a tela do hPanel tiver campos de variável de ambiente por serviço, defina lá pelo menos `ACCESS_TOKEN` e `SESSION_SECRET` (valores aleatórios longos, ex.: `openssl rand -hex 32` cada um) — o `docker-compose.yml` já está preparado para funcionar mesmo sem um arquivo `.env` físico (`env_file` é opcional). Se não houver esse campo, entre por SSH na pasta onde o hPanel clonou o repositório e crie o `.env` na mão (`cp .env.example .env` e preencha, mesmos passos do caminho manual abaixo) antes de deixar o hPanel subir os containers.
-3. **Domínio no Caddy**: o `Caddyfile` do repositório aponta pra `drwyver.mecadosjogos.app.br` (o domínio deste projeto original) — edite a linha antes do deploy (ou depois, por SSH, seguido de um redeploy) trocando pelo seu domínio.
+3. **Domínio no Caddy**: o `Caddyfile` do repositório aponta pra `drwyver.mecadosjogos.app.br` (o domínio deste projeto original) — edite a linha antes do deploy (ou depois, por SSH, seguido de um `docker compose up -d --build` pra reconstruir a imagem do Caddy) trocando pelo seu domínio. O Caddyfile entra na imagem por `COPY` no build (`caddy/Dockerfile`), não por bind mount — então qualquer edição só tem efeito depois de reconstruir, um `restart` sozinho não pega a mudança.
 4. **`docker-compose.override.yml`**: esse arquivo é só para desenvolvimento local (expõe a porta 8000 direto, sem Caddy nem HTTPS) e o Docker Compose o carrega automaticamente se ele existir na pasta. Apague-o na pasta clonada pelo hPanel antes do primeiro deploy — por SSH, `rm docker-compose.override.yml`.
 5. Depois do primeiro `up`, rode a migração (ela não roda sozinha no start):
    ```bash
@@ -32,7 +32,7 @@ O hPanel clona o repositório inteiro no servidor e roda o `docker-compose.yml` 
    - `ACCESS_TOKEN` — chave de acesso ao app (não tem tela de login, é `?k=<TOKEN>` na primeira visita).
    - `SESSION_SECRET` — outro valor aleatório longo, independente do `ACCESS_TOKEN`.
    - Demais variáveis (`ANTHROPIC_API_KEY`, Google, etc.) só são necessárias a partir das fases que as usam — veja os comentários do próprio `.env.example`.
-3. **Edite o [Caddyfile](Caddyfile)**, trocando `drwyver.mecadosjogos.app.br` pelo seu domínio real (o `DOMAIN` do `.env` é só informativo hoje — quem decide o domínio servido é o Caddyfile).
+3. **Edite o [Caddyfile](Caddyfile)**, trocando `drwyver.mecadosjogos.app.br` pelo seu domínio real (o `DOMAIN` do `.env` é só informativo hoje — quem decide o domínio servido é o Caddyfile). Ele entra na imagem do Caddy por build (`caddy/Dockerfile`), então qualquer edição exige reconstruir (passo 5 abaixo já faz isso com `--build`).
 4. **Apague `docker-compose.override.yml`** — existe só para dev local, e o Compose o carrega automaticamente se ficar no clone:
    ```bash
    rm docker-compose.override.yml
