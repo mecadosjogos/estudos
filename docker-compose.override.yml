@@ -1,8 +1,0 @@
-# Só para desenvolvimento local: expõe o servidor direto na porta 8000, sem
-# passar pelo Caddy (que exige domínio real + certificado). O Docker Compose
-# já mescla este arquivo com o docker-compose.yml automaticamente — não
-# precisa passar --file. Na VPS de produção, este arquivo não existe.
-services:
-  server:
-    ports:
-      - "8000:8000"

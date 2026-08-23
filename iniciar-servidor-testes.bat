@@ -36,12 +36,12 @@ echo Docker pronto.
 
 echo.
 echo Reconstruindo a imagem do servidor (rapido se nada mudou)...
-docker compose build server
+docker compose -f docker-compose.yml -f docker-compose.dev.yml build server
 if errorlevel 1 goto erro
 
 echo.
 echo Subindo os containers...
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 if errorlevel 1 goto erro
 
 echo.

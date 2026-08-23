@@ -1190,7 +1190,7 @@ Vale ir por fases, conferindo cada uma antes da seguinte. **A entrega A inteira 
 
 ## Pontos a confirmar antes de começar
 
-- Apontar `drwyver.mecadosjogos.app.br` (registro A) para o IP da VPS antes do deploy — o Caddy só emite o certificado depois que o DNS resolve.
+- Apontar `drwyver.mecadosjogos.app.br` (registro A) para o IP da VPS antes do deploy — o Traefik (compartilhado com outros projetos na mesma VPS, ver README.md) só emite o certificado depois que o DNS resolve.
 - Disco livre na VPS — a ~30MB por aula, 5 matérias por um semestre ficam em 3-5GB.
 - Chave da API Anthropic (`ANTHROPIC_API_KEY`) e se você quer começar em `opus-5` ou `sonnet-5`.
 - Datas das próximas provas. A **ementa deixou de ser pré-requisito** — os assuntos emergem das aulas e a ementa oficial só enriquece; se você tiver os PDFs do plano de ensino, dá para importar depois, sem pressa.

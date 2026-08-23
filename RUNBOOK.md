@@ -24,14 +24,14 @@ processando manualmente ocupa o seu plano de assinatura, não a API metered
 
 ## Ambiente
 
-Hoje (2026) só existe o Docker local — não há VPS em produção ainda. Tudo
-abaixo usa `http://127.0.0.1:8000`. Quando a VPS existir de verdade, troque
-a URL base pela URL/túnel da VPS; o resto do runbook não muda (o caminho
-manual é o mesmo local ou remoto).
+Este runbook roda contra o Docker local (`http://127.0.0.1:8000`) ou contra
+a VPS de produção — o caminho manual é o mesmo local ou remoto, só troca a
+URL base. Local sempre usa os dois arquivos de compose juntos (veja
+README.md sobre por que `docker-compose.dev.yml` não é automático):
 
 ```bash
-docker compose ps                      # confirma que o server está de pé
-docker compose up -d server            # se não estiver
+docker compose -f docker-compose.yml -f docker-compose.dev.yml ps            # confirma que o server está de pé
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d server  # se não estiver
 ```
 
 Autenticação: pegue `ACCESS_TOKEN` do `.env` da raiz do repo. Todo comando

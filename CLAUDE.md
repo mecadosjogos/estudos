@@ -24,15 +24,19 @@ A **Entrega A não depende de nada externo além do DNS**. A chave da API só é
 **Testar e "rodar o servidor" significa `docker compose`, não `uvicorn app.main:app` direto na venv do host.** O container roda a mesma imagem (Debian slim) que vai pra VPS (Ubuntu 24.04 + Docker) — é o mais próximo de produção que dá pra chegar localmente. Rodar uvicorn direto no Windows já aconteceu por engano numa sessão e foi corrigido pelo usuário; não repita.
 
 ```bash
-docker compose build server              # SEMPRE depois de qualquer mudança de código —
-                                          # o Dockerfile faz COPY, não bind-mount, então o
+docker compose -f docker-compose.yml -f docker-compose.dev.yml build server   # SEMPRE
+                                          # depois de qualquer mudança de código — o
+                                          # Dockerfile faz COPY, não bind-mount, então o
                                           # container antigo continua servindo código velho
                                           # até reconstruir
-docker compose up -d                     # recria o container com a imagem nova
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d          # recria
+                                          # o container com a imagem nova
 docker compose exec server python -m alembic upgrade head   # migração não roda sozinha no start
 ```
 
-`docker-compose.override.yml` já expõe a porta 8000 direto (sem Caddy, sem certificado) — acesse em `http://127.0.0.1:8000/?k=<ACCESS_TOKEN>` (token no `.env` da raiz). O worker de transcrição (GPU local, `& .\worker\run_local.ps1`) já aponta pra esse mesmo servidor via `SERVER_URL` no `.env` — não precisa trocar nada pra testar o ciclo upload → transcrição → processamento contra o container.
+**O `-f` duplo é obrigatório, não opcional.** `docker-compose.yml` sozinho é a versão de produção — depende do Traefik e da rede `root_default` que só existem na VPS compartilhada (ver README.md), então sem o `-f docker-compose.dev.yml` o `up` falha aqui por não achar essa rede. `docker-compose.dev.yml` **não é** um `docker-compose.override.yml` — de propósito não é carregado automaticamente (um override automático seria clonado e aplicado em produção também pelo hPanel, e colidiria com outro projeto que já usa a porta 8000 naquela VPS).
+
+`docker-compose.dev.yml` expõe a porta 8000 direto — acesse em `http://127.0.0.1:8000/?k=<ACCESS_TOKEN>` (token no `.env` da raiz). O worker de transcrição (GPU local, `& .\worker\run_local.ps1`) já aponta pra esse mesmo servidor via `SERVER_URL` no `.env` — não precisa trocar nada pra testar o ciclo upload → transcrição → processamento contra o container.
 
 ## Antes de mexer em qualquer coisa
 
@@ -42,8 +46,8 @@ docker compose exec server python -m alembic upgrade head   # migração não ro
 ## Contexto fixo
 
 - **Domínio:** `drwyver.mecadosjogos.app.br` (temporário)
-- **Infra:** VPS Ubuntu 24.04 com Docker · workers com GPU no desktop (RTX 4070) e no notebook (RTX 3060)
-- **Stack:** Python 3.12 · FastAPI · SQLite (WAL + FTS5) · SQLAlchemy 2.0 + Alembic · Jinja2 + HTMX · faster-whisper · ffmpeg · Caddy
+- **Infra:** VPS Hostinger compartilhada com outros projetos, atrás de um Traefik já existente (ver README.md) — não roda proxy próprio · workers com GPU no desktop (RTX 4070) e no notebook (RTX 3060)
+- **Stack:** Python 3.12 · FastAPI · SQLite (WAL + FTS5) · SQLAlchemy 2.0 + Alembic · Jinja2 + HTMX · faster-whisper · ffmpeg
 - **Matérias do semestre:** Teoria Geral do Direito Civil · Ciência Política · História do Direito · Teoria Geral do Crime · Direitos Humanos
 
 ## Princípio que atravessa o sistema

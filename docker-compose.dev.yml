@@ -1,0 +1,21 @@
+# Só para desenvolvimento local. docker-compose.yml sozinho depende do
+# Traefik e da rede root_default que só existem na VPS de produção
+# compartilhada -- sem este arquivo, `docker compose up` falha aqui por não
+# achar essa rede. Diferente de um docker-compose.override.yml, este NÃO é
+# carregado automaticamente (de propósito -- ver README.md: o hPanel clona o
+# repositório inteiro e roda o docker-compose.yml sozinho, então um arquivo
+# de override automático seria clonado e aplicado em produção também, e a
+# porta 8000 já está ocupada nessa VPS por outro projeto). Use sempre com
+# -f explícito:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml build server
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+  server:
+    ports:
+      - "8000:8000"
+
+networks:
+  default:
+    name: estudos_dev_default
+    external: false

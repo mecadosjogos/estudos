@@ -13,24 +13,31 @@ services:
       - estudos_backups:/app/backups
     expose:
       - "8000"
-    restart: unless-stopped
-
-  caddy:
-    build:
-      context: .
-      dockerfile: caddy/Dockerfile
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - server
+    # Sem Caddy próprio: esta VPS já roda um Traefik compartilhado (mesma
+    # rede root_default) na frente de outros projetos -- ele que ouve 80/443
+    # e emite o certificado. Rodar outro proxy tentando ocupar as mesmas
+    # portas era exatamente o erro "port is already allocated" do deploy.
+    # Padrão de labels idêntico ao já usado (e funcionando) em
+    # /docker/meca-interface/docker-compose.yml nesta mesma VPS.
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.estudos.rule=Host(`drwyver.mecadosjogos.app.br`)
+      - traefik.http.routers.estudos.entrypoints=web,websecure
+      - traefik.http.routers.estudos.tls=true
+      - traefik.http.routers.estudos.tls.certresolver=mytlschallenge
+      - traefik.http.services.estudos.loadbalancer.server.port=8000
     restart: unless-stopped
 
 volumes:
   estudos_data:
   estudos_backups:
-  caddy_data:
-  caddy_config:
+
+networks:
+  # root_default é a rede do projeto Compose que já roda o Traefik nesta
+  # VPS (com.docker.compose.project=root, /root/docker-compose.yml) --
+  # entrar nela é o que permite o Traefik alcançar este container. Fora
+  # desta VPS específica, essa rede não existe; é por isso que
+  # docker-compose.dev.yml redefine isso para desenvolvimento local.
+  default:
+    name: root_default
+    external: true
