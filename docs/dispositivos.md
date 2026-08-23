@@ -1,69 +1,81 @@
 # Autorizar um dispositivo novo
 
-## Como funciona (leia antes de fazer)
+## Como funciona
 
-O Estudos **não tem tela de login nem contas de usuário** — é um app pessoal
-protegido por um único segredo, o `ACCESS_TOKEN`. Não existe "adicionar
-dispositivo" como cadastro individual: existe **visitar o link com o token
-uma vez em cada navegador**, o que grava um cookie de sessão que dura 1 ano
-nesse navegador. Não tem lista de dispositivos autorizados nem forma de
-revogar um só sem revogar todos — trocar o `ACCESS_TOKEN` desautoriza
-**todo mundo** de uma vez, inclusive você nos outros aparelhos.
+O Estudos tem login por usuário e senha, com cadastro público mas uso
+bloqueado até um administrador aprovar. Não existe recuperação de senha
+por e-mail (não há esse tipo de infraestrutura) — se esquecer a senha, o
+administrador precisa recriar o acesso.
 
-Trate o `ACCESS_TOKEN` como senha: não cole em print, chat, ou lugar
-público. Quem tiver o token tem acesso completo aos seus dados de estudo.
+- **Um único administrador nasce com o banco** (`admin`/`admin`, semeado
+  na primeira migração) — troque essa senha o quanto antes depois do
+  primeiro deploy (não existe tela de "trocar senha" ainda; peça pro
+  administrador recadastrar se precisar).
+- **Sessão por cookie**, igual antes: depois de logar, o navegador fica
+  autenticado por até 1 ano sem precisar digitar senha de novo — mas
+  agora cada navegador faz seu próprio login, não existe mais um link
+  mágico compartilhável.
+- **Sem conta própria por dispositivo** — é conta por *pessoa*. A mesma
+  conta pode logar em quantos aparelhos quiser; o administrador não vê
+  "dispositivos", só usuários.
 
-## Autorizar este PC agora
+## Pedir acesso pela primeira vez
 
-1. Pegue o valor do `ACCESS_TOKEN` — é o que você digitou no campo de
-   variáveis de ambiente ao fazer o deploy no hPanel (Docker Manager →
-   projeto do Estudos → variáveis de ambiente). Se o hPanel não deixar ver
-   o valor de novo (alguns painéis mostram só na hora de criar), veja
-   "Esqueci o token" abaixo.
-2. No navegador deste PC, abra:
-   ```
-   https://drwyver.mecadosjogos.app.br/?k=SEU_ACCESS_TOKEN
-   ```
-3. A página redireciona sozinha e o `?k=...` some da barra de endereço —
-   é o cookie de sessão sendo gravado (`estudos_session`, HttpOnly,
-   assinado, válido por 1 ano). A partir daqui esse navegador não precisa
-   mais do token: só acessar `https://drwyver.mecadosjogos.app.br/`.
-4. Se aparecer "Sessão inválida" em vez de redirecionar, o token digitado
-   está errado — confira se copiou certo, sem espaço extra no fim.
+1. Abra `https://drwyver.mecadosjogos.app.br/registrar`.
+2. Escolha um usuário e uma senha, confirme a senha, envie.
+3. Fica em **"pendente"** até o administrador aprovar — tentar logar antes
+   disso mostra "Cadastro aguardando aprovação do administrador."
+4. O administrador aprova (veja abaixo) e a partir daí `/login` funciona
+   normalmente.
 
-Repita esses 3 passos em **qualquer outro navegador ou dispositivo** que
-quiser autorizar — celular, notebook, outro navegador no mesmo PC (Firefox
-e Chrome contam como dois, cada um grava seu próprio cookie), janela
-anônima (não persiste, precisa repetir toda vez).
+## Logar num dispositivo já aprovado
+
+1. Abra `https://drwyver.mecadosjogos.app.br/login`.
+2. Usuário e senha, Entrar.
+3. Esse navegador fica autenticado por 1 ano — não precisa repetir a
+   cada visita. Repita em cada navegador/dispositivo novo (Firefox e
+   Chrome contam como dois; janela anônima não guarda, precisa logar
+   toda vez).
+
+Pra sair, botão "Sair" no menu do topo (POST `/logout`, limpa o cookie).
+
+## Como administrador: aprovar, recusar, revogar, dar acesso temporário
+
+Logado como usuário com papel `admin` (só o `admin` semeado tem esse
+papel hoje — não há tela pra promover outro usuário), o menu do topo
+ganha o link **Segurança** (`/admin/seguranca`):
+
+- **Pedidos de acesso** — lista quem está `pendente`. **Aprovar**
+  (com um campo opcional "dias": vazio = acesso permanente, preenchido =
+  expira automaticamente depois desse prazo) ou **Recusar**.
+- **Usuários** — todo mundo que não está mais pendente. Pra um usuário
+  já aprovado: **Conceder temporário** (mesmo botão de aprovar, serve
+  pra trocar um acesso permanente por um com prazo, ou vice-versa
+  deixando "dias" vazio) e **Revogar** (derruba o acesso na próxima
+  requisição dessa pessoa — não precisa esperar a sessão expirar).
+  Um usuário recusado/revogado pode ser **readmitido** pela mesma tela.
+- O admin não consegue revogar/recusar a própria conta pelo painel — é
+  uma proteção contra se trancar pra fora sem querer.
+
+Acesso temporário vencido para de funcionar sozinho no próximo login —
+não precisa de nenhuma ação do administrador quando o prazo expira.
+
+## Envio de áudio sem navegador (iPad/iOS, Atalhos, worker de transcrição)
+
+Esse caminho **não muda** — continua usando `ACCESS_TOKEN` (a mesma
+variável de ambiente de sempre, configurada no servidor) como cabeçalho
+`Authorization: Bearer <ACCESS_TOKEN>`, sem login interativo. É uma
+credencial de máquina, separada do login de pessoa acima. Veja
+[atalho-ios.md](atalho-ios.md).
 
 ## Instalar como app (opcional)
 
-O Estudos é um PWA simples — depois de autorizado, dá pra "instalar":
+O Estudos é um PWA simples — depois de logado, dá pra "instalar":
 
-- **Android/Chrome desktop**: menu do navegador → *Instalar app* / *Adicionar
-  à tela inicial*.
+- **Android/Chrome desktop**: menu do navegador → *Instalar app* /
+  *Adicionar à tela inicial*.
 - **iOS/Safari**: botão Compartilhar → *Adicionar à Tela de Início*.
 
 Abre em janela própria, sem barra de endereço. Os ícones ainda não estão
 configurados (`server/app/static/manifest.json`), então usa um ícone
 genérico por enquanto — cosmético, não afeta o funcionamento.
-
-## Envio de áudio sem navegador (iPad/iOS, Atalhos)
-
-Pra subir gravação direto do app de gravação, sem abrir o navegador, veja
-[atalho-ios.md](atalho-ios.md) — usa o mesmo `ACCESS_TOKEN`, mas como
-cabeçalho `Authorization: Bearer <TOKEN>` em vez do cookie.
-
-## Esqueci o token / quero revogar um dispositivo perdido
-
-Não tem revogação seletiva. Pra trocar o token (e derrubar o acesso de
-todo mundo, inclusive um aparelho perdido/roubado):
-
-1. hPanel → Docker Manager → projeto do Estudos → variáveis de ambiente →
-   edite `ACCESS_TOKEN` pra um valor novo (ex.: gere com
-   `openssl rand -hex 32`).
-2. Redeploy pelo hPanel (mudança de variável de ambiente não é pega pelo
-   pipeline automático do GitHub Actions — esse só dispara em push de
-   código, veja a seção "Deploy automático a cada push" no [README.md](../README.md)).
-3. Visite `/?k=<TOKEN_NOVO>` de novo em cada dispositivo que ainda deve
-   ter acesso (passo "Autorizar este PC agora" acima).

@@ -835,6 +835,8 @@ Seis regras que não mudam o modelo, mas cuja ausência produz perda de dado ou 
 
 Foi over-engineering meu colocar isso antes de o app fazer algo útil — são cookies, códigos, painel e polling construídos antes do primeiro resumo existir. Token único cobre seus aparelhos hoje; o convite entra quando um colega pedir. **Proteções desde o v1:** rate limit por IP, `robots.txt` bloqueando tudo, limite de tamanho de upload, nada servido sem sessão válida.
 
+> **Status: feito, com desenho mais simples que o esboçado acima.** Em vez do fluxo pending_id/código de 4 dígitos, virou login de verdade: `/registrar` cria um `User` com `status="pendente"`; `/login` autentica usuário+senha (bcrypt) e só libera sessão pra `status="aprovado"` dentro do prazo (`expira_em`, nulo = permanente — mesmo idioma de `Subject.encerrada_em`); um admin único (semeado na migração 0019, `admin`/`admin` — trocar a senha é o primeiro passo depois do deploy) aprova/recusa/revoga/concede prazo em `/admin/seguranca`. `ACCESS_TOKEN` não autentica mais navegador — ficou só como credencial de máquina (worker de transcrição, Atalho do iOS), que continuam intocados. Rate limit por IP citado acima **nunca foi implementado** (nem no v1 nem agora) — vale registrar como lacuna real, não como proteção que existe.
+
 ---
 
 ## Estrutura de pastas
@@ -1059,7 +1061,7 @@ Convite de acesso · importação de texto de lei (Planalto/LexML) ao lado do ar
 
 Os itens estão agrupados pela entrega a que pertencem — **1 a 5b fecham a entrega A**, 6 a 11 a B, 12 a 15 e 21 a 21b a C, e o restante a D. Vale rodar o bloco de cada entrega antes de passar para a seguinte, em vez de deixar tudo para o fim.
 
-1. `docker compose up` na VPS; abrir `https://drwyver.mecadosjogos.app.br/?k=<token>` e confirmar que o `?k=` some da barra e o cookie persiste depois de fechar o navegador.
+1. `docker compose up` na VPS; abrir `https://drwyver.mecadosjogos.app.br/login`, entrar com `admin`/`admin` e confirmar que o cookie persiste depois de fechar o navegador. Cadastrar um segundo usuário em `/registrar`, confirmar que ele não consegue logar até aprovado em `/admin/seguranca`, aprovar com prazo e confirmar que expira sozinho depois do prazo.
 2. Confirmar que as 5 matérias do semestre foram criadas pelo seed, e criar uma aula de **Teoria Geral do Direito Civil** com a data de hoje.
 3. Do iPad, subir um áudio real pelo Atalho; confirmar que aparece como *aguardando worker*. Cortar a rede no meio de um upload e confirmar que ele retoma. Subir **dois arquivos marcados como uma aula única** (simulando o intervalo) e confirmar que a ordem é respeitada e a transcrição sai contínua, sem repetir nem perder o trecho da emenda.
 4. Na máquina local, `ROLE=worker python -m worker.main --once`; confirmar no log: modelo em CUDA, progresso, upload do resultado. **Ligar os dois workers ao mesmo tempo** com várias aulas na fila e confirmar que nenhum pega o mesmo job e que a aula registra qual máquina a transcreveu. Com todos desligados, usar **transcrever na VPS agora** e confirmar que sai em ~40–60 min e fica marcada como versão de menor qualidade.

@@ -36,7 +36,7 @@ docker compose exec server python -m alembic upgrade head   # migração não ro
 
 **O `-f` duplo é obrigatório, não opcional.** `docker-compose.yml` sozinho é a versão de produção — depende do Traefik e da rede `root_default` que só existem na VPS compartilhada (ver README.md), então sem o `-f docker-compose.dev.yml` o `up` falha aqui por não achar essa rede. `docker-compose.dev.yml` **não é** um `docker-compose.override.yml` — de propósito não é carregado automaticamente (um override automático seria clonado e aplicado em produção também pelo hPanel, e colidiria com outro projeto que já usa a porta 8000 naquela VPS).
 
-`docker-compose.dev.yml` expõe a porta 8000 direto — acesse em `http://127.0.0.1:8000/?k=<ACCESS_TOKEN>` (token no `.env` da raiz). O worker de transcrição (GPU local, `& .\worker\run_local.ps1`) já aponta pra esse mesmo servidor via `SERVER_URL` no `.env` — não precisa trocar nada pra testar o ciclo upload → transcrição → processamento contra o container.
+`docker-compose.dev.yml` expõe a porta 8000 direto — acesse em `http://127.0.0.1:8000/login` e entre com `admin`/`admin` (usuário semeado pela migração 0019; login por usuário+senha, não mais link mágico — ver PLANO.md, seção "Acesso"). O worker de transcrição (GPU local, `& .\worker\run_local.ps1`) já aponta pra esse mesmo servidor via `SERVER_URL` no `.env` e autentica via `ACCESS_TOKEN`/`Authorization: Bearer` (credencial de máquina, sem relação com o login acima) — não precisa trocar nada pra testar o ciclo upload → transcrição → processamento contra o container.
 
 ## Antes de mexer em qualquer coisa
 

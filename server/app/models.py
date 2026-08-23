@@ -1061,3 +1061,32 @@ class ExamScope(Base):
     assunto: Mapped["Assunto"] = relationship()
 
     __table_args__ = (UniqueConstraint("exam_id", "assunto_id", name="uq_exam_scope_exam_assunto"),)
+
+
+USER_ROLES = ("usuario", "admin")
+USER_STATUSES = ("pendente", "aprovado", "recusado", "revogado")
+
+
+class User(Base):
+    """Login humano por usuário+senha (PLANO.md, seção "Acesso" -- o
+    "Convite" que ali foi deliberadamente adiado pro pós-v1). Cadastro
+    nasce em status="pendente" -- só um admin aprova, recusa, revoga ou
+    concede validade limitada (`expira_em`). Mesmo idioma de
+    `Subject.encerrada_em`: nulo = sem prazo, comparado contra agora na
+    hora do login (não um job/cron -- o acesso já vencido só precisa
+    parar de autenticar, não precisa de limpeza ativa)."""
+
+    __tablename__ = "user"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    senha_hash: Mapped[str] = mapped_column(String, nullable=False)
+    papel: Mapped[str] = mapped_column(String, nullable=False, default="usuario")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pendente")
+    expira_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    aprovado_por_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), nullable=True)
+    aprovado_por: Mapped["User | None"] = relationship(remote_side=[id])
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    decidido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

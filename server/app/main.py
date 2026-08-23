@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from .auth import session_middleware
+from .auth import SessaoInvalida
 from .routes import (
     ai,
     admin,
@@ -18,6 +18,7 @@ from .routes import (
     jobs,
     lessons,
     library,
+    login,
     materials,
     pages,
     review,
@@ -28,7 +29,11 @@ from .routes import (
 
 app = FastAPI(title="Estudos")
 
-app.middleware("http")(session_middleware)
+
+@app.exception_handler(SessaoInvalida)
+async def _sessao_invalida_handler(request: Request, exc: SessaoInvalida):
+    return RedirectResponse(url="/login", status_code=303)
+
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -48,6 +53,7 @@ def service_worker():
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+app.include_router(login.router)
 app.include_router(pages.router)
 app.include_router(admin.router)
 app.include_router(subjects.router)

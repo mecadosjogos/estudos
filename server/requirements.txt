@@ -5,6 +5,7 @@ alembic
 jinja2
 python-multipart
 itsdangerous
+bcrypt
 python-dotenv
 faster-whisper
 anthropic

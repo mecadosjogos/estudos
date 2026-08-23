@@ -11,9 +11,9 @@ Este `docker-compose.yml` é feito pra rodar numa VPS que **já tem um Traefik c
 ### Deploy pelo hPanel (Docker Manager, a partir da URL do repositório)
 
 1. Aponte o campo de repositório pra `https://github.com/<seu-usuario>/estudos.git` e dê um nome ao projeto.
-2. **Variáveis de ambiente** — no campo de env vars da tela de deploy, defina pelo menos:
-   - `ACCESS_TOKEN` — chave de acesso ao app (não tem tela de login, é `?k=<TOKEN>` na primeira visita). Gere algo aleatório e longo, ex.: `openssl rand -hex 32`.
-   - `SESSION_SECRET` — outro valor aleatório longo, independente do `ACCESS_TOKEN`.
+2. **Variáveis de ambiente** — no campo de env vars da tela de deploy, defina:
+   - `SESSION_SECRET` — a mais importante de todas: é o que assina o cookie de sessão do login. Sem definir, cai no valor padrão publicado neste próprio repositório (`dev-secret-troque-isto`), o que permite forjar sessão de qualquer usuário. Gere algo aleatório e longo, ex.: `openssl rand -hex 32`.
+   - `ACCESS_TOKEN` — não tem mais relação com login de navegador; é a credencial de máquina usada só pelo worker de transcrição e pelo Atalho do iOS (`Authorization: Bearer <TOKEN>`, veja [docs/atalho-ios.md](docs/atalho-ios.md)). Só precisa definir se for usar algum desses dois.
    
    Não precisa de um arquivo `.env` físico — o hPanel injeta essas variáveis direto no container, e `docker-compose.yml` já está preparado pra rodar sem `.env` (`env_file` é opcional).
 3. Deploy. Depois do primeiro `up`, rode a migração (ela não roda sozinha no start) — por SSH:
@@ -21,7 +21,7 @@ Este `docker-compose.yml` é feito pra rodar numa VPS que **já tem um Traefik c
    cd /docker/<nome-do-projeto>
    docker compose exec server python -m alembic upgrade head
    ```
-4. Acesse `https://drwyver.mecadosjogos.app.br/?k=<ACCESS_TOKEN>`.
+4. Acesse `https://drwyver.mecadosjogos.app.br/login` e entre com `admin`/`admin` (usuário e senha semeados na primeira migração — troque essa senha assim que puder; não existe tela de troca ainda, recrie o usuário pelo painel de Segurança se precisar). Autorizar mais gente/dispositivos: veja [docs/dispositivos.md](docs/dispositivos.md).
 
 Se quiser usar outro domínio, edite a linha `Host(...)` nas labels do `server` em [docker-compose.yml](docker-compose.yml) antes do deploy (ou depois, por SSH + redeploy).
 
@@ -31,7 +31,7 @@ Se quiser usar outro domínio, edite a linha `Host(...)` nas labels do `server` 
 git clone https://github.com/<seu-usuario>/estudos.git
 cd estudos
 cp .env.example .env
-# edite .env: ACCESS_TOKEN e SESSION_SECRET pelo menos
+# edite .env: SESSION_SECRET pelo menos (senão assina cookie com o valor padrão do repositório)
 docker compose up -d --build
 docker compose exec server python -m alembic upgrade head
 ```
@@ -60,4 +60,4 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 docker compose exec server python -m alembic upgrade head
 ```
 
-Acesse em `http://127.0.0.1:8000/?k=<ACCESS_TOKEN>` (token no `.env` da raiz). Detalhes em [CLAUDE.md](CLAUDE.md).
+Acesse em `http://127.0.0.1:8000/login` e entre com `admin`/`admin`. Detalhes em [CLAUDE.md](CLAUDE.md).

@@ -34,13 +34,14 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml ps            # c
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d server  # se não estiver
 ```
 
-Autenticação: pegue `ACCESS_TOKEN` do `.env` da raiz do repo. Todo comando
-`curl` abaixo assume um cookie jar já autenticado:
+Autenticação: login por usuário+senha (PLANO.md, seção "Acesso") — não é
+mais `?k=<ACCESS_TOKEN>`, que só serve pro worker/Atalho iOS hoje. Todo
+comando `curl` abaixo assume um cookie jar já autenticado como `admin`:
 
 ```bash
-TOKEN=$(grep '^ACCESS_TOKEN=' .env | cut -d= -f2)
 COOKIEJAR=$(mktemp)
-curl -s -c "$COOKIEJAR" "http://127.0.0.1:8000/?k=$TOKEN" -o /dev/null
+curl -s -c "$COOKIEJAR" -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/login" \
+  --data-urlencode "username=admin" --data-urlencode "senha=admin" -o /dev/null
 # use -b "$COOKIEJAR" em todo curl daqui pra frente
 ```
 

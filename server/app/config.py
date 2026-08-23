@@ -19,7 +19,7 @@ if _env_file.exists():
 ROLE = os.environ.get("ROLE", "server")
 DOMAIN = os.environ.get("DOMAIN", "localhost")
 ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")
-SESSION_SECRET = os.environ.get("SESSION_SECRET", ACCESS_TOKEN or "dev-secret-troque-isto")
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "dev-secret-troque-isto")
 
 def _resolve(value: str | Path) -> Path:
     path = Path(value)

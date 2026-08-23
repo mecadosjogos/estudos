@@ -7,6 +7,7 @@ andamento.
 """
 
 import shutil
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -16,15 +17,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import backup, config
-from ..auth import require_session
+from ..auth import require_admin
 from ..db import get_session
-from ..models import Lesson, TranscriptionJob
+from ..models import Lesson, TranscriptionJob, User
 from .jobs import ensure_pending_job
 
-router = APIRouter(prefix="/admin", dependencies=[Depends(require_session)])
+router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 STAGING_DIR = config.BACKUP_DIR / "staging"
+
+
+def _url_escape(text: str) -> str:
+    from urllib.parse import quote
+
+    return quote(text[:200])
 
 
 def _job_in_progress(session: Session) -> bool:
@@ -103,3 +110,69 @@ def rebuild_media(session: Session = Depends(get_session)):
             ensure_pending_job(session, lesson.id, target="rebuild_media")
             enqueued += 1
     return RedirectResponse(url=f"/admin/backups?media_rebuild_enqueued={enqueued}", status_code=303)
+
+
+@router.get("/seguranca")
+def security_panel(request: Request, session: Session = Depends(get_session)):
+    pendentes = session.scalars(select(User).where(User.status == "pendente").order_by(User.criado_em)).all()
+    usuarios = session.scalars(select(User).where(User.status != "pendente").order_by(User.username)).all()
+    return templates.TemplateResponse(
+        request, "admin_seguranca.html", {"pendentes": pendentes, "usuarios": usuarios}
+    )
+
+
+@router.post("/seguranca/{user_id}/aprovar")
+def aprovar_usuario(
+    user_id: int,
+    dias: str = Form(""),
+    admin: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Serve tanto pra aprovar um cadastro pendente quanto pra conceder
+    (ou trocar) acesso temporário num usuário já aprovado -- é a mesma
+    mutação (status="aprovado" + expira_em calculado), então uma rota só
+    atende os dois botões do painel."""
+    user = session.get(User, user_id)
+    if user is None:
+        return RedirectResponse(url="/admin/seguranca", status_code=303)
+    if user.id == admin.id:
+        return RedirectResponse(
+            url=f"/admin/seguranca?erro={_url_escape('Você não pode alterar seu próprio acesso.')}",
+            status_code=303,
+        )
+    user.status = "aprovado"
+    user.expira_em = datetime.now(timezone.utc) + timedelta(days=int(dias)) if dias.strip() else None
+    user.aprovado_por_id = admin.id
+    user.decidido_em = datetime.now(timezone.utc)
+    session.commit()
+    return RedirectResponse(url="/admin/seguranca", status_code=303)
+
+
+@router.post("/seguranca/{user_id}/recusar")
+def recusar_usuario(
+    user_id: int, admin: User = Depends(require_admin), session: Session = Depends(get_session)
+):
+    user = session.get(User, user_id)
+    if user is not None and user.id != admin.id:
+        user.status = "recusado"
+        user.decidido_em = datetime.now(timezone.utc)
+        session.commit()
+    return RedirectResponse(url="/admin/seguranca", status_code=303)
+
+
+@router.post("/seguranca/{user_id}/revogar")
+def revogar_usuario(
+    user_id: int, admin: User = Depends(require_admin), session: Session = Depends(get_session)
+):
+    user = session.get(User, user_id)
+    if user is None:
+        return RedirectResponse(url="/admin/seguranca", status_code=303)
+    if user.id == admin.id:
+        return RedirectResponse(
+            url=f"/admin/seguranca?erro={_url_escape('Você não pode revogar seu próprio acesso.')}",
+            status_code=303,
+        )
+    user.status = "revogado"
+    user.decidido_em = datetime.now(timezone.utc)
+    session.commit()
+    return RedirectResponse(url="/admin/seguranca", status_code=303)

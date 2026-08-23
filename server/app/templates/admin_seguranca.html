@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Segurança{% endblock %}
+{% block content %}
+<h1>Segurança</h1>
+
+{% if request.query_params.get("erro") %}
+<div class="card error">{{ request.query_params.get("erro") }}</div>
+{% endif %}
+
+<div class="card">
+	<h2>Pedidos de acesso ({{ pendentes|length }})</h2>
+	<ul class="subject-list">
+		{% for u in pendentes %}
+		<li>
+			<strong>{{ u.username }}</strong>
+			<span class="badge badge-danger">pendente</span>
+			<span class="muted">pedido em {{ u.criado_em.strftime("%d/%m/%Y") }}</span>
+			<form method="post" action="/admin/seguranca/{{ u.id }}/aprovar" style="margin-left:auto; display:flex; gap:var(--space-2); align-items:center">
+				<input type="number" name="dias" placeholder="dias (vazio = permanente)" min="1" style="max-width:12rem">
+				<button type="submit">Aprovar</button>
+			</form>
+			<form method="post" action="/admin/seguranca/{{ u.id }}/recusar">
+				<button type="submit" class="button-ghost">Recusar</button>
+			</form>
+		</li>
+		{% else %}
+		<li class="muted">Nenhum pedido pendente.</li>
+		{% endfor %}
+	</ul>
+</div>
+
+<div class="card">
+	<h2>Usuários ({{ usuarios|length }})</h2>
+	<ul class="subject-list">
+		{% for u in usuarios %}
+		<li>
+			<strong>{{ u.username }}</strong>
+			<span class="badge">{{ u.papel }}</span>
+			<span class="badge {{ 'badge-danger' if u.status != 'aprovado' else '' }}">{{ u.status }}</span>
+			{% if u.expira_em %}<span class="badge">expira {{ u.expira_em.strftime("%d/%m/%Y") }}</span>{% endif %}
+			{% if u.status == "aprovado" and u.id != request.state.user.id %}
+			<form method="post" action="/admin/seguranca/{{ u.id }}/aprovar" style="margin-left:auto; display:flex; gap:var(--space-2); align-items:center">
+				<input type="number" name="dias" placeholder="dias (vazio = permanente)" min="1" style="max-width:12rem">
+				<button type="submit">Conceder temporário</button>
+			</form>
+			<form method="post" action="/admin/seguranca/{{ u.id }}/revogar">
+				<button type="submit" class="button-ghost">Revogar</button>
+			</form>
+			{% elif u.status != "aprovado" and u.id != request.state.user.id %}
+			<form method="post" action="/admin/seguranca/{{ u.id }}/aprovar" style="margin-left:auto">
+				<button type="submit">Readmitir</button>
+			</form>
+			{% endif %}
+		</li>
+		{% else %}
+		<li class="muted">Nenhum usuário além do admin ainda.</li>
+		{% endfor %}
+	</ul>
+</div>
+{% endblock %}

@@ -9,6 +9,7 @@
 	<meta name="theme-color" content="#7c3aed">
 </head>
 <body>
+	{% block nav %}
 	<nav class="global-nav">
 		<div class="global-nav-inner">
 			<a class="button button-ghost" href="/revisao">Revisão</a>
@@ -20,8 +21,13 @@
 			<a class="button button-ghost" href="/dissertativas">Dissertativas</a>
 			<a class="button button-ghost" href="/destaques">Destaques em áudio</a>
 			<a class="button button-ghost" href="/subjects">Gerenciar matérias</a>
+			{% if request.state.user and request.state.user.papel == "admin" %}
+			<a class="button button-ghost" href="/admin/seguranca">Segurança</a>
+			{% endif %}
+			<form method="post" action="/logout" style="display:inline"><button type="submit" class="button-ghost">Sair</button></form>
 		</div>
 	</nav>
+	{% endblock %}
 	<div class="layout">
 		{% block content %}{% endblock %}
 	</div>

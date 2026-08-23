@@ -7,7 +7,7 @@ def _authed_client():
     from app.main import app
 
     client = TestClient(app)
-    client.get("/?k=test-token")
+    client.post("/login", data={"username": "admin", "senha": "admin"})
     return client
 
 
