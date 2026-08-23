@@ -3,6 +3,11 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+    # image dá nome à imagem construída localmente (dev/manual) E é o que
+    # o Watchtower, disparado pelo GitHub Actions a cada push (ver
+    # .github/workflows/docker-publish.yml), procura atualizado no GHCR --
+    # sem isso não há o que o Watchtower comparar/puxar.
+    image: ghcr.io/mecadosjogos/estudos:latest
     env_file:
       - path: .env
         required: false

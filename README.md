@@ -38,6 +38,14 @@ docker compose exec server python -m alembic upgrade head
 
 Funciona só se a VPS já tiver a rede `root_default` com um Traefik ouvindo nela (como na VPS em uso hoje). Numa VPS **dedicada**, sem Traefik nenhum rodando, esse compose não serve de imediato — precisaria de um proxy próprio (Caddy, Nginx) na frente; avise se for esse o caso que a gente resolve.
 
+### Deploy automático a cada push
+
+Todo push em `master` dispara [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml): builda a imagem, publica em `ghcr.io/mecadosjogos/estudos:latest`, e roda um Watchtower "one-shot" via SSH na VPS que só atualiza o container `estudos-server-1` (mesmo padrão dos outros projetos na mesma VPS). Não precisa clicar em nada no hPanel depois do primeiro deploy.
+
+Migração de banco continua manual — se o push mudou o schema, entre por SSH e rode `docker compose exec server python -m alembic upgrade head` depois que o Watchtower atualizar o container.
+
+Secrets do repositório usados pelo workflow (`Settings → Secrets and variables → Actions`): `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` — a chave é dedicada a este deploy, sem relação com as credenciais dos outros projetos na mesma VPS.
+
 ---
 
 A transcrição de áudio (Whisper `large-v3`, GPU) roda numa máquina local, não no VPS — veja [worker/](worker/) e [docker-compose.worker.yml](docker-compose.worker.yml). O VPS só precisa de CPU para a válvula de emergência "transcrever na VPS agora".
