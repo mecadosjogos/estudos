@@ -350,18 +350,3 @@ def test_separar_moves_link_to_new_assunto(app_env):
         link = session.get(LessonAssunto, link_id)
         novo = session.scalar(select(Assunto).where(Assunto.slug == "capacidade-de-fato"))
         assert link.assunto_id == novo.id
-
-
-def test_spend_panel_shows_manual_calls_as_free(app_env):
-    client = _authed_client()
-    from app.db import holder
-
-    with holder.SessionLocal() as session:
-        lesson_id = _lesson_with_transcript_id(session)
-
-    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response([])})
-
-    response = client.get("/admin/gasto")
-    assert response.status_code == 200
-    assert "manual" in response.text
-    assert "grátis" in response.text

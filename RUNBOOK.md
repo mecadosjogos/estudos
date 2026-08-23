@@ -221,9 +221,6 @@ com **renomear** (só troca o rótulo, o slug de casamento não muda),
 **separar** — em cada aula vinculada, um formulário move só aquele vínculo
 pra outro assunto (existente ou novo, por título).
 
-**Painel de gasto**: `/admin/gasto` — soma do mês contra o teto, e a lista
-de `AiCall` recentes (manual sempre grátis).
-
 `server/app/context/window.py` monta o contexto de um assunto concatenando
 a transcrição literal de cada aula vinculada (nunca a aula editada) — hoje
 é a aula inteira, não um recorte por trecho, porque o `assunto` ainda não

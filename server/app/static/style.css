@@ -17,6 +17,7 @@
 
 	--radius: 0.75rem;
 	--touch-target: 44px;
+	--nav-height: 61px;
 
 	color-scheme: light dark;
 }
@@ -74,6 +75,28 @@ a {
 	max-width: 60rem;
 	margin: 0 auto;
 	padding: var(--space-4);
+}
+
+.global-nav {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+	background: var(--bg);
+	border-bottom: 1px solid var(--border);
+}
+
+.global-nav-inner {
+	max-width: 60rem;
+	margin: 0 auto;
+	display: flex;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-4);
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.global-nav-inner a {
+	flex: 0 0 auto;
 }
 
 .card {
@@ -239,7 +262,7 @@ input[type="text"], input[type="date"], input[type="search"], select {
 
 .player-card {
 	position: sticky;
-	top: var(--space-2);
+	top: calc(var(--nav-height) + var(--space-2));
 	z-index: 10;
 }
 
