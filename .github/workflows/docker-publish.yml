@@ -3,6 +3,11 @@ name: docker-publish
 on:
   push:
     branches: [master]
+    # Commit só de dados (scripts/backup_from_vps.py) não muda o código da
+    # imagem -- sem isso, todo backup publicado reinicia o container em
+    # produção à toa.
+    paths-ignore:
+      - 'data-backup/**'
   workflow_dispatch: {}
 
 jobs:
