@@ -145,6 +145,57 @@ def test_rebuild_result_saves_mp3_and_marks_job_done(app_env):
         assert job.status == "done"
 
 
+def test_download_latest_backup_requires_admin(app_env):
+    from app.db import holder
+    from app.models import User
+    from app.security import hash_password
+
+    with holder.SessionLocal() as session:
+        session.add(User(username="comum", senha_hash=hash_password("x"), papel="usuario", status="aprovado"))
+        session.commit()
+
+    client = _authed_client()  # admin
+    admin_response = client.get("/admin/backups/latest.db")
+    assert admin_response.status_code == 200
+    assert admin_response.headers["content-type"] == "application/octet-stream"
+    assert admin_response.content[:16] == b"SQLite format 3\x00"
+
+    from app.main import app
+
+    comum_client = TestClient(app)
+    comum_client.post("/login", data={"username": "comum", "senha": "x"})
+    comum_response = comum_client.get("/admin/backups/latest.db")
+    assert comum_response.status_code == 403
+
+
+def test_lessons_json_excludes_lixo_and_reflects_has_audio(app_env):
+    client = _authed_client()
+    from app import config
+    from app.db import holder
+    from app.models import Lesson, Subject
+
+    with holder.SessionLocal() as session:
+        with_mp3 = _make_transcribed_lesson(session, "Tem mp3")
+        without_mp3 = _make_transcribed_lesson(session, "Sem mp3")
+
+        lixo = Subject(nome="Lixo", sigla="LIXO")
+        session.add(lixo)
+        session.flush()
+        session.add(Lesson(subject_id=lixo.id, titulo="Aula de teste", data=date(2026, 3, 12)))
+        session.commit()
+
+    config.MEDIA_WEB_DIR.mkdir(parents=True, exist_ok=True)
+    (config.MEDIA_WEB_DIR / f"lesson-{with_mp3}.mp3").write_bytes(b"mp3")
+
+    response = client.get("/admin/lessons.json")
+    assert response.status_code == 200
+    by_id = {item["id"]: item for item in response.json()}
+
+    assert by_id[with_mp3]["has_audio"] is True
+    assert by_id[without_mp3]["has_audio"] is False
+    assert all(item["subject_sigla"] != "LIXO" for item in by_id.values())
+
+
 def test_rebuild_result_is_idempotent(app_env):
     client = _authed_client()
     from app.db import holder

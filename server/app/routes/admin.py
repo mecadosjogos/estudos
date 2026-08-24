@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from .. import backup, config
 from ..auth import require_admin
 from ..db import get_session
-from ..models import Lesson, TranscriptionJob, User
+from ..models import Lesson, Subject, TranscriptionJob, User
 from .jobs import ensure_pending_job
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
@@ -54,6 +54,36 @@ def list_backups(request: Request):
 def run_backup():
     backup.create_backup()
     return RedirectResponse(url="/admin/backups", status_code=303)
+
+
+@router.get("/backups/latest.db")
+def download_latest_backup():
+    """Cliente HTTP externo (scripts/backup_from_vps.py): cria um backup
+    fresco e devolve o arquivo direto, sem parâmetro de nome -- não há
+    escolha de arquivo, então não há risco de path traversal aqui."""
+    path = backup.create_backup()
+    return FileResponse(path, media_type="application/octet-stream", filename=path.name)
+
+
+@router.get("/lessons.json")
+def list_lessons_json(session: Session = Depends(get_session)):
+    """Mesmo consumidor do endpoint acima: scripts/backup_from_vps.py usa
+    isto pra saber quais aulas têm mp3 pra baixar. Exclui a matéria LIXO,
+    mesmo filtro que jobs.py::enqueue_pending_transcriptions já usa."""
+    lessons = session.scalars(
+        select(Lesson).join(Subject).where(Subject.sigla != "LIXO").order_by(Lesson.id)
+    ).all()
+    return JSONResponse(
+        [
+            {
+                "id": lesson.id,
+                "titulo": lesson.titulo,
+                "subject_sigla": lesson.subject.sigla,
+                "has_audio": (config.MEDIA_WEB_DIR / f"lesson-{lesson.id}.mp3").exists(),
+            }
+            for lesson in lessons
+        ]
+    )
 
 
 @router.post("/restore/stage")
