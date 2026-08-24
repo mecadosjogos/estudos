@@ -21,7 +21,7 @@ Este `docker-compose.yml` é feito pra rodar numa VPS que **já tem um Traefik c
    cd /docker/<nome-do-projeto>
    docker compose exec server python -m alembic upgrade head
    ```
-4. Acesse `https://drwyver.mecadosjogos.app.br/login` e entre com `admin`/`admin` (usuário e senha semeados na primeira migração — troque essa senha assim que puder; não existe tela de troca ainda, recrie o usuário pelo painel de Segurança se precisar). Autorizar mais gente/dispositivos: veja [docs/dispositivos.md](docs/dispositivos.md).
+4. Acesse `https://drwyver.mecadosjogos.app.br/login` e entre com `admin`/`admin` (usuário e senha semeados na primeira migração — troque essa senha assim que puder em "Trocar senha" no menu, `/conta/senha`). Autorizar mais gente/dispositivos: veja [docs/dispositivos.md](docs/dispositivos.md).
 
 Se quiser usar outro domínio, edite a linha `Host(...)` nas labels do `server` em [docker-compose.yml](docker-compose.yml) antes do deploy (ou depois, por SSH + redeploy).
 

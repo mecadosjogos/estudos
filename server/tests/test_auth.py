@@ -108,3 +108,41 @@ def test_register_creates_pending_user_who_cannot_log_in_yet(app_env):
 
     login_response = client.post("/login", data={"username": "novo", "senha": "senha123"}, follow_redirects=True)
     assert "aprovação" in login_response.text
+
+
+def test_trocar_senha_requires_current_password(app_env):
+    client = TestClient(_build_app())
+    client.post("/login", data={"username": "admin", "senha": "admin"})
+    response = client.post(
+        "/conta/senha",
+        data={"senha_atual": "errada", "nova_senha": "nova12345", "confirmar_nova_senha": "nova12345"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "erro=" in response.headers["location"]
+
+
+def test_trocar_senha_updates_hash_and_old_password_stops_working(app_env):
+    client = TestClient(_build_app())
+    client.post("/login", data={"username": "admin", "senha": "admin"})
+    response = client.post(
+        "/conta/senha",
+        data={"senha_atual": "admin", "nova_senha": "nova12345", "confirmar_nova_senha": "nova12345"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/conta/senha?sucesso=1"
+
+    novo_client = TestClient(_build_app())
+    old_login = novo_client.post("/login", data={"username": "admin", "senha": "admin"}, follow_redirects=False)
+    assert "erro=" in old_login.headers["location"]
+
+    new_login = novo_client.post("/login", data={"username": "admin", "senha": "nova12345"}, follow_redirects=False)
+    assert new_login.headers["location"] == "/"
+
+
+def test_trocar_senha_requires_login(app_env):
+    client = TestClient(_build_app())
+    response = client.get("/conta/senha", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"

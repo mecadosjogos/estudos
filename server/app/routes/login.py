@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import config
-from ..auth import get_current_user, set_session_cookie
+from ..auth import get_current_user, require_session, set_session_cookie
 from ..db import get_session
 from ..models import User
 from ..security import hash_password, verify_password
@@ -48,7 +48,7 @@ def login_submit(
         erro = "Cadastro aguardando aprovação do administrador."
     elif user.status in ("recusado", "revogado"):
         erro = "Acesso não autorizado. Fale com o administrador."
-    elif user.expira_em is not None and user.expira_em <= datetime.now(timezone.utc):
+    elif user.expira_em is not None and user.expira_em <= datetime.now(timezone.utc).replace(tzinfo=None):
         erro = "Acesso temporário expirado. Fale com o administrador."
     else:
         response = RedirectResponse(url="/", status_code=303)
@@ -92,3 +92,30 @@ def logout():
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(config.SESSION_COOKIE_NAME)
     return response
+
+
+@router.get("/conta/senha")
+def trocar_senha_form(request: Request, user: User = Depends(require_session)):
+    return templates.TemplateResponse(request, "trocar_senha.html", {})
+
+
+@router.post("/conta/senha")
+def trocar_senha_submit(
+    senha_atual: str = Form(...),
+    nova_senha: str = Form(...),
+    confirmar_nova_senha: str = Form(...),
+    user: User = Depends(require_session),
+    session: Session = Depends(get_session),
+):
+    if not verify_password(senha_atual, user.senha_hash):
+        erro = "Senha atual incorreta."
+    elif nova_senha != confirmar_nova_senha:
+        erro = "As senhas novas não coincidem."
+    elif len(nova_senha) < 4:
+        erro = "Senha nova muito curta."
+    else:
+        user.senha_hash = hash_password(nova_senha)
+        session.commit()
+        return RedirectResponse(url="/conta/senha?sucesso=1", status_code=303)
+
+    return RedirectResponse(url=f"/conta/senha?erro={_url_escape(erro)}", status_code=303)

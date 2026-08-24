@@ -4,13 +4,15 @@
 
 O Estudos tem login por usuário e senha, com cadastro público mas uso
 bloqueado até um administrador aprovar. Não existe recuperação de senha
-por e-mail (não há esse tipo de infraestrutura) — se esquecer a senha, o
-administrador precisa recriar o acesso.
+por e-mail (não há esse tipo de infraestrutura) — se **esquecer** a
+senha (diferente de só querer trocar, veja abaixo), hoje não tem
+autoatendimento nenhum, nem pelo admin: precisa de acesso direto ao
+banco pra gerar um hash novo.
 
 - **Um único administrador nasce com o banco** (`admin`/`admin`, semeado
   na primeira migração) — troque essa senha o quanto antes depois do
-  primeiro deploy (não existe tela de "trocar senha" ainda; peça pro
-  administrador recadastrar se precisar).
+  primeiro deploy, em "Trocar senha" no menu do topo (`/conta/senha`,
+  pede a senha atual).
 - **Sessão por cookie**, igual antes: depois de logar, o navegador fica
   autenticado por até 1 ano sem precisar digitar senha de novo — mas
   agora cada navegador faz seu próprio login, não existe mais um link

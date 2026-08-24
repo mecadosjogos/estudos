@@ -66,7 +66,10 @@ def get_current_user(request: Request, session: Session) -> User | None:
     user = session.get(User, user_id)
     if user is None or user.status != "aprovado":
         return None
-    if user.expira_em is not None and user.expira_em <= datetime.now(timezone.utc):
+    # SQLite não guarda tzinfo em DateTime(timezone=True) -- expira_em volta
+    # naive ao reler, então comparar direto contra o aware de now() sempre
+    # levantaria TypeError. Mesmo idioma de library/gdocs.py::_same_moment.
+    if user.expira_em is not None and user.expira_em <= datetime.now(timezone.utc).replace(tzinfo=None):
         return None
     return user
 

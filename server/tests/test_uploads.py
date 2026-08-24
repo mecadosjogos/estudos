@@ -25,8 +25,9 @@ def test_upload_page_requires_session(app_env):
     from app.main import app
 
     client = TestClient(app)
-    response = client.get("/upload")
-    assert response.status_code == 401
+    response = client.get("/upload", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
 
 
 def test_upload_page_with_lesson_id_shows_attach_mode_not_new_lesson_form(app_env):
