@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -83,6 +83,34 @@ def list_lessons_json(session: Session = Depends(get_session)):
             }
             for lesson in lessons
         ]
+    )
+
+
+@router.get("/instalar-worker.ps1")
+def download_install_script(request: Request):
+    """scripts/instalar_maquina_worker.ps1 (COPY scripts scripts no
+    Dockerfile), servido com SERVER_URL/ACCESS_TOKEN JÁ deste deploy --
+    quem baixa já está autenticado como admin, então embutir o token aqui
+    não é uma exposição nova, só evita copiar/colar na hora do prompt.
+
+    Lê o esquema/host de X-Forwarded-* primeiro: atrás do Traefik (produção)
+    o uvicorn recebe a requisição como HTTP simples do container -- sem
+    isso o script baixado apontaria pra http://, não https://.
+    """
+    script_path = Path(__file__).resolve().parent.parent.parent.parent / "scripts" / "instalar_maquina_worker.ps1"
+    content = script_path.read_text(encoding="utf-8")
+
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    server_url = f"{scheme}://{host}"
+
+    prelude = f'$env:ESTUDOS_SERVER_URL = "{server_url}"\n$env:ESTUDOS_ACCESS_TOKEN = "{config.ACCESS_TOKEN}"\n'
+    content = content.replace('$ErrorActionPreference = "Stop"\n', '$ErrorActionPreference = "Stop"\n' + prelude, 1)
+
+    return PlainTextResponse(
+        content,
+        media_type="text/plain",
+        headers={"Content-Disposition": 'attachment; filename="instalar_maquina_worker.ps1"'},
     )
 
 

@@ -168,6 +168,34 @@ def test_download_latest_backup_requires_admin(app_env):
     assert comum_response.status_code == 403
 
 
+def test_download_install_script_embeds_server_url_and_token(app_env):
+    client = _authed_client()
+    response = client.get("/admin/instalar-worker.ps1")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="instalar_maquina_worker.ps1"'
+    assert '$env:ESTUDOS_SERVER_URL = "http://testserver"' in response.text
+    assert '$env:ESTUDOS_ACCESS_TOKEN = "test-token"' in response.text
+    # o resto do script continua intacto, não é substituído por engano
+    assert "faster_whisper" in response.text
+    assert "nvidia-smi" in response.text
+
+
+def test_download_install_script_requires_admin(app_env):
+    from app.db import holder
+    from app.main import app
+    from app.models import User
+    from app.security import hash_password
+
+    with holder.SessionLocal() as session:
+        session.add(User(username="comum2", senha_hash=hash_password("x"), papel="usuario", status="aprovado"))
+        session.commit()
+
+    comum_client = TestClient(app)
+    comum_client.post("/login", data={"username": "comum2", "senha": "x"})
+    response = comum_client.get("/admin/instalar-worker.ps1")
+    assert response.status_code == 403
+
+
 def test_lessons_json_excludes_lixo_and_reflects_has_audio(app_env):
     client = _authed_client()
     from app import config

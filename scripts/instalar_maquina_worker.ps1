@@ -17,6 +17,10 @@
 #   - Confere se o Claude Code CLI está disponível (só avisa, não instala)
 #
 # Uso: .\scripts\instalar_maquina_worker.ps1
+#
+# Baixado direto de um servidor rodando (GET /admin/instalar-worker.ps1,
+# autenticado como admin)? SERVER_URL e ACCESS_TOKEN já vêm prontos pra
+# aquele deploy específico -- só pergunta o nome do worker.
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -120,15 +124,30 @@ function Read-HostSafe($prompt) {
     try { return Read-Host $prompt } catch { return "" }
 }
 
-$currentServerUrl = Get-EnvValue "SERVER_URL"
-$serverUrl = Read-HostSafe "URL do servidor desta instalação [$currentServerUrl]"
-if ([string]::IsNullOrWhiteSpace($serverUrl)) { $serverUrl = $currentServerUrl }
+# $env:ESTUDOS_SERVER_URL / $env:ESTUDOS_ACCESS_TOKEN só existem quando este
+# script foi baixado direto de um servidor rodando (GET /admin/instalar-worker.ps1
+# injeta essas duas linhas no topo do arquivo antes de servir) -- nesse caso já
+# sabemos os valores certos pra ESTE deploy e nem faz sentido perguntar.
+if ($env:ESTUDOS_SERVER_URL) {
+    $serverUrl = $env:ESTUDOS_SERVER_URL
+    Write-Ok "SERVER_URL já veio embutido no download: $serverUrl"
+} else {
+    $currentServerUrl = Get-EnvValue "SERVER_URL"
+    $serverUrl = Read-HostSafe "URL do servidor desta instalação [$currentServerUrl]"
+    if ([string]::IsNullOrWhiteSpace($serverUrl)) { $serverUrl = $currentServerUrl }
+}
 Set-EnvValue "SERVER_URL" $serverUrl
 
-$currentToken = Get-EnvValue "ACCESS_TOKEN"
-$tokenPrompt = if ($currentToken) { "definido" } else { "não definido" }
-$accessToken = Read-HostSafe "ACCESS_TOKEN (credencial de worker desse servidor) [$tokenPrompt, Enter mantém]"
-if (-not [string]::IsNullOrWhiteSpace($accessToken)) { Set-EnvValue "ACCESS_TOKEN" $accessToken }
+if ($env:ESTUDOS_ACCESS_TOKEN) {
+    $accessToken = $env:ESTUDOS_ACCESS_TOKEN
+    Set-EnvValue "ACCESS_TOKEN" $accessToken
+    Write-Ok "ACCESS_TOKEN já veio embutido no download"
+} else {
+    $currentToken = Get-EnvValue "ACCESS_TOKEN"
+    $tokenPrompt = if ($currentToken) { "definido" } else { "não definido" }
+    $accessToken = Read-HostSafe "ACCESS_TOKEN (credencial de worker desse servidor) [$tokenPrompt, Enter mantém]"
+    if (-not [string]::IsNullOrWhiteSpace($accessToken)) { Set-EnvValue "ACCESS_TOKEN" $accessToken }
+}
 
 $currentWorkerName = Get-EnvValue "WORKER_NAME"
 $workerName = Read-HostSafe "Nome deste worker (aparece em qual máquina transcreveu) [$currentWorkerName]"
