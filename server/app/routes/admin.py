@@ -91,12 +91,19 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 # Tudo que uma máquina de worker nova precisa: código (server inteiro,
 # porque o processamento manual de aula por Claude Code lê server/app/ai/
 # pra montar o mesmo prompt -- ver RUNBOOK.md), o worker em si, os skills
-# (não .claude inteiro -- resto é sessão local, ver .gitignore) e os docs
-# que RUNBOOK.md referencia. Nunca data-backup/ (não copiado na imagem em
-# primeiro lugar, não precisa de exclusão especial aqui).
+# (não .claude inteiro -- resto é sessão local, ver .gitignore), os docs
+# que RUNBOOK.md referencia, e os atalhos de raiz que o próprio RUNBOOK.md
+# manda usar (disparar-skill.ps1 é a base de processar-aulas/
+# transcrever-paginas; iniciar-servidor-testes.bat sobe o Docker que
+# disparar-skill.ps1 confere antes de rodar). Nunca data-backup/ (não
+# copiado na imagem em primeiro lugar, não precisa de exclusão especial
+# aqui).
 INSTALL_PACKAGE_PATHS = [
     "scripts", "worker", "shared", "server", ".claude/skills", "docs",
     "RUNBOOK.md", "PLANO.md", "CLAUDE.md", ".env.example",
+    "disparar-skill.ps1", "iniciar-servidor-testes.bat",
+    "processar-aulas.ps1", "processar-aulas.bat",
+    "transcrever-paginas.ps1", "transcrever-paginas.bat",
 ]
 
 

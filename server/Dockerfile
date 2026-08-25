@@ -26,6 +26,9 @@ COPY worker worker
 COPY .claude/skills .claude/skills
 COPY docs docs
 COPY RUNBOOK.md PLANO.md CLAUDE.md .env.example ./
+COPY disparar-skill.ps1 iniciar-servidor-testes.bat \
+     processar-aulas.ps1 processar-aulas.bat \
+     transcrever-paginas.ps1 transcrever-paginas.bat ./
 
 WORKDIR /app/server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

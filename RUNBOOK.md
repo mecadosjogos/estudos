@@ -26,8 +26,15 @@ processando manualmente ocupa o seu plano de assinatura, não a API metered
 
 Este runbook roda contra o Docker local (`http://127.0.0.1:8000`) ou contra
 a VPS de produção — o caminho manual é o mesmo local ou remoto, só troca a
-URL base. Local sempre usa os dois arquivos de compose juntos (veja
-README.md sobre por que `docker-compose.dev.yml` não é automático):
+URL base. **Primeiro passo, sempre, antes de qualquer curl abaixo:** resolva
+`$SERVER_URL` lendo a variável `SERVER_URL` do `.env` na raiz do repo (mesma
+variável que `worker/config.py` já usa pro worker de transcrição) — se o
+arquivo não existir ou a variável estiver vazia, use
+`http://127.0.0.1:8000` (máquina nova, só com Docker local). Todo comando
+deste documento usa `$SERVER_URL` — nunca escreva um host fixo. Se
+`$SERVER_URL` for local, confirme que o server local está de pé (os dois
+arquivos de compose juntos, veja README.md sobre por que
+`docker-compose.dev.yml` não é automático):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml ps            # confirma que o server está de pé
@@ -35,13 +42,19 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d server  # s
 ```
 
 Autenticação: login por usuário+senha (PLANO.md, seção "Acesso") — não é
-mais `?k=<ACCESS_TOKEN>`, que só serve pro worker/Atalho iOS hoje. Todo
-comando `curl` abaixo assume um cookie jar já autenticado como `admin`:
+mais `?k=<ACCESS_TOKEN>`, que só serve pro worker/Atalho iOS hoje. Resolva
+`$LOGIN_USER`/`$LOGIN_SENHA` lendo `BACKUP_ADMIN_USERNAME`/
+`BACKUP_ADMIN_PASSWORD` do mesmo `.env` (mesma credencial que
+`scripts/backup_from_vps.py` já usa) — se ausentes, use `admin`/`admin`
+(padrão de instalação local/dev; a senha real de produção pode ter sido
+trocada em `/conta/senha`, então não assuma esse par contra a VPS sem
+conferir o `.env` primeiro). Todo comando `curl` abaixo assume um cookie jar
+já autenticado:
 
 ```bash
 COOKIEJAR=$(mktemp)
-curl -s -c "$COOKIEJAR" -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/login" \
-  --data-urlencode "username=admin" --data-urlencode "senha=admin" -o /dev/null
+curl -s -c "$COOKIEJAR" -b "$COOKIEJAR" -X POST "$SERVER_URL/login" \
+  --data-urlencode "username=$LOGIN_USER" --data-urlencode "senha=$LOGIN_SENHA" -o /dev/null
 # use -b "$COOKIEJAR" em todo curl daqui pra frente
 ```
 
@@ -126,7 +139,7 @@ novo do zero, puro desperdício).
 **2. Baixar o pacote** (prompt + transcrição + schema, tudo num arquivo):
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/pacote.md" -o pacote.md
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/pacote.md" -o pacote.md
 ```
 
 **3. Ler `pacote.md` e gerar a resposta.** As instruções e o JSON Schema já
@@ -148,7 +161,7 @@ importam (do PLANO.md, "Integridade"):
 **4. Enviar de volta:**
 
 ```bash
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/lessons/{id}/colar-resposta" \
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/colar-resposta" \
   --data-urlencode "resposta@${WINPATH}"
 ```
 
@@ -189,9 +202,9 @@ with holder.SessionLocal() as session:
 **5. Validar:**
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aula-editada" | grep -o "Resumo\|error" 
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aprovacao" -o /dev/null -w "%{http_code}\n"
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/guia" -o /dev/null -w "%{http_code}\n"
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/aula-editada" | grep -o "Resumo\|error" 
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/aprovacao" -o /dev/null -w "%{http_code}\n"
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia" -o /dev/null -w "%{http_code}\n"
 ```
 
 Reprocessar a mesma aula depois é seguro — o `reconcile()` por `deriv_key`
@@ -272,8 +285,8 @@ reprocessar é seguro, preserva o que você já editou/aceitou
 **Validar:**
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aprovacao" | grep -o "Pares de discriminação propostos ([0-9]*)"
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aula-editada" | grep -o "cloze-word" | head -1
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/aprovacao" | grep -o "Pares de discriminação propostos ([0-9]*)"
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/aula-editada" | grep -o "cloze-word" | head -1
 ```
 
 ### Fase 10 — Transcrever páginas de livro
@@ -316,7 +329,7 @@ with holder.SessionLocal() as session:
 do host — precisa baixar antes de ler, exatamente como `pacote.md`):
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/materials/{material_id}/paginas/{page_id}/imagem" -o pagina.png
+curl -s -b "$COOKIEJAR" "$SERVER_URL/materials/{material_id}/paginas/{page_id}/imagem" -o pagina.png
 ```
 
 **3. Ler a foto e transcrever.** Use a ferramenta Read na `pagina.png`
@@ -337,7 +350,7 @@ runbook — arquivo, nunca argumento inline):
 
 ```bash
 WINPATH=$(cygpath -w transcricao.md)
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/materials/{material_id}/paginas/{page_id}/colar" \
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/materials/{material_id}/paginas/{page_id}/colar" \
   --data-urlencode "texto@${WINPATH}"
 ```
 
@@ -348,7 +361,7 @@ não tente contornar, pule para a próxima página.
 **4b. Ou marcar como erro**, se a foto não deu pra ler:
 
 ```bash
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/materials/{material_id}/paginas/{page_id}/erro" \
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/materials/{material_id}/paginas/{page_id}/erro" \
   --data-urlencode "erro=letra ilegível, sombra cobrindo metade da página"
 ```
 
@@ -363,7 +376,7 @@ from app.models import MaterialPage
 with holder.SessionLocal() as session:
     print(repr(session.get(MaterialPage, {page_id}).texto))
 "
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/works/{work_id}/ler" | grep -o "p\. [0-9]*" | head -5
+curl -s -b "$COOKIEJAR" "$SERVER_URL/works/{work_id}/ler" | grep -o "p\. [0-9]*" | head -5
 ```
 
 **Atalho automatizado:** `transcrever-paginas.bat` na raiz do repo (ou o
@@ -412,8 +425,8 @@ PLANO.md desenha (fica pra quando essa UI existir).
 **Validar:**
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aprovacao" | grep -o "Termos propostos ([0-9]*)"
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/aula-editada" | grep -o "glossary-term" | head -1
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/aprovacao" | grep -o "Termos propostos ([0-9]*)"
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/aula-editada" | grep -o "glossary-term" | head -1
 ```
 
 ### Fase 13 — Feynman por voz e dissertativa avaliada
@@ -435,9 +448,9 @@ explicação transcrita contra **todas** as definições ativas do termo
 a resposta em `/termos/{id}/feynman/{attempt_id}/colar-resposta`.
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/termos/{id}/feynman/{attempt_id}/prompt.md" -o pacote.md
+curl -s -b "$COOKIEJAR" "$SERVER_URL/termos/{id}/feynman/{attempt_id}/prompt.md" -o pacote.md
 WINPATH=$(cygpath -w resposta.md)
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/termos/{id}/feynman/{attempt_id}/colar-resposta" \
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/termos/{id}/feynman/{attempt_id}/colar-resposta" \
   --data-urlencode "resposta@${WINPATH}"
 ```
 
@@ -462,22 +475,22 @@ O histórico de tentativas fica todo na mesma página da questão — nada é
 sobrescrito, cada resposta é uma linha nova.
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/lessons/{id}/dissertativas/gerar-pacote.md" -o pacote.md
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/dissertativas/gerar-pacote.md" -o pacote.md
 WINPATH=$(cygpath -w questao.md)
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/lessons/{id}/dissertativas/colar-questao" \
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/dissertativas/colar-questao" \
   --data-urlencode "resposta@${WINPATH}"
 
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/dissertativas/{question_id}/attempts/{attempt_id}/prompt.md" -o pacote.md
+curl -s -b "$COOKIEJAR" "$SERVER_URL/dissertativas/{question_id}/attempts/{attempt_id}/prompt.md" -o pacote.md
 WINPATH=$(cygpath -w correcao.md)
-curl -s -b "$COOKIEJAR" -X POST "http://127.0.0.1:8000/dissertativas/{question_id}/attempts/{attempt_id}/colar-correcao" \
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/dissertativas/{question_id}/attempts/{attempt_id}/colar-correcao" \
   --data-urlencode "resposta@${WINPATH}"
 ```
 
 **Validar:**
 
 ```bash
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/termos/{id}/feynman/{attempt_id}" | grep -o "Faltou\|Nada faltando"
-curl -s -b "$COOKIEJAR" "http://127.0.0.1:8000/dissertativas" | grep -o "search-results"
+curl -s -b "$COOKIEJAR" "$SERVER_URL/termos/{id}/feynman/{attempt_id}" | grep -o "Faltou\|Nada faltando"
+curl -s -b "$COOKIEJAR" "$SERVER_URL/dissertativas" | grep -o "search-results"
 ```
 
 ## Custo

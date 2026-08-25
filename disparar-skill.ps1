@@ -16,8 +16,9 @@
 # --dangerously-skip-permissions: decisao explicita do usuario -- sem
 # isso, cada chamada de ferramenta pediria confirmacao que ninguem
 # estaria ali pra dar. Cada skill que usa este script precisa ser
-# contida por conta própria (nunca aceitar proposta sozinha, só mexer no
-# servidor local de staging).
+# contida por conta própria (nunca aceitar proposta sozinha -- isso fica
+# pra revisao humana em /aprovacao, mesmo rodando contra a VPS de
+# producao via SERVER_URL no .env).
 #
 # NAO usa --bare: bare mode nao le OAuth/keychain, e este projeto usa a
 # assinatura do Claude Code (login normal), nunca ANTHROPIC_API_KEY.
@@ -48,14 +49,30 @@ function Carimbo {
 	return (Get-Date -Format "HH:mm:ss")
 }
 
-Write-Host "Verificando se o servidor de testes esta no ar..."
+# Mesma variavel que worker/config.py ja usa -- ausente/vazio cai no Docker
+# local (maquina nova, sem VPS configurada ainda); presente no .env (caso
+# de hoje, ja apontando pra producao) usa a VPS. Sem isso o script sempre
+# checava 127.0.0.1:8000, entao numa maquina ja configurada pra falar com
+# a VPS ele "achava" que o servidor estava fora do ar.
+$envPath = Join-Path $PSScriptRoot ".env"
+$serverUrl = "http://127.0.0.1:8000"
+if (Test-Path $envPath) {
+	$linha = Select-String -Path $envPath -Pattern "^SERVER_URL=(.+)$" -Encoding utf8 -ErrorAction SilentlyContinue | Select-Object -First 1
+	if ($linha) { $serverUrl = $linha.Matches[0].Groups[1].Value.Trim() }
+}
+
+Write-Host "Verificando se o servidor esta no ar ($serverUrl)..."
 try {
-	$health = Invoke-WebRequest -Uri "http://127.0.0.1:8000/healthz" -UseBasicParsing -TimeoutSec 5
+	$health = Invoke-WebRequest -Uri "$serverUrl/healthz" -UseBasicParsing -TimeoutSec 10
 	if ($health.StatusCode -ne 200) { throw "status $($health.StatusCode)" }
 } catch {
 	Write-Host ""
-	Write-Host 'O servidor de testes nao esta respondendo em http://127.0.0.1:8000'
-	Write-Host 'Rode primeiro o atalho "Servidor de testes (Estudos)" e tente de novo.'
+	Write-Host "O servidor nao esta respondendo em $serverUrl"
+	if ($serverUrl -like "*127.0.0.1*") {
+		Write-Host 'Rode primeiro o atalho "Servidor de testes (Estudos)" e tente de novo.'
+	} else {
+		Write-Host 'Confirme que a VPS esta no ar, ou que SERVER_URL no .env aponta pro lugar certo.'
+	}
 	Read-Host "Pressione Enter para fechar"
 	exit 1
 }

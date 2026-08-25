@@ -222,6 +222,15 @@ def test_download_install_package_zip_contains_prefilled_script_and_no_duplicate
     assert any(n.startswith("worker/") for n in names)
     assert any(n.startswith("server/app/") for n in names)
 
+    # atalhos de raiz que o RUNBOOK.md manda usar -- ficaram de fora numa
+    # passada anterior e a máquina nova não conseguia processar aula/página
+    assert "disparar-skill.ps1" in names
+    assert "iniciar-servidor-testes.bat" in names
+    assert "processar-aulas.ps1" in names
+    assert "processar-aulas.bat" in names
+    assert "transcrever-paginas.ps1" in names
+    assert "transcrever-paginas.bat" in names
+
     # nunca o backup de dados (nem seria copiado na imagem, mas confirma
     # que a lista de caminhos empacotados não inclui isso por engano)
     assert not any(n.startswith("data-backup/") for n in names)
