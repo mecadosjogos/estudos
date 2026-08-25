@@ -50,6 +50,12 @@ Secrets do repositório usados pelo workflow (`Settings → Secrets and variable
 
 A transcrição de áudio (Whisper `large-v3`, GPU) roda numa máquina local, não no VPS — veja [worker/](worker/) e [docker-compose.worker.yml](docker-compose.worker.yml). O VPS só precisa de CPU para a válvula de emergência "transcrever na VPS agora".
 
+## Máquina de worker (Whisper + processamento manual de IA)
+
+`scripts/instalar_maquina_worker.ps1` prepara uma máquina Windows com GPU pra rodar o worker de transcrição contra **qualquer** deploy deste repositório — a VPS original, ou uma nova pra outro curso. Roda de dentro do clone que essa máquina vai usar de verdade.
+
+Pressupõe já instalados (não tenta automatizar sozinho — driver de GPU em especial pode exigir reiniciar, arriscado sem ver a tela): driver NVIDIA, Python 3.12+, Git. A partir daí, cuida do venv (`server\.venv`, dependências de `server/` + `worker/`), ffmpeg (via winget se faltar), `.env` (`SERVER_URL`/`ACCESS_TOKEN`/`WORKER_NAME` pro deploy que essa máquina vai servir), testa a GPU de verdade (carrega um modelo Whisper pequeno em CUDA) e avisa se o Claude Code CLI está no PATH (os skills em `.claude/skills/` já vêm com o clone, só o CLI em si é instalado à parte).
+
 ## Backup versionado no repositório
 
 `scripts/backup_de_producao.ps1` (ou `python scripts/backup_from_vps.py` direto) loga na VPS como admin, baixa um backup fresco do banco — **sem a tabela `user`**, que carrega hash de senha — e o mp3 de cada aula, e grava tudo em `data-backup/` neste repositório. O script **não commita nem dá push sozinho**: só escreve os arquivos e imprime o comando pra você revisar e publicar quando quiser. Credenciais via `BACKUP_ADMIN_USERNAME`/`BACKUP_ADMIN_PASSWORD` no `.env` (ou perguntadas na hora, se ausentes).
