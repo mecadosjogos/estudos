@@ -23,6 +23,7 @@
 			<a class="button button-ghost" href="/subjects">Gerenciar matérias</a>
 			{% if request.state.user and request.state.user.papel == "admin" %}
 			<a class="button button-ghost" href="/admin/seguranca">Segurança</a>
+			<a class="button button-ghost" href="/admin/backups">Backups</a>
 			{% endif %}
 			<a class="button button-ghost" href="/conta/senha">Trocar senha</a>
 			<form method="post" action="/logout" style="display:inline"><button type="submit" class="button-ghost">Sair</button></form>
