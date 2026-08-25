@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -86,18 +86,31 @@ def list_lessons_json(session: Session = Depends(get_session)):
     )
 
 
-@router.get("/instalar-worker.ps1")
-def download_install_script(request: Request):
-    """scripts/instalar_maquina_worker.ps1 (COPY scripts scripts no
-    Dockerfile), servido com SERVER_URL/ACCESS_TOKEN JÁ deste deploy --
-    quem baixa já está autenticado como admin, então embutir o token aqui
-    não é uma exposição nova, só evita copiar/colar na hora do prompt.
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+# Tudo que uma máquina de worker nova precisa: código (server inteiro,
+# porque o processamento manual de aula por Claude Code lê server/app/ai/
+# pra montar o mesmo prompt -- ver RUNBOOK.md), o worker em si, os skills
+# (não .claude inteiro -- resto é sessão local, ver .gitignore) e os docs
+# que RUNBOOK.md referencia. Nunca data-backup/ (não copiado na imagem em
+# primeiro lugar, não precisa de exclusão especial aqui).
+INSTALL_PACKAGE_PATHS = [
+    "scripts", "worker", "shared", "server", ".claude/skills", "docs",
+    "RUNBOOK.md", "PLANO.md", "CLAUDE.md", ".env.example",
+]
+
+
+def _build_install_script(request: Request) -> str:
+    """scripts/instalar_maquina_worker.ps1 com SERVER_URL/ACCESS_TOKEN JÁ
+    deste deploy embutidos -- quem baixa já está autenticado como admin,
+    então isso não é uma exposição nova, só evita copiar/colar na hora do
+    prompt.
 
     Lê o esquema/host de X-Forwarded-* primeiro: atrás do Traefik (produção)
     o uvicorn recebe a requisição como HTTP simples do container -- sem
     isso o script baixado apontaria pra http://, não https://.
     """
-    script_path = Path(__file__).resolve().parent.parent.parent.parent / "scripts" / "instalar_maquina_worker.ps1"
+    script_path = REPO_ROOT / "scripts" / "instalar_maquina_worker.ps1"
     content = script_path.read_text(encoding="utf-8")
 
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
@@ -105,12 +118,52 @@ def download_install_script(request: Request):
     server_url = f"{scheme}://{host}"
 
     prelude = f'$env:ESTUDOS_SERVER_URL = "{server_url}"\n$env:ESTUDOS_ACCESS_TOKEN = "{config.ACCESS_TOKEN}"\n'
-    content = content.replace('$ErrorActionPreference = "Stop"\n', '$ErrorActionPreference = "Stop"\n' + prelude, 1)
+    return content.replace('$ErrorActionPreference = "Stop"\n', '$ErrorActionPreference = "Stop"\n' + prelude, 1)
 
+
+@router.get("/instalar-worker.ps1")
+def download_install_script(request: Request):
+    """Só o script, pra quem já tem o repositório clonado numa máquina de
+    worker e só quer atualizar SERVER_URL/ACCESS_TOKEN sem baixar tudo de
+    novo."""
+    content = _build_install_script(request)
     return PlainTextResponse(
         content,
         media_type="text/plain",
         headers={"Content-Disposition": 'attachment; filename="instalar_maquina_worker.ps1"'},
+    )
+
+
+@router.get("/instalar-worker.zip")
+def download_install_package(request: Request):
+    """Pra uma máquina totalmente nova, sem repositório nenhum ainda:
+    baixa, extrai, roda o .ps1 de dentro -- self-contained, nem precisa
+    de Git na máquina de worker (só o que instalar_maquina_worker.ps1
+    já pressupõe: driver NVIDIA, Python, ffmpeg via winget)."""
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for rel in INSTALL_PACKAGE_PATHS:
+            path = REPO_ROOT / rel
+            if path.is_file():
+                zf.write(path, arcname=rel)
+            elif path.is_dir():
+                for file_path in path.rglob("*"):
+                    if file_path.is_file():
+                        arcname = file_path.relative_to(REPO_ROOT).as_posix()
+                        if arcname == "scripts/instalar_maquina_worker.ps1":
+                            continue  # entra abaixo, já com SERVER_URL/ACCESS_TOKEN
+                        zf.write(file_path, arcname=arcname)
+
+        zf.writestr("scripts/instalar_maquina_worker.ps1", _build_install_script(request))
+
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="estudos-worker-setup.zip"'},
     )
 
 

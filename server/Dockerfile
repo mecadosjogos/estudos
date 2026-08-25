@@ -17,5 +17,15 @@ COPY server server
 COPY shared shared
 COPY scripts scripts
 
+# A partir daqui, nada disso é usado pelo servidor em si -- é conteúdo
+# estático empacotado só pra GET /admin/instalar-worker.zip (bootstrap de
+# uma máquina de worker nova). COPY .claude/skills, não .claude inteiro:
+# o resto de .claude/ é estado de sessão local, nunca deveria entrar numa
+# imagem (mesmo comentário já em .gitignore sobre isso).
+COPY worker worker
+COPY .claude/skills .claude/skills
+COPY docs docs
+COPY RUNBOOK.md PLANO.md CLAUDE.md .env.example ./
+
 WORKDIR /app/server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

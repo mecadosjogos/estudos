@@ -52,9 +52,13 @@ A transcrição de áudio (Whisper `large-v3`, GPU) roda numa máquina local, n�
 
 ## Máquina de worker (Whisper + processamento manual de IA)
 
-`scripts/instalar_maquina_worker.ps1` prepara uma máquina Windows com GPU pra rodar o worker de transcrição contra **qualquer** deploy deste repositório — a VPS original, ou uma nova pra outro curso. Roda de dentro do clone que essa máquina vai usar de verdade.
+`scripts/instalar_maquina_worker.ps1` prepara uma máquina Windows com GPU pra rodar o worker de transcrição contra **qualquer** deploy deste repositório — a VPS original, ou uma nova pra outro curso.
 
-Pressupõe já instalados (não tenta automatizar sozinho — driver de GPU em especial pode exigir reiniciar, arriscado sem ver a tela): driver NVIDIA, Python 3.12+, Git. A partir daí, cuida do venv (`server\.venv`, dependências de `server/` + `worker/`), ffmpeg (via winget se faltar), `.env` (`SERVER_URL`/`ACCESS_TOKEN`/`WORKER_NAME` pro deploy que essa máquina vai servir), testa a GPU de verdade (carrega um modelo Whisper pequeno em CUDA) e avisa se o Claude Code CLI está no PATH (os skills em `.claude/skills/` já vêm com o clone, só o CLI em si é instalado à parte).
+**Máquina nova, sem nada configurado ainda:** na tela `/admin/backups` de qualquer deploy rodando, botão **"Baixar pacote completo (.zip)"** — vem com `server/`, `worker/`, `shared/`, `.claude/skills/`, docs e o script já com `SERVER_URL`/`ACCESS_TOKEN` **daquele deploy específico** embutidos (não precisa nem digitar, nem ter Git instalado na máquina nova). Baixa, extrai numa pasta de caminho curto (`C:\worker\`, não uma pasta com nome longo — o Windows tem limite de tamanho de caminho, e pacotes Python como numpy têm árvore de arquivo bem aninhada), e dá dois cliques em `scripts\instalar_maquina_worker.bat` (ou roda o `.ps1` direto). Pra deixar um atalho na Área de Trabalho: clique direito no `.bat` → Enviar para → Área de trabalho — não tem automação pra isso, é o mesmo passo manual de sempre neste projeto.
+
+**Já tem o repositório clonado nessa máquina:** roda `scripts\instalar_maquina_worker.ps1` de dentro do clone, ou baixa só `/admin/instalar-worker.ps1` (sem o pacote inteiro) se só quiser atualizar `SERVER_URL`/`ACCESS_TOKEN` pra um deploy diferente.
+
+Pressupõe já instalados (não tenta automatizar sozinho — driver de GPU em especial pode exigir reiniciar, arriscado sem ver a tela): driver NVIDIA, Python 3.12+. A partir daí, cuida do venv (`server\.venv`, dependências de `server/` + `worker/`), ffmpeg (via winget se faltar), `.env` (`SERVER_URL`/`ACCESS_TOKEN`/`WORKER_NAME`), testa a GPU de verdade (carrega um modelo Whisper pequeno em CUDA) e avisa se o Claude Code CLI está no PATH (os skills em `.claude/skills/` já vêm junto, só o CLI em si é instalado à parte).
 
 ## Backup versionado no repositório
 

@@ -35,8 +35,12 @@
 
 <div class="card">
 	<h2>Instalar máquina de worker</h2>
-	<p class="muted">Prepara uma máquina Windows com GPU pra rodar o worker de transcrição contra <strong>este</strong> deploy — endereço e credencial já vêm embutidos no arquivo, só falta rodar.</p>
-	<a class="button" href="/admin/instalar-worker.ps1">Baixar script de instalação</a>
+	<p class="muted">Prepara uma máquina Windows com GPU pra rodar o worker de transcrição contra <strong>este</strong> deploy — endereço e credencial já vêm embutidos, só falta rodar.</p>
+	<div class="button-row">
+		<a class="button" href="/admin/instalar-worker.zip">Baixar pacote completo (.zip)</a>
+		<a class="button button-ghost" href="/admin/instalar-worker.ps1">Só o script (.ps1)</a>
+	</div>
+	<p class="muted">Máquina nova, sem nada configurado ainda: o <strong>.zip</strong> — baixa, extrai, roda <code>scripts\instalar_maquina_worker.ps1</code> (ou dê dois cliques em <code>instalar_maquina_worker.bat</code>) de dentro da pasta extraída. Já tem o repositório clonado nessa máquina: o <strong>.ps1</strong> sozinho já serve, só atualiza endereço/credencial.</p>
 </div>
 
 <div class="card">

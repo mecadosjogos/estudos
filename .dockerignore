@@ -1,0 +1,33 @@
+# Sem isso, o build manda TUDO que existe localmente como contexto pro
+# Docker -- inclusive coisas de multi-GB que nunca deveriam entrar numa
+# imagem, tipo server\.venv (2.5GB+ com as bibliotecas CUDA do
+# faster-whisper) ou o banco/mídia de desenvolvimento local.
+
+.git/
+**/.venv/
+**/__pycache__/
+*.pyc
+
+data/
+data-backup/
+archive/
+backups/
+worker/tmp/
+logs/
+
+.pytest_cache/
+htmlcov/
+.coverage
+test_debug.db
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Estado interno do assistente de codificação -- skills são a exceção
+# (o Dockerfile copia .claude/skills explicitamente), o resto é sessão
+# local e nunca deveria ir pra uma imagem.
+.claude/*
+!.claude/skills/
+!.claude/skills/**

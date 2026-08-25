@@ -196,6 +196,53 @@ def test_download_install_script_requires_admin(app_env):
     assert response.status_code == 403
 
 
+def test_download_install_package_zip_contains_prefilled_script_and_no_duplicates(app_env):
+    import io
+    import zipfile
+
+    client = _authed_client()
+    response = client.get("/admin/instalar-worker.zip")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="estudos-worker-setup.zip"'
+
+    zf = zipfile.ZipFile(io.BytesIO(response.content))
+    names = zf.namelist()
+
+    # sem duplicata: a versão pré-preenchida substitui a crua, não soma
+    assert names.count("scripts/instalar_maquina_worker.ps1") == 1
+    script_content = zf.read("scripts/instalar_maquina_worker.ps1").decode("utf-8")
+    assert '$env:ESTUDOS_SERVER_URL = "http://testserver"' in script_content
+    assert '$env:ESTUDOS_ACCESS_TOKEN = "test-token"' in script_content
+
+    # amostra de cada área que a máquina de worker precisa
+    assert "scripts/instalar_maquina_worker.bat" in names
+    assert "PLANO.md" in names
+    assert "RUNBOOK.md" in names
+    assert ".env.example" in names
+    assert any(n.startswith("worker/") for n in names)
+    assert any(n.startswith("server/app/") for n in names)
+
+    # nunca o backup de dados (nem seria copiado na imagem, mas confirma
+    # que a lista de caminhos empacotados não inclui isso por engano)
+    assert not any(n.startswith("data-backup/") for n in names)
+
+
+def test_download_install_package_requires_admin(app_env):
+    from app.db import holder
+    from app.main import app
+    from app.models import User
+    from app.security import hash_password
+
+    with holder.SessionLocal() as session:
+        session.add(User(username="comum3", senha_hash=hash_password("x"), papel="usuario", status="aprovado"))
+        session.commit()
+
+    comum_client = TestClient(app)
+    comum_client.post("/login", data={"username": "comum3", "senha": "x"})
+    response = comum_client.get("/admin/instalar-worker.zip")
+    assert response.status_code == 403
+
+
 def test_lessons_json_excludes_lixo_and_reflects_has_audio(app_env):
     client = _authed_client()
     from app import config
