@@ -1,6 +1,6 @@
 """Liga os nós do mapa de taxonomia (Mermaid) aos verbetes do glossário
 (PLANO.md, fase 15: "com os nós ligados aos verbetes do glossário") e funde
-o mapa de várias aulas num diagrama só, pro card "Taxonomia da matéria"
+o mapa de várias aulas numa árvore só, pro card "Taxonomia da matéria"
 (PLANO.md, 5b -- a "Rede de conceitos" que vivia ao lado desse card foi
 removida por não servir pro estudo real; ver "Decisões fechadas").
 
@@ -11,7 +11,9 @@ pra achar "rótulo do nó" e casar contra o glossário; simplificação
 deliberada dado que a IA sempre gera o mesmo estilo de flowchart simples
 pedido no prompt."""
 
+import json
 import re
+from collections import defaultdict
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -139,57 +141,59 @@ def _iter_label_edges(mermaid_src: str):
             yield labels.get(id_a, id_a), labels.get(id_b, id_b), rotulo
 
 
-def merge_taxonomy_diagrams(mermaid_sources: list[str]) -> str:
-    """Funde o Mermaid de várias aulas num diagrama só, deduplicando nó
-    pelo RÓTULO normalizado -- o id interno do Mermaid só vale dentro de
-    uma aula, o rótulo é o que persiste entre elas. Não exige que o
-    rótulo já seja um verbete aprovado -- a estrutura em si é o produto
-    aqui, não um grafo de Term.id. Usado pelo card "Taxonomia da matéria"
-    (`build_taxonomia_mermaid` abaixo), renderizado com o mesmo mermaid.js
-    do mapa por aula (fase 15) -- forçar isso num layout de força
-    (vis-network, tentativa anterior desta feature) não lembrava em nada a
-    árvore que a IA desenhou; o dagre do próprio Mermaid é que sabe
-    desenhar hierarquia."""
-    id_by_normalized: dict[str, str] = {}
-    label_by_id: dict[str, str] = {}
-    edges_seen: set[tuple[str, str]] = set()
-    lines: list[str] = []
+def build_taxonomy_tree(session: Session, mermaid_sources: list[str]) -> list[dict]:
+    """Funde o Mermaid de várias aulas numa árvore só, deduplicando nó pelo
+    RÓTULO normalizado -- o id interno do Mermaid só vale dentro de uma
+    aula, o rótulo é o que persiste entre elas. Não exige que o rótulo já
+    seja um verbete aprovado -- a estrutura em si é o produto aqui, `term_id`
+    é só um bônus condicional. Usado pelo card "Taxonomia da matéria"
+    (`build_taxonomia_tree_json` abaixo), renderizado com D3 (árvore
+    colapsável, zoom/pan) -- Mermaid (tentativa anterior) é renderização
+    estática, sem interação em tempo de execução; D3 é a ferramenta certa
+    pra árvore hierárquica navegável.
 
-    def _mermaid_id(label: str) -> str:
-        normalized = normalize_char_preserving(label)
-        if normalized not in id_by_normalized:
-            id_by_normalized[normalized] = f"n{len(id_by_normalized)}"
-            label_by_id[id_by_normalized[normalized]] = label
-        return id_by_normalized[normalized]
+    Simplificação deliberada: se o mesmo conceito aparece com PAIS
+    diferentes em aulas diferentes (raro -- dois professores classificando
+    o mesmo termo em ramos diferentes), só o primeiro pai encontrado vira
+    aresta; uma árvore colapsável exige um pai por nó, mesmo espírito do
+    resto do arquivo."""
+    lookup = _term_lookup(session)
+
+    children_by_label: dict[str, list[tuple[str, str | None]]] = defaultdict(list)
+    label_text: dict[str, str] = {}
+    has_parent: set[str] = set()
 
     for src in mermaid_sources:
         for label_a, label_b, rotulo in _iter_label_edges(src):
-            id_a, id_b = _mermaid_id(label_a), _mermaid_id(label_b)
-            if id_a == id_b or (id_a, id_b) in edges_seen:
+            normalized_a = normalize_char_preserving(label_a)
+            normalized_b = normalize_char_preserving(label_b)
+            label_text.setdefault(normalized_a, label_a)
+            label_text.setdefault(normalized_b, label_b)
+            if normalized_a == normalized_b or normalized_b in has_parent:
                 continue
-            edges_seen.add((id_a, id_b))
-            label_a_escapada = label_by_id[id_a].replace('"', "'")
-            label_b_escapada = label_by_id[id_b].replace('"', "'")
-            seta = f'-->|"{rotulo}"|' if rotulo else "-->"
-            lines.append(f'  {id_a}["{label_a_escapada}"] {seta} {id_b}["{label_b_escapada}"]')
+            children_by_label[normalized_a].append((normalized_b, rotulo))
+            has_parent.add(normalized_b)
 
-    if not lines:
-        return ""
-    return "graph TD\n" + "\n".join(lines) + "\n"
+    def _build(normalized: str, edge_label: str | None) -> dict:
+        return {
+            "label": label_text[normalized],
+            "term_id": lookup.get(normalized),
+            "edge_label": edge_label,
+            "children": [_build(child, r) for child, r in children_by_label.get(normalized, [])],
+        }
+
+    roots = [n for n in label_text if n not in has_parent]
+    return [_build(root, None) for root in roots]
 
 
-def build_taxonomia_mermaid(session: Session, lesson_ids: list[int]) -> str:
+def build_taxonomia_tree_json(session: Session, lesson_ids: list[int]) -> str:
     """Orquestra o card "Taxonomia da matéria": busca o `mapa_mermaid` de
-    cada aula em `lesson_ids`, funde num diagrama só (`merge_taxonomy_
-    diagrams`) e liga aos verbetes (`link_mermaid_nodes_to_glossary`) --
-    mesmos dois passos que o mapa por aula já faz, só que sobre o texto
-    fundido em vez do de uma aula só."""
+    cada aula em `lesson_ids` e funde numa árvore só (`build_taxonomy_tree`)."""
     if not lesson_ids:
-        return ""
+        return "[]"
 
     lessons = session.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
     sources = [lesson.mapa_mermaid for lesson in lessons if lesson.mapa_mermaid]
-    merged = merge_taxonomy_diagrams(sources)
-    if not merged:
-        return ""
-    return link_mermaid_nodes_to_glossary(merged, session)
+    if not sources:
+        return "[]"
+    return json.dumps(build_taxonomy_tree(session, sources))

@@ -24,12 +24,8 @@
 
 <div class="card">
 	<h2>Taxonomia da matéria</h2>
-	<p class="muted">Os mapas de taxonomia (fase 15) de todas as aulas já geradas, unidos num diagrama só pelo rótulo que se repete entre eles — mesmo motor visual do mapa por aula, sem assunto/coocorrência/discriminação misturados. Nó sublinhado leva ao verbete do glossário.</p>
-	{% if taxonomia_mermaid %}
-	<pre class="mermaid">{{ taxonomia_mermaid }}</pre>
-	{% else %}
-	<p class="muted">Nenhuma aula desta matéria tem mapa de taxonomia gerado ainda.</p>
-	{% endif %}
+	<p class="muted">Os mapas de taxonomia (fase 15) de todas as aulas já geradas, unidos numa árvore só pelo rótulo que se repete entre elas. Arraste pra mover, role pra dar zoom, clique num nó pra expandir/recolher os filhos. Nó com <strong>→</strong> tem verbete no glossário.</p>
+	<div id="taxonomia-tree" style="height: 600px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;"></div>
 </div>
 
 <div class="card">
@@ -105,10 +101,9 @@
 	</form>
 </div>
 
-{% if taxonomia_mermaid %}
-<script src="/static/mermaid.min.js"></script>
+<script src="/static/d3.min.js"></script>
+<script src="/static/taxonomia.js"></script>
 <script>
-	mermaid.initialize({ startOnLoad: true, securityLevel: "loose", theme: "neutral" });
+	initTaxonomiaTree(document.getElementById("taxonomia-tree"), {{ taxonomia_tree_json | safe }});
 </script>
-{% endif %}
 {% endblock %}

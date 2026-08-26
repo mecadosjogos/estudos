@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_session
 from ..db import get_session
-from ..glossary.mermaid import build_taxonomia_mermaid
+from ..glossary.mermaid import build_taxonomia_tree_json
 from ..models import Assunto, AssuntoCobertura, Ementa, Exam, Lesson, Subject
 
 router = APIRouter(prefix="/subjects", dependencies=[Depends(require_session)])
@@ -100,7 +100,7 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
     ).all()
 
     lesson_ids = [lesson.id for lesson in lessons]
-    taxonomia_mermaid = build_taxonomia_mermaid(session, lesson_ids)
+    taxonomia_tree_json = build_taxonomia_tree_json(session, lesson_ids)
 
     return templates.TemplateResponse(
         request,
@@ -112,7 +112,7 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
             "ementa": ementa,
             "exams": exams,
             "assuntos_da_materia": assuntos_da_materia,
-            "taxonomia_mermaid": taxonomia_mermaid,
+            "taxonomia_tree_json": taxonomia_tree_json,
         },
     )
 

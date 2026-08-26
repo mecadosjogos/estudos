@@ -162,6 +162,39 @@ button, .button {
 	font-weight: 600;
 }
 
+/* Taxonomia da matéria (static/taxonomia.js) -- árvore D3 colapsável. */
+.taxo-link {
+	fill: none;
+	stroke: var(--border);
+	stroke-width: 1.5px;
+}
+
+.taxo-node-circle {
+	fill: var(--bg);
+	stroke: var(--text-muted);
+	stroke-width: 1.5px;
+	cursor: pointer;
+}
+
+.taxo-node-circle-comfilhos {
+	fill: var(--text-muted);
+}
+
+.taxo-label {
+	font-size: 0.8125rem;
+	line-height: 1.25;
+	color: var(--text);
+	cursor: pointer;
+	user-select: none;
+}
+
+.taxo-label-link {
+	color: var(--accent);
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+}
+
 .badge {
 	display: inline-block;
 	padding: 0 var(--space-2);
