@@ -186,14 +186,15 @@
 
 	// container: elemento DOM do grafo. graph: {nodes, edges}. subjectColors:
 	// {subject_id: cor}. infoContainer: painel de clique. legendContainer:
-	// onde desenhar a legenda/filtro (opcional, mas sem ela não dá pra
-	// desligar nenhuma camada).
-	window.renderRede = function (container, graph, subjectColors, infoContainer, legendContainer) {
+	// onde desenhar a legenda/filtro (opcional -- sem ela não dá pra
+	// desligar nenhuma camada, mas o card de taxonomia pura não precisa,
+	// só tem uma camada). emptyMessage: texto quando não há nó nenhum.
+	window.renderRede = function (container, graph, subjectColors, infoContainer, legendContainer, emptyMessage) {
 		container.innerHTML = "";
 		if (infoContainer) infoContainer.innerHTML = "";
 		if (legendContainer) legendContainer.innerHTML = "";
 		if (!graph.nodes.length) {
-			container.textContent = "Ainda não há taxonomia, assunto ou discriminação suficiente ligados aqui pra desenhar uma rede.";
+			container.textContent = emptyMessage || "Ainda não há taxonomia, assunto ou discriminação suficiente ligados aqui pra desenhar uma rede.";
 			return null;
 		}
 
@@ -225,12 +226,34 @@
 			return filtro.edgeOrigens[e._origem] && filtro.nodeTipos[nodeTipoById[e.from]] && filtro.nodeTipos[nodeTipoById[e.to]];
 		}
 
+		// Um nó só existe no grafo porque alguma aresta o cita (todo node_id
+		// vem de node_ids_in_edges no servidor) -- se toda aresta que o
+		// tocava ficou escondida pelo filtro, o nó vira um ponto solto sem
+		// função nenhuma na tela, só ruído. Calculado uma vez por chamada de
+		// visibilidade e reaproveitado por atualizarVisibilidade e
+		// highlightNeighborhood, pra nunca reaparecer um nó cuja única
+		// conexão é de uma origem desmarcada.
+		function baseFiltrada() {
+			var edgesVisiveis = edgesData.filter(function (e) { return edgePassaFiltro(filtro, e); });
+			var nodeTemAresta = {};
+			edgesVisiveis.forEach(function (e) {
+				nodeTemAresta[e.from] = true;
+				nodeTemAresta[e.to] = true;
+			});
+			var nodesVisiveis = {};
+			nodesData.forEach(function (n) {
+				nodesVisiveis[n.id] = !!(filtro.nodeTipos[nodeTipoById[n.id]] && nodeTemAresta[n.id]);
+			});
+			return { edgesVisiveis: edgesVisiveis, nodesVisiveis: nodesVisiveis };
+		}
+
 		// Recalcula visibilidade a partir só do filtro (legenda) -- também
 		// serve pra limpar um destaque de vizinhança, já que o resultado é
 		// sempre "tudo que passa no filtro, com opacidade cheia".
 		function atualizarVisibilidade() {
+			var base = baseFiltrada();
 			nodes.update(nodesData.map(function (n) {
-				return { id: n.id, hidden: !filtro.nodeTipos[nodeTipoById[n.id]], opacity: 1 };
+				return { id: n.id, hidden: !base.nodesVisiveis[n.id], opacity: 1 };
 			}));
 			edges.update(edgesData.map(function (e) {
 				return { id: e.id, hidden: !edgePassaFiltro(filtro, e) };
@@ -238,17 +261,24 @@
 		}
 
 		function highlightNeighborhood(nodeId) {
-			var connectedNodes = {};
-			network.getConnectedNodes(nodeId).concat([nodeId]).forEach(function (id) { connectedNodes[id] = true; });
-			var connectedEdges = {};
-			network.getConnectedEdges(nodeId).forEach(function (id) { connectedEdges[id] = true; });
+			var base = baseFiltrada();
+			var vizinhos = {};
+			vizinhos[nodeId] = true;
+			var arestasDoNo = {};
+			base.edgesVisiveis.forEach(function (e) {
+				if (e.from === nodeId || e.to === nodeId) {
+					arestasDoNo[e.id] = true;
+					vizinhos[e.from] = true;
+					vizinhos[e.to] = true;
+				}
+			});
 
 			nodes.update(nodesData.map(function (n) {
-				if (!filtro.nodeTipos[nodeTipoById[n.id]]) return { id: n.id, hidden: true };
-				return { id: n.id, hidden: false, opacity: connectedNodes[n.id] ? 1 : 0.15 };
+				if (!base.nodesVisiveis[n.id]) return { id: n.id, hidden: true };
+				return { id: n.id, hidden: false, opacity: vizinhos[n.id] ? 1 : 0.15 };
 			}));
 			edges.update(edgesData.map(function (e) {
-				return { id: e.id, hidden: !(edgePassaFiltro(filtro, e) && connectedEdges[e.id]) };
+				return { id: e.id, hidden: !(edgePassaFiltro(filtro, e) && arestasDoNo[e.id]) };
 			}));
 		}
 
@@ -289,6 +319,6 @@
 	// subjectColors: {subject_id: cor}. infoContainer/legendContainer:
 	// opcionais.
 	window.initRede = function (opts) {
-		window.renderRede(opts.container, opts.graph, opts.subjectColors, opts.infoContainer, opts.legendContainer);
+		window.renderRede(opts.container, opts.graph, opts.subjectColors, opts.infoContainer, opts.legendContainer, opts.emptyMessage);
 	};
 })();

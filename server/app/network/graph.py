@@ -24,8 +24,10 @@ perto no texto, sem estrutura desenhada.
 
 O cálculo em si é todo função pura -- recebe listas já buscadas, sem
 sessão/query dentro, igual `library/coverage.py` ("recalculado sob
-demanda, nunca guardado"). Só `build_rede_json`, no fim do arquivo, toca
-o banco: orquestra os SELECTs batched e chama as funções puras acima.
+demanda, nunca guardado"). `build_rede_json` (todas as camadas, com
+filtro client-side na legenda) e `build_taxonomia_json` (card separado, só
+a hierarquia, sem filtro nenhum) são os dois pontos que tocam o banco:
+orquestram os SELECTs batched e chamam as funções puras acima.
 """
 
 import json
@@ -230,47 +232,12 @@ def graph_to_json(nodes: list[GraphNode], edges: list[GraphEdge]) -> str:
     return json.dumps({"nodes": [asdict(n) for n in nodes], "edges": [asdict(e) for e in edges]})
 
 
-def build_rede_json(session: Session, lesson_ids: list[int], incluir_coocorrencia: bool = False) -> str:
-    """Orquestra as queries batched + as camadas puras acima, pra rota não
-    repetir a mesma sequência de SELECTs em `subjects.py` e `lessons.py`.
-    Chamada com `lesson_ids` de uma matéria inteira ou de uma única aula
-    -- não existe mais distinção de "escopo": taxonomia/discriminação/
-    assunto sempre entram, agrupadas por aula individual internamente;
-    `incluir_coocorrencia` liga a camada opcional de texto bruto."""
-    if not lesson_ids:
-        return graph_to_json([], [])
-
-    variants = load_active_variants(session)
-    lessons = session.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
-
-    blocks = session.scalars(
-        select(EditedBlock).where(EditedBlock.lesson_id.in_(lesson_ids), EditedBlock.orfao_em.is_(None))
-    ).all()
-    block_terms = block_term_sets(blocks, variants)
-
-    lesson_assunto_pairs = list(
-        session.execute(
-            select(LessonAssunto.lesson_id, LessonAssunto.assunto_id).where(
-                LessonAssunto.lesson_id.in_(lesson_ids), LessonAssunto.status == "aceito"
-            )
-        )
-    )
-
-    edges = taxonomy_edges(session, lessons)
-    edges += assunto_edges(blocks, block_terms, lesson_assunto_pairs)
-
-    card_proposals = session.scalars(
-        select(CardProposal).where(
-            CardProposal.lesson_id.in_(lesson_ids),
-            CardProposal.tipo == "discriminacao",
-            CardProposal.status == "aceito",
-        )
-    ).all()
-    edges += discrimination_edges(card_proposals, variants)
-
-    if incluir_coocorrencia:
-        edges += cooccurrence_edges(blocks, block_terms)
-
+def _hydrate_nodes(session: Session, edges: list[GraphEdge], variants: list[VariantEntry]) -> list[GraphNode]:
+    """A partir das arestas já calculadas, busca os Term/Assunto que
+    sobraram e monta os nós exibíveis com cor por matéria. Compartilhado
+    por `build_rede_json` (todas as camadas) e `build_taxonomia_json` (só
+    taxonomia) -- a hidratação de nó é a mesma independente de quais
+    camadas geraram a aresta."""
     node_ids = node_ids_in_edges(edges)
     term_ids = {int(nid.split(":", 1)[1]) for nid in node_ids if nid.startswith("term:")}
     assunto_ids = {int(nid.split(":", 1)[1]) for nid in node_ids if nid.startswith("assunto:")}
@@ -314,5 +281,68 @@ def build_rede_json(session: Session, lesson_ids: list[int], incluir_coocorrenci
         else []
     )
 
-    nodes = build_nodes(node_ids, terms, assuntos, term_subject_rows, assunto_subject_rows)
+    return build_nodes(node_ids, terms, assuntos, term_subject_rows, assunto_subject_rows)
+
+
+def build_rede_json(session: Session, lesson_ids: list[int], incluir_coocorrencia: bool = False) -> str:
+    """Orquestra as queries batched + as camadas puras acima, pra rota não
+    repetir a mesma sequência de SELECTs em `subjects.py` e `lessons.py`.
+    Chamada com `lesson_ids` de uma matéria inteira ou de uma única aula
+    -- não existe mais distinção de "escopo": taxonomia/discriminação/
+    assunto sempre entram, agrupadas por aula individual internamente;
+    `incluir_coocorrencia` liga a camada opcional de texto bruto."""
+    if not lesson_ids:
+        return graph_to_json([], [])
+
+    variants = load_active_variants(session)
+    lessons = session.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
+
+    blocks = session.scalars(
+        select(EditedBlock).where(EditedBlock.lesson_id.in_(lesson_ids), EditedBlock.orfao_em.is_(None))
+    ).all()
+    block_terms = block_term_sets(blocks, variants)
+
+    lesson_assunto_pairs = list(
+        session.execute(
+            select(LessonAssunto.lesson_id, LessonAssunto.assunto_id).where(
+                LessonAssunto.lesson_id.in_(lesson_ids), LessonAssunto.status == "aceito"
+            )
+        )
+    )
+
+    edges = taxonomy_edges(session, lessons)
+    edges += assunto_edges(blocks, block_terms, lesson_assunto_pairs)
+
+    card_proposals = session.scalars(
+        select(CardProposal).where(
+            CardProposal.lesson_id.in_(lesson_ids),
+            CardProposal.tipo == "discriminacao",
+            CardProposal.status == "aceito",
+        )
+    ).all()
+    edges += discrimination_edges(card_proposals, variants)
+
+    if incluir_coocorrencia:
+        edges += cooccurrence_edges(blocks, block_terms)
+
+    nodes = _hydrate_nodes(session, edges, variants)
+    return graph_to_json(nodes, edges)
+
+
+def build_taxonomia_json(session: Session, lesson_ids: list[int]) -> str:
+    """Card separado da "Rede de conceitos" (decisão do usuário): só a
+    hierarquia -- Termo<->Termo dirigido, via `taxonomy_edges`, sem
+    assunto/discriminação/coocorrência misturados. Ali as camadas se somam
+    e precisam de filtro pra não afogar a estrutura (PLANO.md, 5b); aqui é
+    só a estrutura, sempre, exatamente o que sobra da união dos mapas de
+    taxonomia (fase 15) de todas as aulas em `lesson_ids` pelo termo
+    compartilhado."""
+    if not lesson_ids:
+        return graph_to_json([], [])
+
+    variants = load_active_variants(session)
+    lessons = session.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
+
+    edges = taxonomy_edges(session, lessons)
+    nodes = _hydrate_nodes(session, edges, variants)
     return graph_to_json(nodes, edges)
