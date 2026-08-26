@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_session
 from ..db import get_session
 from ..models import Assunto, AssuntoCobertura, Ementa, Exam, Lesson, Subject
-from ..network.graph import build_rede_json, build_taxonomia_json
+from ..network.graph import build_rede_json, build_taxonomia_mermaid
 
 router = APIRouter(prefix="/subjects", dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -106,7 +106,7 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
     # manter dois JSONs embutidos e dois SELECTs quando o toggle virou
     # instantâneo no navegador de qualquer jeito.
     rede_json = build_rede_json(session, lesson_ids, incluir_coocorrencia=True)
-    taxonomia_json = build_taxonomia_json(session, lesson_ids)
+    taxonomia_mermaid = build_taxonomia_mermaid(session, lesson_ids)
     subject_colors_json = json.dumps({s.id: s.cor for s in all_subjects if s.cor})
 
     return templates.TemplateResponse(
@@ -120,7 +120,7 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
             "exams": exams,
             "assuntos_da_materia": assuntos_da_materia,
             "rede_json": rede_json,
-            "taxonomia_json": taxonomia_json,
+            "taxonomia_mermaid": taxonomia_mermaid,
             "subject_colors_json": subject_colors_json,
         },
     )

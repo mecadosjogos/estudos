@@ -108,29 +108,20 @@ def _all_node_labels(mermaid_src: str) -> dict[str, str]:
     return labels
 
 
-def parse_taxonomy_edges(mermaid_src: str, session: Session) -> list[ParsedTaxonomyEdge]:
-    """Extrai as arestas Termo->Termo do mapa de taxonomia de uma aula
-    (PLANO.md, fase 5b/15): a estrutura que a IA desenhou, não coocorrência
-    de texto. Cada seta do Mermaid vira uma aresta dirigida entre dois
-    Term.id, resolvidos pelo RÓTULO do nó -- não pelo id interno do
-    Mermaid, que só faz sentido dentro de um diagrama -- é o que permite
-    unir o mapa de aulas diferentes pelo mesmo conceito. Endpoint que não
-    resolve pra um Term ativo (rótulo ainda não é verbete aceito) descarta
-    a aresta, mesmo comportamento que `link_mermaid_nodes_to_glossary` já
-    tem pro `click` acima. Não é parser de gramática Mermaid completa --
-    mesma simplificação deliberada do resto do arquivo: uma seta por
-    ocorrência, sem suportar encadeamento tipo `A --> B --> C` como duas
-    arestas (só a primeira seta da linha é capturada nesse caso)."""
+def _iter_label_edges(mermaid_src: str):
+    """Gera (rótulo_a, rótulo_b, rótulo_da_seta) pra cada seta do Mermaid,
+    sem resolver contra o glossário -- passo em comum entre
+    `parse_taxonomy_edges` (resolve depois, pro grafo de Term.id) e
+    `merge_taxonomy_diagrams` (não resolve nunca, a estrutura em si é o
+    produto). Não é parser de gramática Mermaid completa -- mesma
+    simplificação deliberada do resto do arquivo: uma seta por ocorrência,
+    sem suportar encadeamento tipo `A --> B --> C` como duas arestas (só a
+    primeira seta da linha é capturada nesse caso)."""
     if not mermaid_src or not mermaid_src.strip():
-        return []
-
-    lookup = _term_lookup(session)
-    if not lookup:
-        return []
+        return
 
     labels = _all_node_labels(mermaid_src)
 
-    edges: list[ParsedTaxonomyEdge] = []
     for line in mermaid_src.splitlines():
         for arrow in _ARROW_TOKEN_RE.finditer(line):
             before_match = _ID_BEFORE_ARROW_RE.search(line[: arrow.start()])
@@ -150,12 +141,70 @@ def parse_taxonomy_edges(mermaid_src: str, session: Session) -> list[ParsedTaxon
                 continue
 
             id_a, id_b = before_match.group(1), after_match.group(1)
-            label_a = labels.get(id_a, id_a)
-            label_b = labels.get(id_b, id_b)
-            term_id_a = lookup.get(normalize_char_preserving(label_a))
-            term_id_b = lookup.get(normalize_char_preserving(label_b))
-            if term_id_a is None or term_id_b is None or term_id_a == term_id_b:
-                continue
-            edges.append(ParsedTaxonomyEdge(term_id_a=term_id_a, term_id_b=term_id_b, rotulo=rotulo))
+            yield labels.get(id_a, id_a), labels.get(id_b, id_b), rotulo
+
+
+def parse_taxonomy_edges(mermaid_src: str, session: Session) -> list[ParsedTaxonomyEdge]:
+    """Extrai as arestas Termo->Termo do mapa de taxonomia de uma aula
+    (PLANO.md, fase 5b/15) pro grafo misturado da "Rede de conceitos".
+    Cada seta do Mermaid vira uma aresta dirigida entre dois Term.id,
+    resolvidos pelo RÓTULO do nó -- não pelo id interno do Mermaid, que só
+    faz sentido dentro de um diagrama -- é o que permite unir o mapa de
+    aulas diferentes pelo mesmo conceito. Endpoint que não resolve pra um
+    Term ativo (rótulo ainda não é verbete aceito) descarta a aresta,
+    mesmo comportamento que `link_mermaid_nodes_to_glossary` já tem pro
+    `click`. Para o card "Taxonomia da matéria" (a estrutura em si, sem
+    depender do glossário estar em dia), ver `merge_taxonomy_diagrams`."""
+    lookup = _term_lookup(session)
+    if not lookup:
+        return []
+
+    edges: list[ParsedTaxonomyEdge] = []
+    for label_a, label_b, rotulo in _iter_label_edges(mermaid_src):
+        term_id_a = lookup.get(normalize_char_preserving(label_a))
+        term_id_b = lookup.get(normalize_char_preserving(label_b))
+        if term_id_a is None or term_id_b is None or term_id_a == term_id_b:
+            continue
+        edges.append(ParsedTaxonomyEdge(term_id_a=term_id_a, term_id_b=term_id_b, rotulo=rotulo))
 
     return edges
+
+
+def merge_taxonomy_diagrams(mermaid_sources: list[str]) -> str:
+    """Funde o Mermaid de várias aulas num diagrama só, deduplicando nó
+    pelo RÓTULO normalizado -- mesmo princípio que une a rede de
+    conceitos: o id interno do Mermaid só vale dentro de uma aula, o
+    rótulo é o que persiste entre elas. Ao contrário de
+    `parse_taxonomy_edges`, não exige que o rótulo já seja um verbete
+    aprovado -- a estrutura em si é o produto aqui, não um grafo de
+    Term.id pra combinar com outras camadas. Usado pelo card "Taxonomia da
+    matéria" (`network/graph.py::build_taxonomia_mermaid`), renderizado
+    com o mesmo mermaid.js do mapa por aula (fase 15) -- forçar isso num
+    layout de força (vis-network) não lembra em nada a árvore que a IA
+    desenhou; o dagre do próprio Mermaid é que sabe desenhar hierarquia."""
+    id_by_normalized: dict[str, str] = {}
+    label_by_id: dict[str, str] = {}
+    edges_seen: set[tuple[str, str]] = set()
+    lines: list[str] = []
+
+    def _mermaid_id(label: str) -> str:
+        normalized = normalize_char_preserving(label)
+        if normalized not in id_by_normalized:
+            id_by_normalized[normalized] = f"n{len(id_by_normalized)}"
+            label_by_id[id_by_normalized[normalized]] = label
+        return id_by_normalized[normalized]
+
+    for src in mermaid_sources:
+        for label_a, label_b, rotulo in _iter_label_edges(src):
+            id_a, id_b = _mermaid_id(label_a), _mermaid_id(label_b)
+            if id_a == id_b or (id_a, id_b) in edges_seen:
+                continue
+            edges_seen.add((id_a, id_b))
+            label_a_escapada = label_by_id[id_a].replace('"', "'")
+            label_b_escapada = label_by_id[id_b].replace('"', "'")
+            seta = f'-->|"{rotulo}"|' if rotulo else "-->"
+            lines.append(f'  {id_a}["{label_a_escapada}"] {seta} {id_b}["{label_b_escapada}"]')
+
+    if not lines:
+        return ""
+    return "graph TD\n" + "\n".join(lines) + "\n"

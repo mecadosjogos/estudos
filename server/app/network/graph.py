@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session
 
 from ..glossary.index import load_active_variants
 from ..glossary.matcher import VariantEntry, find_matches
-from ..glossary.mermaid import parse_taxonomy_edges
+from ..glossary.mermaid import link_mermaid_nodes_to_glossary, merge_taxonomy_diagrams, parse_taxonomy_edges
 from ..glossary.normalize import normalize_char_preserving
 from ..models import Assunto, AssuntoCobertura, CardProposal, Definition, EditedBlock, Lesson, LessonAssunto, Term
 from .cooccurrence import block_term_sets, cooccurrence_edges
@@ -329,20 +329,26 @@ def build_rede_json(session: Session, lesson_ids: list[int], incluir_coocorrenci
     return graph_to_json(nodes, edges)
 
 
-def build_taxonomia_json(session: Session, lesson_ids: list[int]) -> str:
-    """Card separado da "Rede de conceitos" (decisão do usuário): só a
-    hierarquia -- Termo<->Termo dirigido, via `taxonomy_edges`, sem
-    assunto/discriminação/coocorrência misturados. Ali as camadas se somam
-    e precisam de filtro pra não afogar a estrutura (PLANO.md, 5b); aqui é
-    só a estrutura, sempre, exatamente o que sobra da união dos mapas de
-    taxonomia (fase 15) de todas as aulas em `lesson_ids` pelo termo
-    compartilhado."""
+def build_taxonomia_mermaid(session: Session, lesson_ids: list[int]) -> str:
+    """Card "Taxonomia da matéria", separado da "Rede de conceitos"
+    (decisão do usuário): só a hierarquia, renderizada com o mesmo
+    mermaid.js do mapa por aula (fase 15) -- não com vis-network. Um
+    grafo em layout de força não lembra em nada a árvore que a IA
+    desenhou; o dagre do próprio Mermaid é que sabe desenhar hierarquia, e
+    reusar o mesmo motor visual do `/lessons/{id}/mapa` é o que faz esse
+    card parecer com o mapa real em vez de outra coisa.
+
+    Ao contrário de `taxonomy_edges`/`build_rede_json`, NÃO exige que os
+    rótulos já sejam verbetes aprovados -- `merge_taxonomy_diagrams` funde
+    pelo texto do rótulo em si, então a estrutura inteira aparece mesmo
+    antes de o glossário estar em dia (só o `click` pro verbete depende de
+    aprovação, igual ao mapa por aula)."""
     if not lesson_ids:
-        return graph_to_json([], [])
+        return ""
 
-    variants = load_active_variants(session)
     lessons = session.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
-
-    edges = taxonomy_edges(session, lessons)
-    nodes = _hydrate_nodes(session, edges, variants)
-    return graph_to_json(nodes, edges)
+    sources = [lesson.mapa_mermaid for lesson in lessons if lesson.mapa_mermaid]
+    merged = merge_taxonomy_diagrams(sources)
+    if not merged:
+        return ""
+    return link_mermaid_nodes_to_glossary(merged, session)

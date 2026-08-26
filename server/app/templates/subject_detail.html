@@ -24,9 +24,12 @@
 
 <div class="card">
 	<h2>Taxonomia da matéria</h2>
-	<p class="muted">Só a hierarquia: os mapas de taxonomia (fase 15) de todas as aulas já geradas, unidos pelo termo que se repete entre eles — sem assunto, sem coocorrência, sem discriminação misturados. Clique num nó pra destacar a vizinhança; clique numa aresta pra ver de qual aula ela veio.</p>
-	<div id="rede-taxonomia" style="height: 480px; border: 1px solid var(--border); border-radius: var(--radius);"></div>
-	<div id="rede-taxonomia-info" class="muted" style="margin-top: var(--space-2);"></div>
+	<p class="muted">Os mapas de taxonomia (fase 15) de todas as aulas já geradas, unidos num diagrama só pelo rótulo que se repete entre eles — mesmo motor visual do mapa por aula, sem assunto/coocorrência/discriminação misturados. Nó sublinhado leva ao verbete do glossário.</p>
+	{% if taxonomia_mermaid %}
+	<pre class="mermaid">{{ taxonomia_mermaid }}</pre>
+	{% else %}
+	<p class="muted">Nenhuma aula desta matéria tem mapa de taxonomia gerado ainda.</p>
+	{% endif %}
 </div>
 
 <div class="card">
@@ -110,16 +113,16 @@
 	</form>
 </div>
 
+{% if taxonomia_mermaid %}
+<script src="/static/mermaid.min.js"></script>
+<script>
+	mermaid.initialize({ startOnLoad: true, securityLevel: "loose", theme: "neutral" });
+</script>
+{% endif %}
+
 <script src="/static/vis-network.min.js"></script>
 <script src="/static/rede.js"></script>
 <script>
-	initRede({
-		container: document.getElementById("rede-taxonomia"),
-		infoContainer: document.getElementById("rede-taxonomia-info"),
-		graph: {{ taxonomia_json | safe }},
-		subjectColors: {{ subject_colors_json | safe }},
-		emptyMessage: "Nenhuma aula desta matéria tem mapa de taxonomia gerado ainda, ou os rótulos ainda não são verbetes aceitos no glossário.",
-	});
 	initRede({
 		container: document.getElementById("rede-materia"),
 		infoContainer: document.getElementById("rede-materia-info"),
