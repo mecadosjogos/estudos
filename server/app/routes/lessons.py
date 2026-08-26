@@ -15,12 +15,35 @@ from .. import config, db
 from ..auth import require_session
 from ..db import get_session
 from ..library.gdocs import build_create_doc_url
-from ..models import Lesson, Material, MaterialUse, Subject, Transcript, TranscriptionJob, TranscriptSegment
+from ..models import AudioSegment, Lesson, Material, MaterialUse, Subject, Transcript, TranscriptionJob, TranscriptSegment
+from ..network.cooccurrence import graph_json_for_lessons
 from ..transcript_confidence import is_suspicious_segment
 from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
 
 router = APIRouter(prefix="/lessons", dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+
+
+def _pode_editar_audio(lesson: Lesson, latest_job: TranscriptionJob | None) -> bool:
+    """Adicionar/excluir/reordenar segmento só é seguro antes da transcrição
+    existir -- depois disso, mudar o áudio sem reprocessar deixaria a
+    transcrição dessincronizada da fonte. Também bloqueado com job
+    'claimed': o worker já baixou a lista de segmentos daquele momento, e
+    editar durante a transcrição faria a mudança nunca chegar nela."""
+    if lesson.transcript is not None:
+        return False
+    if latest_job is not None and latest_job.status == "claimed":
+        return False
+    return True
+
+
+def _latest_job(session: Session, lesson_id: int) -> TranscriptionJob | None:
+    return session.scalar(
+        select(TranscriptionJob)
+        .where(TranscriptionJob.lesson_id == lesson_id)
+        .order_by(TranscriptionJob.criado_em.desc())
+        .limit(1)
+    )
 
 
 @router.get("/{lesson_id}")
@@ -29,12 +52,7 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
     if lesson is None:
         raise HTTPException(status_code=404, detail="aula não encontrada")
     all_subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
-    latest_job = session.scalar(
-        select(TranscriptionJob)
-        .where(TranscriptionJob.lesson_id == lesson_id)
-        .order_by(TranscriptionJob.criado_em.desc())
-        .limit(1)
-    )
+    latest_job = _latest_job(session, lesson_id)
 
     materials = session.scalars(
         select(Material).join(MaterialUse, MaterialUse.material_id == Material.id).where(MaterialUse.lesson_id == lesson_id)
@@ -45,6 +63,10 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
         titulo = f"{lesson.data.isoformat()} {lesson.titulo}"
         criar_doc_url = build_create_doc_url(lesson.subject.doc_modelo_id, titulo, lesson.subject.drive_folder_id)
 
+    rede_aula_json = graph_json_for_lessons(session, "aula", [lesson_id])
+    rede_bloco_json = graph_json_for_lessons(session, "bloco", [lesson_id])
+    subject_colors_json = json.dumps({s.id: s.cor for s in all_subjects if s.cor})
+
     return templates.TemplateResponse(
         request,
         "lesson_detail.html",
@@ -54,8 +76,66 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
             "latest_job": latest_job,
             "materials": materials,
             "criar_doc_url": criar_doc_url,
+            "pode_editar_audio": _pode_editar_audio(lesson, latest_job),
+            "rede_aula_json": rede_aula_json,
+            "rede_bloco_json": rede_bloco_json,
+            "subject_colors_json": subject_colors_json,
         },
     )
+
+
+@router.post("/{lesson_id}/audio/{segment_id}/mover")
+def move_audio_segment(
+    lesson_id: int, segment_id: int, direcao: str = Form(...), session: Session = Depends(get_session)
+):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+    if not _pode_editar_audio(lesson, _latest_job(session, lesson_id)):
+        raise HTTPException(status_code=409, detail="áudio não pode mais ser editado depois da transcrição")
+
+    segments = sorted(lesson.audio_segments, key=lambda s: s.ordem)
+    idx = next((i for i, s in enumerate(segments) if s.id == segment_id), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="segmento não encontrado")
+
+    swap_idx = idx - 1 if direcao == "cima" else idx + 1
+    if 0 <= swap_idx < len(segments):
+        segments[idx].ordem, segments[swap_idx].ordem = segments[swap_idx].ordem, segments[idx].ordem
+        session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
+
+
+@router.post("/{lesson_id}/audio/{segment_id}/excluir")
+def delete_audio_segment(lesson_id: int, segment_id: int, session: Session = Depends(get_session)):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+    if not _pode_editar_audio(lesson, _latest_job(session, lesson_id)):
+        raise HTTPException(status_code=409, detail="áudio não pode mais ser editado depois da transcrição")
+
+    segment = session.get(AudioSegment, segment_id)
+    if segment is None or segment.lesson_id != lesson_id:
+        raise HTTPException(status_code=404, detail="segmento não encontrado")
+
+    Path(segment.storage_path).unlink(missing_ok=True)
+    lesson.audio_segments.remove(segment)
+    session.flush()
+
+    # Renumera o que sobrou pra não deixar buraco na sequência.
+    remaining = sorted(lesson.audio_segments, key=lambda s: s.ordem)
+    for i, s in enumerate(remaining, start=1):
+        s.ordem = i
+
+    if not remaining:
+        # Sem segmento nenhum, nenhum job pendente faz sentido -- evita o
+        # worker reivindicar um job pra concatenar uma lista vazia.
+        for job in lesson.jobs:
+            if job.status == "pending":
+                session.delete(job)
+
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
 
 
 @router.post("/{lesson_id}")

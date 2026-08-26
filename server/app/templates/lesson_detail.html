@@ -17,6 +17,34 @@
 		{% endfor %}
 	</ul>
 
+	{% if pode_editar_audio %}
+	<details>
+		<summary>Editar áudio</summary>
+		<ul class="timeline" style="margin-top: var(--space-2);">
+			{% for segment in lesson.audio_segments %}
+			<li>
+				<span class="badge">{{ segment.ordem }}</span>
+				<span>{{ segment.original_filename }}</span>
+				<span class="button-row" style="margin-left: auto;">
+					<form method="post" action="/lessons/{{ lesson.id }}/audio/{{ segment.id }}/mover">
+						<input type="hidden" name="direcao" value="cima">
+						<button type="submit" class="button-ghost" title="Mover para cima" {% if loop.first %}disabled{% endif %}>↑</button>
+					</form>
+					<form method="post" action="/lessons/{{ lesson.id }}/audio/{{ segment.id }}/mover">
+						<input type="hidden" name="direcao" value="baixo">
+						<button type="submit" class="button-ghost" title="Mover para baixo" {% if loop.last %}disabled{% endif %}>↓</button>
+					</form>
+					<form method="post" action="/lessons/{{ lesson.id }}/audio/{{ segment.id }}/excluir">
+						<button type="submit" class="button-ghost">Excluir</button>
+					</form>
+				</span>
+			</li>
+			{% endfor %}
+		</ul>
+		<p><a class="button" href="/upload?lesson_id={{ lesson.id }}">Adicionar áudio</a></p>
+	</details>
+	{% endif %}
+
 	{% if lesson.transcript %}
 		<p><span class="badge">transcrito ✓</span>
 		{% if lesson.transcript.aprovado_em %}<span class="badge">revisado ✓</span>{% else %}<span class="badge error">revisão pendente</span>{% endif %}
@@ -89,6 +117,16 @@
 </div>
 
 <div class="card">
+	<h2>Rede de conceitos</h2>
+	<p class="muted">Termos e assuntos que aparecem juntos nesta aula. Nó com contorno de destaque aparece em mais de uma matéria. Losango é assunto, círculo é termo.</p>
+	<div class="button-row" style="margin-bottom: var(--space-2);">
+		<button type="button" id="rede-toggle-aula" class="button-ghost">Por aula</button>
+		<button type="button" id="rede-toggle-bloco" class="button-ghost">Por bloco</button>
+	</div>
+	<div id="rede-lesson" style="height: 420px; border: 1px solid var(--border); border-radius: var(--radius);"></div>
+</div>
+
+<div class="card">
 	<h2>Dissertativa <span class="badge">funciona aqui</span></h2>
 	<p class="muted">Gera uma questão no estilo do professor, com rubrica, a partir do conteúdo desta aula.</p>
 	<div class="button-row">
@@ -143,4 +181,28 @@
 		<button type="submit">Mover</button>
 	</form>
 </div>
+
+{% if lesson.transcript %}
+<script src="/static/vis-network.min.js"></script>
+<script src="/static/rede.js"></script>
+<script>
+	(function () {
+		var subjectColors = {{ subject_colors_json | safe }};
+		var grafos = { aula: {{ rede_aula_json | safe }}, bloco: {{ rede_bloco_json | safe }} };
+		var container = document.getElementById("rede-lesson");
+		var botaoAula = document.getElementById("rede-toggle-aula");
+		var botaoBloco = document.getElementById("rede-toggle-bloco");
+
+		function mostrar(escopo) {
+			renderRede(container, grafos[escopo], subjectColors);
+			botaoAula.classList.toggle("button-ghost", escopo !== "aula");
+			botaoBloco.classList.toggle("button-ghost", escopo !== "bloco");
+		}
+
+		botaoAula.addEventListener("click", function () { mostrar("aula"); });
+		botaoBloco.addEventListener("click", function () { mostrar("bloco"); });
+		mostrar("aula");
+	})();
+</script>
+{% endif %}
 {% endblock %}

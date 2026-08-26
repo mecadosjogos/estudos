@@ -23,6 +23,12 @@
 </div>
 
 <div class="card">
+	<h2>Rede de conceitos</h2>
+	<p class="muted">Termos e assuntos que aparecem juntos em qualquer aula desta matéria. Nó com contorno de destaque aparece em mais de uma matéria — é o conceito-ponte. Losango é assunto, círculo é termo.</p>
+	<div id="rede-materia" style="height: 480px; border: 1px solid var(--border); border-radius: var(--radius);"></div>
+</div>
+
+<div class="card">
 	<h2>Sync do Drive</h2>
 	<p class="muted">A pasta desta matéria dentro do Drive compartilhado com a service account — é o sinal de maior confiança do vinculador automático. O modelo alimenta o botão "Criar doc desta aula".</p>
 	<form method="post" action="/subjects/{{ subject.id }}/drive">
@@ -94,4 +100,10 @@
 		<button type="submit">Criar aula</button>
 	</form>
 </div>
+
+<script src="/static/vis-network.min.js"></script>
+<script src="/static/rede.js"></script>
+<script>
+	renderRede(document.getElementById("rede-materia"), {{ rede_json | safe }}, {{ subject_colors_json | safe }});
+</script>
 {% endblock %}
