@@ -9,6 +9,7 @@ deliberada dado que a IA sempre gera o mesmo estilo de flowchart simples
 pedido no prompt."""
 
 import re
+from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,20 @@ from .normalize import normalize_char_preserving
 _NODE_RE = re.compile(
     r'^\s*([A-Za-z0-9_]+)\s*(?:\[\[|\(\(|\[\(|\(\[|[\[\(\{])\s*"?([^"\[\]\(\)\{\}]+?)"?\s*(?:\]\]|\)\)|\)\]|\[\)|[\]\)\}])',
 )
+
+# Mesmo sub-padrão de bracket do _NODE_RE acima, mas sem a âncora em ^ --
+# usado só por parse_taxonomy_edges pra achar rótulo definido no meio da
+# linha (`A --> B[Propriedade]` define B fora do início da linha).
+_NODE_ANYWHERE_RE = re.compile(
+    r'\b([A-Za-z0-9_]+)\s*(?:\[\[|\(\(|\[\(|\(\[|[\[\(\{])\s*"?([^"\[\]\(\)\{\}]+?)"?\s*(?:\]\]|\)\)|\)\]|\[\)|[\]\)\}])',
+)
+
+_ARROW_TOKEN_RE = re.compile(r"-\.->|-\.-|==+>|===+|--+>|---+")
+_ID_BEFORE_ARROW_RE = re.compile(
+    r"([A-Za-z0-9_]+)\s*(?:\[\[[^\]]*\]\]|\(\([^)]*\)\)|\[[^\]]*\]|\([^)]*\)|\{[^}]*\})?\s*$"
+)
+_LABEL_AFTER_ARROW_RE = re.compile(r"^\s*\|([^|]*)\|")
+_ID_AFTER_ARROW_RE = re.compile(r"^\s*([A-Za-z0-9_]+)")
 
 
 def _term_lookup(session: Session) -> dict[str, int]:
@@ -53,3 +68,77 @@ def link_mermaid_nodes_to_glossary(mermaid_src: str, session: Session) -> str:
     if not click_lines:
         return mermaid_src
     return mermaid_src.rstrip() + "\n" + "\n".join(click_lines) + "\n"
+
+
+@dataclass
+class ParsedTaxonomyEdge:
+    term_id_a: int
+    term_id_b: int
+    rotulo: str | None
+
+
+def _all_node_labels(mermaid_src: str) -> dict[str, str]:
+    """Rótulo de nó em qualquer posição da linha, não só no início --
+    diferente de `_NODE_RE` (usado pro `click` acima), que só reconhece
+    definição de nó no começo da linha. Precisa ser mais permissivo aqui
+    porque `A --> B[Propriedade]` define B no meio da linha, não só no
+    começo."""
+    labels: dict[str, str] = {}
+    for line in mermaid_src.splitlines():
+        for match in _NODE_ANYWHERE_RE.finditer(line):
+            node_id, label = match.group(1), match.group(2).strip()
+            labels.setdefault(node_id, label)
+    return labels
+
+
+def parse_taxonomy_edges(mermaid_src: str, session: Session) -> list[ParsedTaxonomyEdge]:
+    """Extrai as arestas Termo->Termo do mapa de taxonomia de uma aula
+    (PLANO.md, fase 5b/15): a estrutura que a IA desenhou, não coocorrência
+    de texto. Cada seta do Mermaid vira uma aresta dirigida entre dois
+    Term.id, resolvidos pelo RÓTULO do nó -- não pelo id interno do
+    Mermaid, que só faz sentido dentro de um diagrama -- é o que permite
+    unir o mapa de aulas diferentes pelo mesmo conceito. Endpoint que não
+    resolve pra um Term ativo (rótulo ainda não é verbete aceito) descarta
+    a aresta, mesmo comportamento que `link_mermaid_nodes_to_glossary` já
+    tem pro `click` acima. Não é parser de gramática Mermaid completa --
+    mesma simplificação deliberada do resto do arquivo: uma seta por
+    ocorrência, sem suportar encadeamento tipo `A --> B --> C` como duas
+    arestas (só a primeira seta da linha é capturada nesse caso)."""
+    if not mermaid_src or not mermaid_src.strip():
+        return []
+
+    lookup = _term_lookup(session)
+    if not lookup:
+        return []
+
+    labels = _all_node_labels(mermaid_src)
+
+    edges: list[ParsedTaxonomyEdge] = []
+    for line in mermaid_src.splitlines():
+        for arrow in _ARROW_TOKEN_RE.finditer(line):
+            before_match = _ID_BEFORE_ARROW_RE.search(line[: arrow.start()])
+            if before_match is None:
+                continue
+
+            after = line[arrow.end() :]
+            label_match = _LABEL_AFTER_ARROW_RE.match(after)
+            rotulo = None
+            if label_match:
+                texto = label_match.group(1).strip()
+                rotulo = texto or None
+                after = after[label_match.end() :]
+
+            after_match = _ID_AFTER_ARROW_RE.match(after)
+            if after_match is None:
+                continue
+
+            id_a, id_b = before_match.group(1), after_match.group(1)
+            label_a = labels.get(id_a, id_a)
+            label_b = labels.get(id_b, id_b)
+            term_id_a = lookup.get(normalize_char_preserving(label_a))
+            term_id_b = lookup.get(normalize_char_preserving(label_b))
+            if term_id_a is None or term_id_b is None or term_id_a == term_id_b:
+                continue
+            edges.append(ParsedTaxonomyEdge(term_id_a=term_id_a, term_id_b=term_id_b, rotulo=rotulo))
+
+    return edges

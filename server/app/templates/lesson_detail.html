@@ -118,12 +118,10 @@
 
 <div class="card">
 	<h2>Rede de conceitos</h2>
-	<p class="muted">Termos e assuntos que aparecem juntos nesta aula. Nó com contorno de destaque aparece em mais de uma matéria. Losango é assunto, círculo é termo.</p>
-	<div class="button-row" style="margin-bottom: var(--space-2);">
-		<button type="button" id="rede-toggle-aula" class="button-ghost">Por aula</button>
-		<button type="button" id="rede-toggle-bloco" class="button-ghost">Por bloco</button>
-	</div>
+	<p class="muted">Estrutura do mapa de taxonomia desta aula (se já gerado), assuntos e pares de distinção. Nó com contorno de destaque aparece em mais de uma matéria. Losango é assunto, círculo é termo. Clique num nó pra destacar a vizinhança; clique numa aresta pra ver de qual aula ela veio.</p>
+	<p><label><input type="checkbox" id="rede-lesson-coocorrencia"> + coocorrência bruta de texto (mais denso, menos preciso)</label></p>
 	<div id="rede-lesson" style="height: 420px; border: 1px solid var(--border); border-radius: var(--radius);"></div>
+	<div id="rede-lesson-info" class="muted" style="margin-top: var(--space-2);"></div>
 </div>
 
 <div class="card">
@@ -186,23 +184,13 @@
 <script src="/static/vis-network.min.js"></script>
 <script src="/static/rede.js"></script>
 <script>
-	(function () {
-		var subjectColors = {{ subject_colors_json | safe }};
-		var grafos = { aula: {{ rede_aula_json | safe }}, bloco: {{ rede_bloco_json | safe }} };
-		var container = document.getElementById("rede-lesson");
-		var botaoAula = document.getElementById("rede-toggle-aula");
-		var botaoBloco = document.getElementById("rede-toggle-bloco");
-
-		function mostrar(escopo) {
-			renderRede(container, grafos[escopo], subjectColors);
-			botaoAula.classList.toggle("button-ghost", escopo !== "aula");
-			botaoBloco.classList.toggle("button-ghost", escopo !== "bloco");
-		}
-
-		botaoAula.addEventListener("click", function () { mostrar("aula"); });
-		botaoBloco.addEventListener("click", function () { mostrar("bloco"); });
-		mostrar("aula");
-	})();
+	initRede({
+		container: document.getElementById("rede-lesson"),
+		infoContainer: document.getElementById("rede-lesson-info"),
+		checkbox: document.getElementById("rede-lesson-coocorrencia"),
+		graphs: { base: {{ rede_json | safe }}, comCoocorrencia: {{ rede_coocorrencia_json | safe }} },
+		subjectColors: {{ subject_colors_json | safe }},
+	});
 </script>
 {% endif %}
 {% endblock %}

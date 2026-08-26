@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_session
 from ..db import get_session
 from ..models import Assunto, AssuntoCobertura, Ementa, Exam, Lesson, Subject
-from ..network.cooccurrence import graph_json_for_lessons
+from ..network.graph import build_rede_json
 
 router = APIRouter(prefix="/subjects", dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -100,7 +100,9 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
         .distinct()
     ).all()
 
-    rede_json = graph_json_for_lessons(session, "materia", [lesson.id for lesson in lessons])
+    lesson_ids = [lesson.id for lesson in lessons]
+    rede_json = build_rede_json(session, lesson_ids)
+    rede_coocorrencia_json = build_rede_json(session, lesson_ids, incluir_coocorrencia=True)
     subject_colors_json = json.dumps({s.id: s.cor for s in all_subjects if s.cor})
 
     return templates.TemplateResponse(
@@ -114,6 +116,7 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
             "exams": exams,
             "assuntos_da_materia": assuntos_da_materia,
             "rede_json": rede_json,
+            "rede_coocorrencia_json": rede_coocorrencia_json,
             "subject_colors_json": subject_colors_json,
         },
     )
