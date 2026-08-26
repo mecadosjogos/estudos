@@ -16,16 +16,33 @@ from sqlalchemy.orm import Session
 from .index import load_active_variants
 from .normalize import normalize_char_preserving
 
+# Conteúdo do rótulo vem em dois sabores: entre aspas (`["Direito objetivo
+# (positivo)"]`, o estilo que a IA sempre usa na prática -- confirmado
+# olhando o mapa real de produção) ou sem aspas. Aspa é tratada primeiro e
+# aceita QUALQUER caractere dentro, inclusive parêntese/colchete -- rótulo
+# jurídico com parêntese explicativo é comum ("Normas jurídicas (códigos,
+# leis)") e sem esse cuidado o `(` interno era lido como se abrisse um
+# SEGUNDO nó, corrompendo o rótulo inteiro. Sem aspas cai no fallback
+# antigo, que ainda exclui bracket/parêntese (não dá pra saber onde o
+# rótulo termina sem eles).
+_RE_MIOLO_ROTULO = r'\s*(?:"([^"]*)"|([^"\[\]\(\)\{\}]+?))\s*'
+
 _NODE_RE = re.compile(
-    r'^\s*([A-Za-z0-9_]+)\s*(?:\[\[|\(\(|\[\(|\(\[|[\[\(\{])\s*"?([^"\[\]\(\)\{\}]+?)"?\s*(?:\]\]|\)\)|\)\]|\[\)|[\]\)\}])',
+    r"^\s*([A-Za-z0-9_]+)\s*(?:\[\[|\(\(|\[\(|\(\[|[\[\(\{])" + _RE_MIOLO_ROTULO + r"(?:\]\]|\)\)|\)\]|\[\)|[\]\)\}])",
 )
 
-# Mesmo sub-padrão de bracket do _NODE_RE acima, mas sem a âncora em ^ --
-# usado só por parse_taxonomy_edges pra achar rótulo definido no meio da
-# linha (`A --> B[Propriedade]` define B fora do início da linha).
+# Mesmo padrão do _NODE_RE acima, mas sem a âncora em ^ -- usado só por
+# parse_taxonomy_edges pra achar rótulo definido no meio da linha (`A -->
+# B[Propriedade]` define B fora do início da linha).
 _NODE_ANYWHERE_RE = re.compile(
-    r'\b([A-Za-z0-9_]+)\s*(?:\[\[|\(\(|\[\(|\(\[|[\[\(\{])\s*"?([^"\[\]\(\)\{\}]+?)"?\s*(?:\]\]|\)\)|\)\]|\[\)|[\]\)\}])',
+    r"\b([A-Za-z0-9_]+)\s*(?:\[\[|\(\(|\[\(|\(\[|[\[\(\{])" + _RE_MIOLO_ROTULO + r"(?:\]\]|\)\)|\)\]|\[\)|[\]\)\}])",
 )
+
+
+def _rotulo_do_match(match: re.Match) -> str:
+    """group(2) = conteúdo entre aspas, group(3) = sem aspas -- só um dos
+    dois vem preenchido, dependendo de qual ramo de _RE_MIOLO_ROTULO casou."""
+    return (match.group(2) if match.group(2) is not None else match.group(3) or "").strip()
 
 _ARROW_TOKEN_RE = re.compile(r"-\.->|-\.-|==+>|===+|--+>|---+")
 _ID_BEFORE_ARROW_RE = re.compile(
@@ -56,7 +73,7 @@ def link_mermaid_nodes_to_glossary(mermaid_src: str, session: Session) -> str:
         match = _NODE_RE.match(line)
         if not match:
             continue
-        node_id, label = match.group(1), match.group(2).strip()
+        node_id, label = match.group(1), _rotulo_do_match(match)
         if node_id in seen_node_ids:
             continue
         term_id = lookup.get(normalize_char_preserving(label))
@@ -86,7 +103,7 @@ def _all_node_labels(mermaid_src: str) -> dict[str, str]:
     labels: dict[str, str] = {}
     for line in mermaid_src.splitlines():
         for match in _NODE_ANYWHERE_RE.finditer(line):
-            node_id, label = match.group(1), match.group(2).strip()
+            node_id, label = match.group(1), _rotulo_do_match(match)
             labels.setdefault(node_id, label)
     return labels
 

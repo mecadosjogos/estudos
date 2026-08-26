@@ -19,13 +19,37 @@
 		return cssVar("--border");
 	}
 
-	function toVisNodes(nodes, subjectColors) {
+	// Termo que participa de pelo menos uma aresta de taxonomia vira
+	// triângulo em vez de círculo -- sinal visual de "isso está na
+	// hierarquia que o professor desenhou" (triângulo evoca a estrutura em
+	// árvore, diferente do círculo solto), a mesma distinção que motivou a
+	// taxonomia virar a fonte principal (PLANO.md, 5b). É sobre a aresta
+	// bruta do grafo inteiro, não sobre o que a legenda está mostrando no
+	// momento -- desmarcar "Taxonomia" esconde a linha, não desfaz o
+	// triângulo, porque o fato de o termo pertencer à hierarquia não muda.
+	function idsNaTaxonomia(edges) {
+		var ids = {};
+		edges.forEach(function (e) {
+			if (e.origem === "taxonomia") {
+				ids[e.a] = true;
+				ids[e.b] = true;
+			}
+		});
+		return ids;
+	}
+
+	function formaDoNo(node, taxonomiaIds) {
+		if (node.tipo === "assunto") return "diamond";
+		return taxonomiaIds[node.id] ? "triangle" : "dot";
+	}
+
+	function toVisNodes(nodes, subjectColors, taxonomiaIds) {
 		return nodes.map(function (n) {
 			var cor = nodeColor(n, subjectColors);
 			return {
 				id: n.id,
 				label: n.label,
-				shape: n.tipo === "assunto" ? "diamond" : "dot",
+				shape: formaDoNo(n, taxonomiaIds),
 				size: n.tipo === "assunto" ? 16 : 10,
 				color: { background: cor, border: cor, highlight: { background: cor, border: cssVar("--text") } },
 				font: { color: cssVar("--text") },
@@ -38,10 +62,15 @@
 		assunto: { label: "Assunto", sample: "diamond" },
 	};
 
+	// Taxonomia é a fonte principal (PLANO.md, 5b) -- só ela e discriminação
+	// vêm ligadas por padrão. Assunto pode explodir sozinho quando uma aula
+	// cobre muitos assuntos de uma vez (par-a-par: 15 assuntos = 105
+	// arestas só entre eles) e afogava a taxonomia por baixo; vira opt-in,
+	// igual coocorrência.
 	var EDGE_ORIGEM_INFO = {
 		taxonomia: { label: "Taxonomia (estrutura da aula)", defaultOn: true },
 		discriminacao: { label: "Distinção", defaultOn: true },
-		assunto: { label: "Assunto cobre os dois", defaultOn: true },
+		assunto: { label: "Assunto cobre os dois (pode ficar denso)", defaultOn: false },
 		coocorrencia: { label: "Coocorrência de texto (mais denso)", defaultOn: false },
 	};
 
@@ -110,6 +139,19 @@
 			group.appendChild(label);
 		}
 
+		// Só explica, não filtra -- quadrado é uma variação de forma dentro
+		// do próprio tipo "Termo" (mesmo checkbox acima liga/desliga os
+		// dois), não uma categoria à parte.
+		function addNota(group, sampleClass, texto) {
+			var span = document.createElement("span");
+			span.className = "rede-legend-item rede-legend-item-nota";
+			var sample = document.createElement("span");
+			sample.className = "rede-legend-sample " + sampleClass;
+			span.appendChild(sample);
+			span.appendChild(document.createTextNode(" " + texto));
+			group.appendChild(span);
+		}
+
 		var nodesGroup = document.createElement("div");
 		nodesGroup.className = "rede-legend-group";
 		Object.keys(NODE_TIPO_INFO).forEach(function (tipo) {
@@ -119,6 +161,7 @@
 				state.nodeTipos[tipo] = checked;
 			});
 		});
+		addNota(nodesGroup, "rede-legend-sample-triangle", "Termo também na taxonomia (hierarquia)");
 		container.appendChild(nodesGroup);
 
 		var edgesGroup = document.createElement("div");
@@ -157,7 +200,7 @@
 		var nodeTipoById = {};
 		graph.nodes.forEach(function (n) { nodeTipoById[n.id] = n.tipo; });
 
-		var nodesData = toVisNodes(graph.nodes, subjectColors || {});
+		var nodesData = toVisNodes(graph.nodes, subjectColors || {}, idsNaTaxonomia(graph.edges));
 		var edgesData = toVisEdges(graph.edges);
 		var nodes = new vis.DataSet(nodesData);
 		var edges = new vis.DataSet(edgesData);

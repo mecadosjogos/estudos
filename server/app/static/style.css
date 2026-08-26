@@ -188,6 +188,10 @@ button, .button {
 	cursor: pointer;
 }
 
+.rede-legend-item-nota {
+	cursor: default;
+}
+
 .rede-legend-sample {
 	display: inline-block;
 	flex: none;
@@ -205,6 +209,14 @@ button, .button {
 	height: 10px;
 	background: var(--text-muted);
 	transform: rotate(45deg);
+}
+
+.rede-legend-sample-triangle {
+	width: 0;
+	height: 0;
+	border-left: 5px solid transparent;
+	border-right: 5px solid transparent;
+	border-bottom: 9px solid var(--text-muted);
 }
 
 .rede-legend-sample-linha {
