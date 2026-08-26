@@ -101,8 +101,11 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
     ).all()
 
     lesson_ids = [lesson.id for lesson in lessons]
-    rede_json = build_rede_json(session, lesson_ids)
-    rede_coocorrencia_json = build_rede_json(session, lesson_ids, incluir_coocorrencia=True)
+    # incluir_coocorrencia=True sempre: o filtro por camada agora é 100%
+    # client-side (rede.js, via legenda) -- computar tudo de uma vez evita
+    # manter dois JSONs embutidos e dois SELECTs quando o toggle virou
+    # instantâneo no navegador de qualquer jeito.
+    rede_json = build_rede_json(session, lesson_ids, incluir_coocorrencia=True)
     subject_colors_json = json.dumps({s.id: s.cor for s in all_subjects if s.cor})
 
     return templates.TemplateResponse(
@@ -116,7 +119,6 @@ def subject_detail(request: Request, subject_id: int, session: Session = Depends
             "exams": exams,
             "assuntos_da_materia": assuntos_da_materia,
             "rede_json": rede_json,
-            "rede_coocorrencia_json": rede_coocorrencia_json,
             "subject_colors_json": subject_colors_json,
         },
     )

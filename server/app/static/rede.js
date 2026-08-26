@@ -1,9 +1,11 @@
 // Rede de conceitos. Recebe {nodes, edges} já calculados no servidor
 // (network/graph.py) e monta um vis.Network -- a física posiciona os nós
-// sozinha, nenhuma coordenada calculada na mão. Clique num nó destaca a
-// vizinhança e abre um painel com a origem em vez de navegar direto;
-// navegar é uma ação explícita no painel ("abrir →"), pra não perder o
-// grafo com um clique errado quando ele fica com muitos nós.
+// sozinha, nenhuma coordenada calculada na mão. Uma legenda com checkbox
+// por tipo de nó e por origem de aresta explica cada forma/traço E filtra
+// o que aparece, tudo client-side (sem round-trip: o servidor já manda o
+// grafo inteiro). Clique num nó destaca a vizinhança e abre um painel com
+// a origem em vez de navegar direto; navegar é uma ação explícita no
+// painel ("abrir →").
 (function () {
 	function cssVar(name) {
 		return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -31,11 +33,16 @@
 		});
 	}
 
-	var ORIGEM_LABEL = {
-		taxonomia: "taxonomia da aula",
-		discriminacao: "distinção",
-		assunto: "assunto",
-		coocorrencia: "coocorrência de texto",
+	var NODE_TIPO_INFO = {
+		term: { label: "Termo", sample: "dot" },
+		assunto: { label: "Assunto", sample: "diamond" },
+	};
+
+	var EDGE_ORIGEM_INFO = {
+		taxonomia: { label: "Taxonomia (estrutura da aula)", defaultOn: true },
+		discriminacao: { label: "Distinção", defaultOn: true },
+		assunto: { label: "Assunto cobre os dois", defaultOn: true },
+		coocorrencia: { label: "Coocorrência de texto (mais denso)", defaultOn: false },
 	};
 
 	function toVisEdges(edges) {
@@ -59,21 +66,96 @@
 		});
 	}
 
+	var ORIGEM_LABEL = {
+		taxonomia: "taxonomia da aula",
+		discriminacao: "distinção",
+		assunto: "assunto",
+		coocorrencia: "coocorrência de texto",
+	};
+
 	function abrirUrl(nodeId) {
 		var partes = String(nodeId).split(":");
 		return partes[0] === "term" ? "/termos/" + partes[1] : "/assuntos/" + partes[1];
 	}
 
+	// Monta a legenda (explica forma/traço) e devolve o estado de filtro
+	// vivo -- cada checkbox already reflete o default (taxonomia/
+	// discriminação/assunto ligados, coocorrência desligada).
+	function buildLegend(container, onChange) {
+		var state = { nodeTipos: {}, edgeOrigens: {} };
+		if (!container) {
+			Object.keys(NODE_TIPO_INFO).forEach(function (t) { state.nodeTipos[t] = true; });
+			Object.keys(EDGE_ORIGEM_INFO).forEach(function (o) { state.edgeOrigens[o] = EDGE_ORIGEM_INFO[o].defaultOn; });
+			return state;
+		}
+
+		container.innerHTML = "";
+		container.className = "rede-legend";
+
+		function addItem(group, checked, sampleClass, texto, onToggle) {
+			var label = document.createElement("label");
+			label.className = "rede-legend-item";
+			var checkbox = document.createElement("input");
+			checkbox.type = "checkbox";
+			checkbox.checked = checked;
+			checkbox.addEventListener("change", function () {
+				onToggle(checkbox.checked);
+				onChange();
+			});
+			var sample = document.createElement("span");
+			sample.className = "rede-legend-sample " + sampleClass;
+			label.appendChild(checkbox);
+			label.appendChild(sample);
+			label.appendChild(document.createTextNode(" " + texto));
+			group.appendChild(label);
+		}
+
+		var nodesGroup = document.createElement("div");
+		nodesGroup.className = "rede-legend-group";
+		Object.keys(NODE_TIPO_INFO).forEach(function (tipo) {
+			state.nodeTipos[tipo] = true;
+			var info = NODE_TIPO_INFO[tipo];
+			addItem(nodesGroup, true, "rede-legend-sample-" + info.sample, info.label, function (checked) {
+				state.nodeTipos[tipo] = checked;
+			});
+		});
+		container.appendChild(nodesGroup);
+
+		var edgesGroup = document.createElement("div");
+		edgesGroup.className = "rede-legend-group";
+		Object.keys(EDGE_ORIGEM_INFO).forEach(function (origem) {
+			var info = EDGE_ORIGEM_INFO[origem];
+			state.edgeOrigens[origem] = info.defaultOn;
+			addItem(
+				edgesGroup,
+				info.defaultOn,
+				"rede-legend-sample-linha rede-legend-sample-" + origem,
+				info.label,
+				function (checked) {
+					state.edgeOrigens[origem] = checked;
+				}
+			);
+		});
+		container.appendChild(edgesGroup);
+
+		return state;
+	}
+
 	// container: elemento DOM do grafo. graph: {nodes, edges}. subjectColors:
-	// {subject_id: cor}. infoContainer: elemento DOM onde mostrar o painel
-	// de clique (opcional, mas sem ele clicar não abre nada).
-	window.renderRede = function (container, graph, subjectColors, infoContainer) {
+	// {subject_id: cor}. infoContainer: painel de clique. legendContainer:
+	// onde desenhar a legenda/filtro (opcional, mas sem ela não dá pra
+	// desligar nenhuma camada).
+	window.renderRede = function (container, graph, subjectColors, infoContainer, legendContainer) {
 		container.innerHTML = "";
 		if (infoContainer) infoContainer.innerHTML = "";
+		if (legendContainer) legendContainer.innerHTML = "";
 		if (!graph.nodes.length) {
 			container.textContent = "Ainda não há taxonomia, assunto ou discriminação suficiente ligados aqui pra desenhar uma rede.";
 			return null;
 		}
+
+		var nodeTipoById = {};
+		graph.nodes.forEach(function (n) { nodeTipoById[n.id] = n.tipo; });
 
 		var nodesData = toVisNodes(graph.nodes, subjectColors || {});
 		var edgesData = toVisEdges(graph.edges);
@@ -96,9 +178,20 @@
 			if (infoContainer) infoContainer.innerHTML = html;
 		}
 
-		function clearHighlight() {
-			nodes.update(nodesData.map(function (n) { return { id: n.id, opacity: 1 }; }));
-			edges.update(edgesData.map(function (e) { return { id: e.id, hidden: false }; }));
+		function edgePassaFiltro(filtro, e) {
+			return filtro.edgeOrigens[e._origem] && filtro.nodeTipos[nodeTipoById[e.from]] && filtro.nodeTipos[nodeTipoById[e.to]];
+		}
+
+		// Recalcula visibilidade a partir só do filtro (legenda) -- também
+		// serve pra limpar um destaque de vizinhança, já que o resultado é
+		// sempre "tudo que passa no filtro, com opacidade cheia".
+		function atualizarVisibilidade() {
+			nodes.update(nodesData.map(function (n) {
+				return { id: n.id, hidden: !filtro.nodeTipos[nodeTipoById[n.id]], opacity: 1 };
+			}));
+			edges.update(edgesData.map(function (e) {
+				return { id: e.id, hidden: !edgePassaFiltro(filtro, e) };
+			}));
 		}
 
 		function highlightNeighborhood(nodeId) {
@@ -108,12 +201,16 @@
 			network.getConnectedEdges(nodeId).forEach(function (id) { connectedEdges[id] = true; });
 
 			nodes.update(nodesData.map(function (n) {
-				return { id: n.id, opacity: connectedNodes[n.id] ? 1 : 0.15 };
+				if (!filtro.nodeTipos[nodeTipoById[n.id]]) return { id: n.id, hidden: true };
+				return { id: n.id, hidden: false, opacity: connectedNodes[n.id] ? 1 : 0.15 };
 			}));
 			edges.update(edgesData.map(function (e) {
-				return { id: e.id, hidden: !connectedEdges[e.id] };
+				return { id: e.id, hidden: !(edgePassaFiltro(filtro, e) && connectedEdges[e.id]) };
 			}));
 		}
+
+		var filtro = buildLegend(legendContainer, atualizarVisibilidade);
+		atualizarVisibilidade();
 
 		network.on("click", function (params) {
 			if (params.nodes.length) {
@@ -138,24 +235,17 @@
 				);
 				return;
 			}
-			clearHighlight();
+			atualizarVisibilidade();
 			setInfo("");
 		});
 
 		return network;
 	};
 
-	// Amarra um grafo com toggle de camada opcional (checkbox "+ coocorrência
-	// bruta") sem round-trip ao servidor -- os dois JSONs já vêm prontos.
-	// opts: { container, infoContainer, checkbox, graphs: {base, comCoocorrencia}, subjectColors }
+	// container: elemento DOM do grafo. graph: {nodes, edges} já pronto.
+	// subjectColors: {subject_id: cor}. infoContainer/legendContainer:
+	// opcionais.
 	window.initRede = function (opts) {
-		function render() {
-			var atual = opts.checkbox && opts.checkbox.checked ? opts.graphs.comCoocorrencia : opts.graphs.base;
-			window.renderRede(opts.container, atual, opts.subjectColors, opts.infoContainer);
-		}
-		render();
-		if (opts.checkbox) {
-			opts.checkbox.addEventListener("change", render);
-		}
+		window.renderRede(opts.container, opts.graph, opts.subjectColors, opts.infoContainer, opts.legendContainer);
 	};
 })();

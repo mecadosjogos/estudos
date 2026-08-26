@@ -63,8 +63,7 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
         titulo = f"{lesson.data.isoformat()} {lesson.titulo}"
         criar_doc_url = build_create_doc_url(lesson.subject.doc_modelo_id, titulo, lesson.subject.drive_folder_id)
 
-    rede_json = build_rede_json(session, [lesson_id])
-    rede_coocorrencia_json = build_rede_json(session, [lesson_id], incluir_coocorrencia=True)
+    rede_json = build_rede_json(session, [lesson_id], incluir_coocorrencia=True)
     subject_colors_json = json.dumps({s.id: s.cor for s in all_subjects if s.cor})
 
     return templates.TemplateResponse(
@@ -78,7 +77,6 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
             "criar_doc_url": criar_doc_url,
             "pode_editar_audio": _pode_editar_audio(lesson, latest_job),
             "rede_json": rede_json,
-            "rede_coocorrencia_json": rede_coocorrencia_json,
             "subject_colors_json": subject_colors_json,
         },
     )
