@@ -16,7 +16,6 @@ from ..auth import require_session
 from ..db import get_session
 from ..library.gdocs import build_create_doc_url
 from ..models import AudioSegment, Lesson, Material, MaterialUse, Subject, Transcript, TranscriptionJob, TranscriptSegment
-from ..network.graph import build_rede_json
 from ..transcript_confidence import is_suspicious_segment
 from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
 
@@ -63,9 +62,6 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
         titulo = f"{lesson.data.isoformat()} {lesson.titulo}"
         criar_doc_url = build_create_doc_url(lesson.subject.doc_modelo_id, titulo, lesson.subject.drive_folder_id)
 
-    rede_json = build_rede_json(session, [lesson_id], incluir_coocorrencia=True)
-    subject_colors_json = json.dumps({s.id: s.cor for s in all_subjects if s.cor})
-
     return templates.TemplateResponse(
         request,
         "lesson_detail.html",
@@ -76,8 +72,6 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
             "materials": materials,
             "criar_doc_url": criar_doc_url,
             "pode_editar_audio": _pode_editar_audio(lesson, latest_job),
-            "rede_json": rede_json,
-            "subject_colors_json": subject_colors_json,
         },
     )
 

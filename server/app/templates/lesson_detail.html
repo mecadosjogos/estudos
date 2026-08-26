@@ -117,14 +117,6 @@
 </div>
 
 <div class="card">
-	<h2>Rede de conceitos</h2>
-	<p class="muted">Estrutura do mapa de taxonomia desta aula (se já gerado), assuntos e pares de distinção. Nó com contorno de destaque aparece em mais de uma matéria. Marque/desmarque na legenda pra mostrar só o que interessa. Clique num nó pra destacar a vizinhança; clique numa aresta pra ver de qual aula ela veio.</p>
-	<div id="rede-lesson-legend"></div>
-	<div id="rede-lesson" style="height: 420px; border: 1px solid var(--border); border-radius: var(--radius);"></div>
-	<div id="rede-lesson-info" class="muted" style="margin-top: var(--space-2);"></div>
-</div>
-
-<div class="card">
 	<h2>Dissertativa <span class="badge">funciona aqui</span></h2>
 	<p class="muted">Gera uma questão no estilo do professor, com rubrica, a partir do conteúdo desta aula.</p>
 	<div class="button-row">
@@ -180,17 +172,4 @@
 	</form>
 </div>
 
-{% if lesson.transcript %}
-<script src="/static/vis-network.min.js"></script>
-<script src="/static/rede.js"></script>
-<script>
-	initRede({
-		container: document.getElementById("rede-lesson"),
-		infoContainer: document.getElementById("rede-lesson-info"),
-		legendContainer: document.getElementById("rede-lesson-legend"),
-		graph: {{ rede_json | safe }},
-		subjectColors: {{ subject_colors_json | safe }},
-	});
-</script>
-{% endif %}
 {% endblock %}

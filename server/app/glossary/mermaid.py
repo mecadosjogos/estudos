@@ -1,5 +1,8 @@
 """Liga os nós do mapa de taxonomia (Mermaid) aos verbetes do glossário
-(PLANO.md, fase 15: "com os nós ligados aos verbetes do glossário").
+(PLANO.md, fase 15: "com os nós ligados aos verbetes do glossário") e funde
+o mapa de várias aulas num diagrama só, pro card "Taxonomia da matéria"
+(PLANO.md, 5b -- a "Rede de conceitos" que vivia ao lado desse card foi
+removida por não servir pro estudo real; ver "Decisões fechadas").
 
 Não é um parser de gramática Mermaid completo -- reconhece só o padrão
 comum de definição de nó num flowchart (`Id[Rótulo]`, `Id(Rótulo)`,
@@ -9,10 +12,11 @@ deliberada dado que a IA sempre gera o mesmo estilo de flowchart simples
 pedido no prompt."""
 
 import re
-from dataclasses import dataclass
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..models import Lesson
 from .index import load_active_variants
 from .normalize import normalize_char_preserving
 
@@ -87,13 +91,6 @@ def link_mermaid_nodes_to_glossary(mermaid_src: str, session: Session) -> str:
     return mermaid_src.rstrip() + "\n" + "\n".join(click_lines) + "\n"
 
 
-@dataclass
-class ParsedTaxonomyEdge:
-    term_id_a: int
-    term_id_b: int
-    rotulo: str | None
-
-
 def _all_node_labels(mermaid_src: str) -> dict[str, str]:
     """Rótulo de nó em qualquer posição da linha, não só no início --
     diferente de `_NODE_RE` (usado pro `click` acima), que só reconhece
@@ -109,14 +106,12 @@ def _all_node_labels(mermaid_src: str) -> dict[str, str]:
 
 
 def _iter_label_edges(mermaid_src: str):
-    """Gera (rótulo_a, rótulo_b, rótulo_da_seta) pra cada seta do Mermaid,
-    sem resolver contra o glossário -- passo em comum entre
-    `parse_taxonomy_edges` (resolve depois, pro grafo de Term.id) e
-    `merge_taxonomy_diagrams` (não resolve nunca, a estrutura em si é o
-    produto). Não é parser de gramática Mermaid completa -- mesma
-    simplificação deliberada do resto do arquivo: uma seta por ocorrência,
-    sem suportar encadeamento tipo `A --> B --> C` como duas arestas (só a
-    primeira seta da linha é capturada nesse caso)."""
+    """Gera (rótulo_a, rótulo_b, rótulo_da_seta) pra cada seta do Mermaid --
+    usado por `merge_taxonomy_diagrams` abaixo. Não é parser de gramática
+    Mermaid completa -- mesma simplificação deliberada do resto do
+    arquivo: uma seta por ocorrência, sem suportar encadeamento tipo
+    `A --> B --> C` como duas arestas (só a primeira seta da linha é
+    capturada nesse caso)."""
     if not mermaid_src or not mermaid_src.strip():
         return
 
@@ -144,44 +139,17 @@ def _iter_label_edges(mermaid_src: str):
             yield labels.get(id_a, id_a), labels.get(id_b, id_b), rotulo
 
 
-def parse_taxonomy_edges(mermaid_src: str, session: Session) -> list[ParsedTaxonomyEdge]:
-    """Extrai as arestas Termo->Termo do mapa de taxonomia de uma aula
-    (PLANO.md, fase 5b/15) pro grafo misturado da "Rede de conceitos".
-    Cada seta do Mermaid vira uma aresta dirigida entre dois Term.id,
-    resolvidos pelo RÓTULO do nó -- não pelo id interno do Mermaid, que só
-    faz sentido dentro de um diagrama -- é o que permite unir o mapa de
-    aulas diferentes pelo mesmo conceito. Endpoint que não resolve pra um
-    Term ativo (rótulo ainda não é verbete aceito) descarta a aresta,
-    mesmo comportamento que `link_mermaid_nodes_to_glossary` já tem pro
-    `click`. Para o card "Taxonomia da matéria" (a estrutura em si, sem
-    depender do glossário estar em dia), ver `merge_taxonomy_diagrams`."""
-    lookup = _term_lookup(session)
-    if not lookup:
-        return []
-
-    edges: list[ParsedTaxonomyEdge] = []
-    for label_a, label_b, rotulo in _iter_label_edges(mermaid_src):
-        term_id_a = lookup.get(normalize_char_preserving(label_a))
-        term_id_b = lookup.get(normalize_char_preserving(label_b))
-        if term_id_a is None or term_id_b is None or term_id_a == term_id_b:
-            continue
-        edges.append(ParsedTaxonomyEdge(term_id_a=term_id_a, term_id_b=term_id_b, rotulo=rotulo))
-
-    return edges
-
-
 def merge_taxonomy_diagrams(mermaid_sources: list[str]) -> str:
     """Funde o Mermaid de várias aulas num diagrama só, deduplicando nó
-    pelo RÓTULO normalizado -- mesmo princípio que une a rede de
-    conceitos: o id interno do Mermaid só vale dentro de uma aula, o
-    rótulo é o que persiste entre elas. Ao contrário de
-    `parse_taxonomy_edges`, não exige que o rótulo já seja um verbete
-    aprovado -- a estrutura em si é o produto aqui, não um grafo de
-    Term.id pra combinar com outras camadas. Usado pelo card "Taxonomia da
-    matéria" (`network/graph.py::build_taxonomia_mermaid`), renderizado
-    com o mesmo mermaid.js do mapa por aula (fase 15) -- forçar isso num
-    layout de força (vis-network) não lembra em nada a árvore que a IA
-    desenhou; o dagre do próprio Mermaid é que sabe desenhar hierarquia."""
+    pelo RÓTULO normalizado -- o id interno do Mermaid só vale dentro de
+    uma aula, o rótulo é o que persiste entre elas. Não exige que o
+    rótulo já seja um verbete aprovado -- a estrutura em si é o produto
+    aqui, não um grafo de Term.id. Usado pelo card "Taxonomia da matéria"
+    (`build_taxonomia_mermaid` abaixo), renderizado com o mesmo mermaid.js
+    do mapa por aula (fase 15) -- forçar isso num layout de força
+    (vis-network, tentativa anterior desta feature) não lembrava em nada a
+    árvore que a IA desenhou; o dagre do próprio Mermaid é que sabe
+    desenhar hierarquia."""
     id_by_normalized: dict[str, str] = {}
     label_by_id: dict[str, str] = {}
     edges_seen: set[tuple[str, str]] = set()
@@ -208,3 +176,20 @@ def merge_taxonomy_diagrams(mermaid_sources: list[str]) -> str:
     if not lines:
         return ""
     return "graph TD\n" + "\n".join(lines) + "\n"
+
+
+def build_taxonomia_mermaid(session: Session, lesson_ids: list[int]) -> str:
+    """Orquestra o card "Taxonomia da matéria": busca o `mapa_mermaid` de
+    cada aula em `lesson_ids`, funde num diagrama só (`merge_taxonomy_
+    diagrams`) e liga aos verbetes (`link_mermaid_nodes_to_glossary`) --
+    mesmos dois passos que o mapa por aula já faz, só que sobre o texto
+    fundido em vez do de uma aula só."""
+    if not lesson_ids:
+        return ""
+
+    lessons = session.scalars(select(Lesson).where(Lesson.id.in_(lesson_ids))).all()
+    sources = [lesson.mapa_mermaid for lesson in lessons if lesson.mapa_mermaid]
+    merged = merge_taxonomy_diagrams(sources)
+    if not merged:
+        return ""
+    return link_mermaid_nodes_to_glossary(merged, session)

@@ -33,14 +33,6 @@
 </div>
 
 <div class="card">
-	<h2>Rede de conceitos</h2>
-	<p class="muted">Estrutura que a IA desenhou por aula (taxonomia), assuntos e pares de distinção — unidos pelos termos que se repetem entre aulas. Nó com contorno de destaque aparece em mais de uma matéria, é o conceito-ponte. Marque/desmarque na legenda pra mostrar só o que interessa. Clique num nó pra destacar a vizinhança; clique numa aresta pra ver de qual aula ela veio.</p>
-	<div id="rede-materia-legend"></div>
-	<div id="rede-materia" style="height: 480px; border: 1px solid var(--border); border-radius: var(--radius);"></div>
-	<div id="rede-materia-info" class="muted" style="margin-top: var(--space-2);"></div>
-</div>
-
-<div class="card">
 	<h2>Sync do Drive</h2>
 	<p class="muted">A pasta desta matéria dentro do Drive compartilhado com a service account — é o sinal de maior confiança do vinculador automático. O modelo alimenta o botão "Criar doc desta aula".</p>
 	<form method="post" action="/subjects/{{ subject.id }}/drive">
@@ -119,16 +111,4 @@
 	mermaid.initialize({ startOnLoad: true, securityLevel: "loose", theme: "neutral" });
 </script>
 {% endif %}
-
-<script src="/static/vis-network.min.js"></script>
-<script src="/static/rede.js"></script>
-<script>
-	initRede({
-		container: document.getElementById("rede-materia"),
-		infoContainer: document.getElementById("rede-materia-info"),
-		legendContainer: document.getElementById("rede-materia-legend"),
-		graph: {{ rede_json | safe }},
-		subjectColors: {{ subject_colors_json | safe }},
-	});
-</script>
 {% endblock %}
