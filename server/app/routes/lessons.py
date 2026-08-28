@@ -15,7 +15,20 @@ from .. import config, db
 from ..auth import require_session
 from ..db import get_session
 from ..library.gdocs import build_create_doc_url
-from ..models import AudioSegment, Lesson, Material, MaterialUse, Subject, Transcript, TranscriptionJob, TranscriptSegment
+from ..models import (
+    Assunto,
+    AudioSegment,
+    GuiaSecao,
+    GuiaTopico,
+    Lesson,
+    LessonAssunto,
+    Material,
+    MaterialUse,
+    Subject,
+    Transcript,
+    TranscriptionJob,
+    TranscriptSegment,
+)
 from ..transcript_confidence import is_suspicious_segment
 from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
 
@@ -381,12 +394,111 @@ def download_transcript_txt(lesson_id: int, session: Session = Depends(get_sessi
 def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_session)):
     import markdown as markdown_lib
 
+    from ..assuntos import annotate_arvore_checklist, normalize_slug
+
     lesson = session.get(Lesson, lesson_id)
     if lesson is None or lesson.guia_md is None:
         raise HTTPException(status_code=404, detail="guia de aula não gerado ainda")
 
-    guia_html = markdown_lib.markdown(lesson.guia_md, extensions=["extra"])
-    return templates.TemplateResponse(request, "guia.html", {"lesson": lesson, "guia_html": guia_html})
+    secoes = session.scalars(
+        select(GuiaSecao).where(GuiaSecao.lesson_id == lesson_id).order_by(GuiaSecao.ordem)
+    ).all()
+
+    # Aula processada antes da estruturação do guia (ou nunca reprocessada
+    # desde então): sem GuiaSecao, cai no template antigo servindo
+    # guia_md como sempre foi -- nenhuma aula precisa de conversão, ela só
+    # "sobe" de versão quando reprocessada de verdade.
+    if not secoes:
+        guia_html = markdown_lib.markdown(lesson.guia_md, extensions=["extra"])
+        return templates.TemplateResponse(request, "guia_legado.html", {"lesson": lesson, "guia_html": guia_html})
+
+    topicos_rows = session.scalars(
+        select(GuiaTopico)
+        .where(GuiaTopico.lesson_id == lesson_id, GuiaTopico.orfao_em.is_(None))
+        .order_by(GuiaTopico.ordem)
+    ).all()
+    secao_by_slug = {normalize_slug(s.titulo): s for s in secoes}
+
+    topicos = []
+    for numero, t in enumerate(topicos_rows, start=1):
+        target = secao_by_slug.get(t.secao_alvo_slug) if t.secao_alvo_slug else None
+        desatualizado = bool(t.secao_alvo_slug) and target is None
+        if target is None:
+            target = secoes[numero - 1] if numero - 1 < len(secoes) else secoes[-1]
+        topicos.append(
+            {
+                "id": t.id,
+                "numero": numero,
+                "titulo": t.titulo,
+                "secao_numero": secoes.index(target) + 1,
+                "desatualizado": desatualizado,
+            }
+        )
+
+    topicos_perdidos = session.scalars(
+        select(GuiaTopico)
+        .where(
+            GuiaTopico.lesson_id == lesson_id,
+            GuiaTopico.orfao_em.is_not(None),
+            GuiaTopico.editado_em.is_not(None),
+        )
+        .order_by(GuiaTopico.ordem)
+    ).all()
+
+    secoes_view = [
+        {"numero": i, "titulo": s.titulo, "html": markdown_lib.markdown(s.corpo, extensions=["extra"])}
+        for i, s in enumerate(secoes, start=1)
+    ]
+
+    accepted_slugs = set(
+        session.scalars(
+            select(Assunto.slug)
+            .join(LessonAssunto, LessonAssunto.assunto_id == Assunto.id)
+            .where(LessonAssunto.lesson_id == lesson_id, LessonAssunto.status == "aceito")
+        )
+    )
+    arvore = annotate_arvore_checklist(json.loads(lesson.guia_arvore_json or "[]"), accepted_slugs)
+    trechos_incompletos = json.loads(lesson.guia_trechos_incompletos_json or "[]")
+
+    return templates.TemplateResponse(
+        request,
+        "guia.html",
+        {
+            "lesson": lesson,
+            "arvore": arvore,
+            "topicos": topicos,
+            "topicos_perdidos": topicos_perdidos,
+            "secoes": secoes_view,
+            "trechos_incompletos": trechos_incompletos,
+        },
+    )
+
+
+@router.post("/{lesson_id}/guia/topicos/{topico_id}/secao-alvo")
+def set_guia_topico_secao_alvo(
+    lesson_id: int, topico_id: int, secao_ordem: int = Form(...), session: Session = Depends(get_session)
+):
+    """Correção manual do alvo do sumário: a IA numera sumário e seções na
+    mesma ordem quase sempre, mas quando falha pra uma aula em particular,
+    você aponta manualmente. Guardado pelo título normalizado da seção (não
+    pelo número), porque GuiaSecao não tem identidade estável entre
+    reprocessamentos -- ver ai/pipeline.py e models.py::GuiaTopico."""
+    from ..assuntos import normalize_slug
+
+    topico = session.get(GuiaTopico, topico_id)
+    if topico is None or topico.lesson_id != lesson_id:
+        raise HTTPException(status_code=404, detail="tópico não encontrado")
+
+    secoes = session.scalars(
+        select(GuiaSecao).where(GuiaSecao.lesson_id == lesson_id).order_by(GuiaSecao.ordem)
+    ).all()
+    if secao_ordem < 1 or secao_ordem > len(secoes):
+        raise HTTPException(status_code=400, detail="número de seção inválido")
+
+    topico.secao_alvo_slug = normalize_slug(secoes[secao_ordem - 1].titulo)
+    topico.editado_em = datetime.now(timezone.utc)
+    session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia#topico-{topico.id}", status_code=303)
 
 
 @router.get("/{lesson_id}/mapa")

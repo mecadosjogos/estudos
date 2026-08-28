@@ -43,7 +43,7 @@ completar a primeira** — a etapa 0 do RUNBOOK.md, seguida da etapa 1:
 - **Etapa 1:** só depois disso, aulas com transcrição **já aprovada**
   (`Transcript.aprovado_em` preenchido) e ainda sem `resumo` → processa.
   **Uma leitura só da transcrição gera tudo**: aula editada, cards,
-  propostas e o guia de aula (`guia_md`) saem do mesmo JSON — não baixe
+  propostas e o guia de aula (campos `guia_*`) saem do mesmo JSON — não baixe
   nem cole nada duas vezes por aula.
 
 **Aula com transcrição pendente de revisão humana (sem aprovar) NUNCA

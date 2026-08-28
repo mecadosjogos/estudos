@@ -77,6 +77,19 @@ class Lesson(Base):
     # deriv_key, mesmo motivo do resumo/guia.
     mapa_mermaid: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Guia estruturado: título próprio (pode ser mais descritivo que
+    # Lesson.titulo) e a árvore de conhecimento como JSON (lista de
+    # {rotulo, filhos} -- ver GuiaArvoreNoOut). Regenerados por inteiro a
+    # cada reprocessamento, sem deriv_key, mesmo motivo do resumo/guia_md
+    # acima -- nada aqui é editável à mão. `guia_md`/`guia_gerado_em`
+    # continuam existindo como cache remontado por código a partir destes
+    # campos + GuiaSecao/GuiaTopico (ver ai/guia_markdown.py), pra
+    # export/corpus.py, export/exam_export.py e a rota /guia.md
+    # continuarem funcionando sem mudança.
+    guia_titulo: Mapped[str | None] = mapped_column(String, nullable=True)
+    guia_arvore_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    guia_trechos_incompletos_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
         back_populates="lesson", order_by="AudioSegment.ordem", cascade="all, delete-orphan"
     )
@@ -106,6 +119,12 @@ class Lesson(Base):
     )
     definitions: Mapped[list["Definition"]] = relationship(
         back_populates="lesson", cascade="all, delete-orphan"
+    )
+    guia_secoes: Mapped[list["GuiaSecao"]] = relationship(
+        back_populates="lesson", order_by="GuiaSecao.ordem", cascade="all, delete-orphan"
+    )
+    guia_topicos: Mapped[list["GuiaTopico"]] = relationship(
+        back_populates="lesson", order_by="GuiaTopico.ordem", cascade="all, delete-orphan"
     )
 
 
@@ -370,6 +389,56 @@ class OutlineItem(Base):
     end_s: Mapped[float] = mapped_column(Float, nullable=False)
 
     orfao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class GuiaSecao(Base):
+    """Seção do corpo do guia estruturado, em ordem -- sem deriv_key nem
+    editado_em: nada aqui é editável à mão, cada reprocessamento apaga e
+    recria por inteiro (mesmo motivo do resumo/guia_md em Lesson)."""
+
+    __tablename__ = "guia_secao"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lesson.id"), nullable=False)
+    lesson: Mapped["Lesson"] = relationship(back_populates="guia_secoes")
+
+    ordem: Mapped[int] = mapped_column(Integer, nullable=False)
+    titulo: Mapped[str] = mapped_column(String, nullable=False)
+    corpo: Mapped[str] = mapped_column(Text, nullable=False)
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class GuiaTopico(Base):
+    """Item do sumário do guia estruturado. Ao contrário de GuiaSecao,
+    carrega estado editável à mão: `secao_alvo_slug` é o alvo do link "ir
+    para" no sumário -- por padrão nulo (usa a mesma posição do próprio
+    tópico), corrigível na tela quando essa correspondência natural falha
+    numa aula em particular. Guardado pelo título normalizado da seção, não
+    por um número de posição cru, porque GuiaSecao não tem identidade
+    estável entre reprocessamentos (é apagada e recriada por inteiro) -- um
+    número cru poderia passar a apontar pra outra seção sem avisar
+    ninguém. deriv_key por texto normalizado (mesmo padrão de
+    LessonAssunto/Definition), porque não há intervalo de transcrição
+    associado -- o conteúdo do guia pode reordenar/fundir trechos da
+    fala."""
+
+    __tablename__ = "guia_topico"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lesson.id"), nullable=False)
+    lesson: Mapped["Lesson"] = relationship(back_populates="guia_topicos")
+
+    deriv_key: Mapped[str] = mapped_column(String, nullable=False)
+    ordem: Mapped[int] = mapped_column(Integer, nullable=False)
+    titulo: Mapped[str] = mapped_column(String, nullable=False)
+    secao_alvo_slug: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    editado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    orfao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    versao_nova_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class ArticleMention(Base):

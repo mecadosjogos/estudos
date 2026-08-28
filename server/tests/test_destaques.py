@@ -44,7 +44,8 @@ def _pasted_response():
             {"tipo": "ditado", "texto": "Anotem isso com calma.", "start_s": 3.0, "end_s": 4.5},
             {"tipo": "normal", "texto": "Segue o resto da explicação.", "start_s": 4.5, "end_s": 5.0},
         ],
-        "indice": [], "guia_md": "# G", "artigos": [], "datas_anunciadas": [], "cards": [],
+        "indice": [], "guia_titulo": "G", "guia_secoes": [], "guia_topicos": [],
+        "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
     }
     return "```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```"

@@ -271,7 +271,8 @@ def test_search_finds_observacao_content(app_env):
         "resumo": "R.", "aula_editada": [
             {"tipo": "conceito", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0}
         ],
-        "indice": [], "guia_md": "# G", "artigos": [], "datas_anunciadas": [], "cards": [],
+        "indice": [], "guia_titulo": "G", "guia_secoes": [], "guia_topicos": [],
+        "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
     }
     import json as jsonlib

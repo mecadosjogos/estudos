@@ -60,6 +60,40 @@ class TermDefinitionOut(BaseModel):
     variantes: list[str] = Field(default_factory=list)
 
 
+class GuiaArvoreNoOut(BaseModel):
+    """Um nó da árvore de conhecimento do guia -- só a hierarquia que o
+    professor efetivamente construiu na fala (nunca complete com
+    classificação padrão da doutrina; um ramo não subdividido fica como
+    folha, `filhos` vazio). Uma ou duas palavras por nó, não frase. O nível
+    raiz (`LessonProcessingOutput.guia_arvore`) é uma FLORESTA -- uma aula
+    pode usar vários esquemas de classificação independentes, nunca force
+    um único nó-raiz artificial."""
+
+    rotulo: str
+    filhos: list["GuiaArvoreNoOut"] = Field(default_factory=list)
+
+
+class GuiaSecaoOut(BaseModel):
+    """Uma seção do corpo do guia, nesta ordem. `corpo` é o texto em
+    Markdown da seção (pode conter sub-títulos "###" se o próprio professor
+    subdividiu o tópico) -- mesmas regras de fidelidade e liberdade de
+    reordenação-dentro-da-seção do guia de sempre."""
+
+    titulo: str
+    corpo: str
+
+
+class GuiaTopicoOut(BaseModel):
+    """Item do sumário, nesta ordem -- corresponde normalmente 1:1, na
+    mesma posição, à seção de mesmo índice em `guia_secoes` (é assim que
+    você já organiza o sumário hoje; o código reaproveita essa ordem em vez
+    de pedir um campo novo de "seção alvo"). Só o título -- nunca inclua o
+    número aqui, a numeração é sempre calculada pelo código a partir da
+    posição na lista."""
+
+    titulo: str
+
+
 class ConfusablePairOut(BaseModel):
     """Fase 8b: vira card de discriminação com comparação lado a lado. Os
     quatro timestamps são opcionais -- respostas coladas antes desta versão
@@ -85,17 +119,24 @@ class LessonProcessingOutput(BaseModel):
     tabela própria (fases 6/8a/8b/11); `mapa_mermaid` ainda fica guardado
     cru em AiCall.raw_response_json até sua fase (15) chegar.
 
-    `guia_md` (antes uma segunda chamada separada, `ai/guia.py`) entra na
+    O guia (antes uma segunda chamada separada, `ai/guia.py`) entra na
     MESMA leitura da transcrição -- ler a mesma fonte duas vezes pra gerar
     dois artefatos era desperdício, sobretudo na ponte manual, onde "ler"
-    é o próprio agente processando ~27k tokens de novo do zero. Continua
-    sendo um artefato à parte no banco (`Lesson.guia_md`, regenerado por
-    inteiro, sem deriv_key) -- só a chamada que virou uma só."""
+    é o próprio agente processando ~27k tokens de novo do zero. Desde a
+    fase de estruturação do guia, os campos `guia_*` abaixo substituem o
+    antigo `guia_md: str` único -- título, árvore, seções e sumário viram
+    dado estruturado em vez de markdown opaco (`Lesson.guia_md` continua
+    existindo, mas como cache remontado por código a partir destes campos,
+    ver `ai/guia_markdown.py`)."""
 
     resumo: str
     aula_editada: list[EditedBlockOut]
     indice: list[OutlineItemOut]
-    guia_md: str
+    guia_titulo: str
+    guia_arvore: list[GuiaArvoreNoOut] = Field(default_factory=list)
+    guia_secoes: list[GuiaSecaoOut]
+    guia_topicos: list[GuiaTopicoOut]
+    guia_trechos_incompletos: list[str] = Field(default_factory=list)
     artigos: list[ArticleMentionOut] = Field(default_factory=list)
     datas_anunciadas: list[AnnouncementOut] = Field(default_factory=list)
     cards: list[CardOut] = Field(default_factory=list)

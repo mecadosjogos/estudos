@@ -49,7 +49,9 @@ def _pasted_response():
         "aula_editada": [
             {"tipo": "conceito", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0},
         ],
-        "indice": [], "guia_md": "# Posse\n\nGuia de teste export.",
+        "indice": [], "guia_titulo": "Posse",
+        "guia_secoes": [{"titulo": "Posse", "corpo": "Guia de teste export."}],
+        "guia_topicos": [{"titulo": "Posse"}],
         "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
     }

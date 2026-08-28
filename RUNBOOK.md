@@ -241,11 +241,26 @@ a transcrição literal de cada aula vinculada (nunca a aula editada) — hoje
 marca onde começa/termina dentro da aula (simplificação deliberada da fase
 8a; ver o módulo pra decisão completa).
 
-**Guia de aula** (`Lesson.guia_md`) vem no mesmo `resposta.md` acima, campo
-`guia_md` do JSON — não é mais um passo separado. Reprocessar substitui o
-guia inteiro — não há `deriv_key` nem reconcile aqui (é um documento
-único, não uma lista de artefatos com identidade própria), mas segue
-saindo da mesma leitura da aula editada, cards e propostas.
+**Guia de aula** vem no mesmo `resposta.md` acima, agora em campos
+estruturados (`guia_titulo`, `guia_arvore`, `guia_secoes`, `guia_topicos`,
+`guia_trechos_incompletos`) em vez de uma string markdown só — não é mais
+um passo separado. Árvore e seções (`GuiaSecao`) continuam sem
+`deriv_key`/reconcile — reprocessar substitui por inteiro, mesmo motivo de
+sempre (documento derivado, nada editável). Os itens do sumário
+(`GuiaTopico`) SÃO reconciliados por `deriv_key` de texto normalizado
+(mesmo padrão de `assuntos`), porque carregam um estado editável à mão — a
+correção manual de pra qual seção o item aponta — que precisa sobreviver a
+reprocessamento. `Lesson.guia_md` continua existindo, mas agora é um cache
+remontado por código a partir desses campos (`ai/guia_markdown.py`), não
+mais escrito direto pela IA — é o que a rota `/guia.md` (o botão
+"Exportar") serve.
+
+**Aulas processadas antes dessa mudança não precisam de nada especial.**
+A tela `/guia` detecta se existe `GuiaSecao` pra aquela aula: se não
+existir, mostra o guia do jeito que sempre foi (`guia_legado.html`); só
+depois de reprocessar a aula é que ela passa a usar a tela nova (sumário
+navegável, árvore, checklist contra `Assunto`). Não existe passo de
+migração/backfill.
 
 ### Fase 8b — Cloze e cards de discriminação
 

@@ -45,6 +45,24 @@ def similar_slugs(slug: str, outros: list[str], *, threshold: float = 0.6, limit
     return [outro for _, outro in scored[:limit]]
 
 
+def annotate_arvore_checklist(nodes: list[dict], accepted_slugs: set[str]) -> list[dict]:
+    """Marca folhas da árvore de conhecimento do guia sem Assunto aceito
+    correspondente (checklist leve). Só folhas: nós intermediários são
+    categorias que o professor usou pra organizar ("Direito público"), não
+    tópicos estudáveis -- marcá-los geraria destaque constante, já que o
+    padrão de "uma ou duas palavras por nó" faz a maioria deles nunca virar
+    um Assunto de verdade. Casamento por slug exato (sem `similar_slugs`) --
+    mais simples e evita marcar errado por aproximação; recalibra depois se
+    sobrar ruído."""
+    annotated = []
+    for node in nodes:
+        filhos = annotate_arvore_checklist(node.get("filhos", []), accepted_slugs)
+        is_leaf = not filhos
+        sem_assunto = is_leaf and normalize_slug(node["rotulo"]) not in accepted_slugs
+        annotated.append({"rotulo": node["rotulo"], "filhos": filhos, "sem_assunto": sem_assunto})
+    return annotated
+
+
 def find_or_create_assunto(session: Session, titulo: str) -> Assunto:
     """Casamento por slug -- é o que impede duas grafias do mesmo assunto
     virarem dois registros (mesmo padrão do glossário)."""

@@ -1,8 +1,14 @@
+{% macro render_arvore_no(no) %}
+<li class="{{ 'guia-no-sem-assunto' if no.sem_assunto else '' }}">
+	{{ no.rotulo }}
+	{% if no.filhos %}<ul>{% for filho in no.filhos %}{{ render_arvore_no(filho) }}{% endfor %}</ul>{% endif %}
+</li>
+{% endmacro %}
 {% extends "base.html" %}
 {% block title %}Guia de aula — {{ lesson.titulo }}{% endblock %}
 {% block content %}
 <p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
-<h1>Guia de aula</h1>
+<h1>{{ lesson.guia_titulo }}</h1>
 <p class="muted">
 	Material de leitura organizado a partir da transcrição — não é fonte, a
 	transcrição bruta é. Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}.
@@ -13,7 +19,50 @@
 	<a class="button button-ghost" href="/lessons/{{ lesson.id }}">Ver a aula →</a>
 </div>
 
-<div class="card markdown-body">
-	{{ guia_html | safe }}
+{% if arvore %}
+<h2>Árvore de conhecimento</h2>
+<ul class="guia-arvore">
+	{% for no in arvore %}{{ render_arvore_no(no) }}{% endfor %}
+</ul>
+{% endif %}
+
+<h2>Sumário</h2>
+<ol class="guia-sumario">
+	{% for topico in topicos %}
+	<li id="topico-{{ topico.id }}">
+		<form method="post" action="/lessons/{{ lesson.id }}/guia/topicos/{{ topico.id }}/secao-alvo" class="guia-sumario-item">
+			<input class="guia-sumario-input" type="number" name="secao_ordem" value="{{ topico.secao_numero }}" min="1" max="{{ secoes|length }}">
+			<button type="submit" class="button-ghost">Definir</button>
+			<a href="#secao-{{ topico.secao_numero }}">{{ topico.titulo }}</a>
+			{% if topico.desatualizado %}<span class="guia-aviso-desatualizado">seção-alvo desatualizada, confira</span>{% endif %}
+		</form>
+	</li>
+	{% endfor %}
+</ol>
+
+{% if topicos_perdidos %}
+<h2>Correções não encontradas mais</h2>
+<p class="muted">
+	Uma correção de sumário anterior não achou mais o tópico correspondente
+	nesta aula (a IA reformulou o texto num reprocessamento) — confira se
+	ainda faz sentido e refaça a correção se precisar.
+</p>
+<ul>
+	{% for t in topicos_perdidos %}<li>{{ t.titulo }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+{% for secao in secoes %}
+<h2 id="secao-{{ secao.numero }}">{{ secao.titulo }}</h2>
+<div class="card markdown-body guia-secao">
+	{{ secao.html | safe }}
 </div>
+{% endfor %}
+
+{% if trechos_incompletos %}
+<h2>Trechos incompletos/inaudíveis</h2>
+<ul>
+	{% for trecho in trechos_incompletos %}<li>{{ trecho }}</li>{% endfor %}
+</ul>
+{% endif %}
 {% endblock %}

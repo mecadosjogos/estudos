@@ -9,6 +9,8 @@ from datetime import date, datetime, timezone
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from sqlalchemy import delete
+
 from ..ai.client import AIClient
 from ..assuntos import normalize_slug
 from ..models import (
@@ -18,6 +20,8 @@ from ..models import (
     CardProposal,
     Definition,
     EditedBlock,
+    GuiaSecao,
+    GuiaTopico,
     Lesson,
     LessonAssunto,
     OutlineItem,
@@ -26,6 +30,7 @@ from ..models import (
 from .bridge import build_prompt
 from .budget import check_budget_or_raise
 from .deriv_key import compute_deriv_key
+from .guia_markdown import build_guia_markdown
 from .parse import parse_pasted_response
 from .pricing import estimate_cost_usd
 from .reconcile import reconcile
@@ -159,16 +164,51 @@ def _ingest(
         raise ProcessingError(f"resposta não bate com o formato esperado: {exc}") from exc
 
     lesson.resumo = output.resumo
-    # Guia de aula (fase 6): antes uma segunda chamada separada (ai/guia.py),
-    # agora sai da mesma leitura -- regenerado por inteiro a cada
-    # reprocessamento, sem deriv_key, igual sempre foi (é um documento
-    # único, não uma lista de artefatos com identidade própria).
-    lesson.guia_md = output.guia_md
-    lesson.guia_gerado_em = datetime.now(timezone.utc)
     # Mapa de taxonomia (fase 15): mesmo motivo do guia -- documento único,
     # regenerado por inteiro, sem deriv_key.
     lesson.mapa_mermaid = output.mapa_mermaid
     transcript_segments = lesson.transcript.segments if lesson.transcript else []
+
+    # Guia estruturado: título/árvore regeneram por inteiro (sem deriv_key,
+    # mesmo motivo do resumo/mapa_mermaid -- nada aqui é editável à mão).
+    lesson.guia_titulo = output.guia_titulo
+    lesson.guia_arvore_json = json.dumps(
+        [node.model_dump() for node in output.guia_arvore], ensure_ascii=False
+    )
+    lesson.guia_trechos_incompletos_json = json.dumps(output.guia_trechos_incompletos, ensure_ascii=False)
+
+    # GuiaSecao: apaga e recria por inteiro, sem reconcile -- mesma
+    # filosofia da árvore/título acima.
+    session.execute(delete(GuiaSecao).where(GuiaSecao.lesson_id == lesson.id))
+    for ordem, s in enumerate(output.guia_secoes):
+        session.add(GuiaSecao(lesson_id=lesson.id, ordem=ordem, titulo=s.titulo, corpo=s.corpo))
+
+    # GuiaTopico: reconciliado por título normalizado (mesmo padrão de
+    # assunto, abaixo) -- carrega secao_alvo_slug, a única correção manual
+    # que precisa sobreviver a reprocessamento (ver models.py::GuiaTopico).
+    topico_counts: dict[str, int] = {}
+    topico_items = []
+    for ordem, t in enumerate(output.guia_topicos):
+        slug = normalize_slug(t.titulo)
+        occurrence = topico_counts.get(slug, 0)
+        topico_counts[slug] = occurrence + 1
+        key = f"guia_topico:{slug}" if occurrence == 0 else f"guia_topico:{slug}:{occurrence}"
+        topico_items.append((key, {"ordem": ordem, "titulo": t.titulo}))
+    reconcile(session, GuiaTopico, lesson.id, topico_items, has_versao_nova=True)
+
+    # Guia de aula (fase 6): antes uma segunda chamada separada (ai/guia.py),
+    # agora sai da mesma leitura. `guia_md`/`guia_gerado_em` continuam
+    # existindo como cache remontado a partir dos campos estruturados
+    # acima, pra export/corpus.py, export/exam_export.py e a rota /guia.md
+    # continuarem funcionando sem mudança.
+    lesson.guia_md = build_guia_markdown(
+        titulo=output.guia_titulo,
+        arvore=output.guia_arvore,
+        topicos=output.guia_topicos,
+        secoes=output.guia_secoes,
+        trechos_incompletos=output.guia_trechos_incompletos,
+    )
+    lesson.guia_gerado_em = datetime.now(timezone.utc)
 
     block_counts: dict[tuple, int] = {}
     block_items = []

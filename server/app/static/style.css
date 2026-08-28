@@ -557,3 +557,42 @@ textarea {
 	border-top: 1px solid var(--border);
 	margin: var(--space-4) 0;
 }
+
+.guia-arvore, .guia-arvore ul {
+	padding-left: 1.2rem;
+	margin: 0 0 var(--space-3);
+}
+
+.guia-arvore li {
+	margin-bottom: var(--space-1);
+}
+
+.guia-no-sem-assunto {
+	text-decoration: underline dotted;
+	text-decoration-color: var(--danger);
+	text-underline-offset: 0.2em;
+}
+
+.guia-sumario {
+	padding-left: 1.4rem;
+	margin: 0 0 var(--space-4);
+}
+
+.guia-sumario-item {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.guia-sumario-input {
+	width: 3.5ch;
+}
+
+.guia-aviso-desatualizado {
+	color: var(--danger);
+	font-size: 0.85em;
+}
+
+.guia-secao {
+	margin-bottom: var(--space-4);
+}
