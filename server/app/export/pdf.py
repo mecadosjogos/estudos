@@ -33,3 +33,29 @@ def render_html_to_pdf(html: str, extra_css: str = "") -> bytes:
         writer.end_page()
     writer.close()
     return buf.getvalue()
+
+
+def add_header_footer(pdf_bytes: bytes, text: str) -> bytes:
+    """Escreve `text` centralizado no topo e no rodapé de toda página --
+    pós-processamento em cima do PDF já pronto, porque `fitz.Story` não
+    tem cabeçalho/rodapé de página nativo (diferente de `@page` no CSS
+    paginado). `text` pode ter várias linhas (`\\n`); cada linha é
+    centralizada e empilhada com 10pt de espaçamento, sempre cabendo
+    dentro da margem de 36pt que `render_html_to_pdf` já reserva (topo a
+    partir de y=12, rodapé terminando em y=altura-14), então não precisa
+    encolher a área de conteúdo nem mudar `render_html_to_pdf`."""
+    linhas = text.split("\n")
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    for page in doc:
+        rect = page.rect
+        for i, linha in enumerate(linhas):
+            width = fitz.get_text_length(linha, fontsize=8)
+            x = (rect.width - width) / 2
+            page.insert_text((x, 12 + i * 10), linha, fontsize=8, color=(0.4, 0.4, 0.4))
+            page.insert_text(
+                (x, rect.height - 14 - (len(linhas) - 1 - i) * 10),
+                linha, fontsize=8, color=(0.4, 0.4, 0.4),
+            )
+    result = doc.tobytes()
+    doc.close()
+    return result

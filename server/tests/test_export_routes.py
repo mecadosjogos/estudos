@@ -79,6 +79,42 @@ def test_download_edited_lesson_pdf_404_without_lesson(app_env):
     assert response.status_code == 404
 
 
+def test_download_guia_pdf_has_header_footer_with_subject(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    from app.models import Lesson
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+        subject_nome = session.get(Lesson, lesson_id).subject.nome
+
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response()})
+
+    response = client.get(f"/lessons/{lesson_id}/guia.pdf")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content[:5] == b"%PDF-"
+
+    import fitz
+
+    doc = fitz.open(stream=response.content, filetype="pdf")
+    texto = doc[0].get_text()
+    assert texto.count("Wyver Godoi - Direito - Semestre 1/10") == 2  # cabeçalho e rodapé
+    assert texto.count(subject_nome) == 2  # segunda linha, cabeçalho e rodapé
+
+
+def test_download_guia_pdf_404_without_guia(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    response = client.get(f"/lessons/{lesson_id}/guia.pdf")
+    assert response.status_code == 404
+
+
 def test_download_bibliografia_empty(app_env):
     client = _authed_client()
     from app.db import holder

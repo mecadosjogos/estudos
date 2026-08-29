@@ -2,7 +2,7 @@
 name: Processar Aula
 description: Processa aula(s) pendentes de IA (fase 6 em diante) seguindo o RUNBOOK.md do projeto Estudos, sem usar a API paga da Anthropic — só chamada explicitamente pelo usuário via /processar-aula.
 argument-hint: [id-da-aula | pendentes]
-disable-model-invocation: true
+disable-model-invocation: false
 context: fork
 background: true
 ---
