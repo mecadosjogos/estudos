@@ -108,6 +108,32 @@ def submit_rebuild_result(job_id: int, *, claim_token: str, mp3_path: Path) -> d
     return response.json()
 
 
+def submit_tts_result(job_id: int, *, claim_token: str, section_mp3_paths: dict[int, Path]) -> dict:
+    """`section_mp3_paths`: ordem da GuiaSecao -> caminho do mp3 gerado. O
+    nome de cada arquivo enviado (`{ordem}.mp3`) é o que
+    server/app/routes/jobs.py::submit_tts_result usa pra saber a qual seção
+    cada áudio pertence."""
+    files = []
+    opened = []
+    try:
+        for ordem, path in section_mp3_paths.items():
+            f = path.open("rb")
+            opened.append(f)
+            files.append(("audios", (f"{ordem}.mp3", f, "audio/mpeg")))
+        response = httpx.post(
+            f"{config.SERVER_URL}/api/jobs/{job_id}/tts-result",
+            headers=_headers(),
+            data={"claim_token": claim_token},
+            files=files,
+            timeout=600,
+        )
+    finally:
+        for f in opened:
+            f.close()
+    response.raise_for_status()
+    return response.json()
+
+
 def report_failure(job_id: int, claim_token: str, error: str) -> None:
     httpx.post(
         f"{config.SERVER_URL}/api/jobs/{job_id}/fail",

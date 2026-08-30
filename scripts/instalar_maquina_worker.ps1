@@ -190,7 +190,26 @@ if ($gpuOk) {
     Write-Warn "Confira CUDA_PATH/driver -- o resto da instalação já está pronto mesmo assim."
 }
 
-# --- 6. Claude Code CLI (só informativo) ---
+# --- 6. Serviço de TTS local (opcional -- narração do guia de aula) ---
+Write-Step "Serviço de TTS local (tts-service/)"
+
+$ttsServiceDir = Join-Path $repoRoot "tts-service"
+$ttsVenvPython = Join-Path $ttsServiceDir ".venv\Scripts\python.exe"
+
+if (Test-Path $ttsVenvPython) {
+    Write-Ok "já instalado em tts-service\.venv"
+} else {
+    Write-Host "Standalone -- não é exclusivo do worker do Estudos, qualquer script na" -ForegroundColor DarkGray
+    Write-Host "máquina pode chamar via HTTP depois de instalado (ver tts-service\main.py)." -ForegroundColor DarkGray
+    $installTts = Read-HostSafe "Instalar agora? Baixa PyTorch + modelo XTTS v2 (~4GB) [s/N]"
+    if ($installTts -match "^[sSyY]") {
+        & (Join-Path $ttsServiceDir "instalar.ps1")
+    } else {
+        Write-Warn "pulado -- rode .\tts-service\instalar.ps1 quando quiser ativar a narração do guia"
+    }
+}
+
+# --- 7. Claude Code CLI (só informativo) ---
 Write-Step "Claude Code CLI"
 
 if (Get-Command claude -ErrorAction SilentlyContinue) {
@@ -202,4 +221,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
 Write-Step "Pronto"
 Write-Host "Pra transcrever: .\worker\run_local.ps1"
 Write-Host "Pra processar aula com IA: abra um chat do Claude Code neste repositório e siga RUNBOOK.md"
+if (Test-Path $ttsVenvPython) {
+    Write-Host "Pra narração do guia funcionar, deixe o TTS de pé: .\tts-service\iniciar.ps1"
+}
 try { Read-Host "`nPressione Enter para fechar" | Out-Null } catch {}

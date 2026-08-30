@@ -20,6 +20,18 @@
 	<a class="button button-ghost" href="/lessons/{{ lesson.id }}">Ver a aula →</a>
 </div>
 
+{% if audio_pronto %}
+<div class="card player-card">
+	<audio id="guia-player"></audio>
+	<div class="player-controls">
+		<button type="button" id="guia-player-play">▸ tocar</button>
+		<span id="guia-player-status" class="muted"></span>
+	</div>
+</div>
+{% elif audio_gerando %}
+<p class="muted">🔊 narração sendo gerada...</p>
+{% endif %}
+
 {% if arvore %}
 <h2>Árvore de conhecimento</h2>
 <ul class="guia-arvore">
@@ -54,7 +66,11 @@
 {% endif %}
 
 {% for secao in secoes %}
-<h2 id="secao-{{ secao.numero }}">{{ secao.titulo }}</h2>
+<h2 id="secao-{{ secao.numero }}"
+	{% if secao.audio_url %}class="guia-secao-titulo" data-audio-src="{{ secao.audio_url }}" data-audio-titulo="{{ secao.titulo }}"{% endif %}>
+	{{ secao.titulo }}
+	{% if secao.audio_url %}<button type="button" class="button-ghost guia-ouvir-secao">▸ ouvir esta seção</button>{% endif %}
+</h2>
 <div class="card markdown-body guia-secao">
 	{{ secao.html | safe }}
 </div>
@@ -65,5 +81,62 @@
 <ul>
 	{% for trecho in trechos_incompletos %}<li>{{ trecho }}</li>{% endfor %}
 </ul>
+{% endif %}
+
+{% if audio_pronto %}
+<script>
+	(function () {
+		const player = document.getElementById("guia-player");
+		const playBtn = document.getElementById("guia-player-play");
+		const statusEl = document.getElementById("guia-player-status");
+		const headers = Array.from(document.querySelectorAll("h2[data-audio-src]"));
+		let current = -1;
+
+		function load(index, autoplay) {
+			if (index < 0 || index >= headers.length) return;
+			current = index;
+			const h = headers[index];
+			const titulo = h.dataset.audioTitulo;
+			player.src = h.dataset.audioSrc;
+			if (autoplay) player.play();
+			statusEl.textContent = `${index + 1}/${headers.length} — ${titulo}`;
+			headers.forEach((el) => el.classList.remove("guia-secao-atual"));
+			h.classList.add("guia-secao-atual");
+			h.scrollIntoView({ behavior: "smooth", block: "center" });
+
+			if ("mediaSession" in navigator) {
+				navigator.mediaSession.metadata = new MediaMetadata({
+					title: titulo,
+					artist: {{ lesson.guia_titulo | tojson }},
+					album: "Guia narrado — Estudos",
+				});
+			}
+		}
+
+		playBtn.addEventListener("click", () => {
+			if (current === -1) load(0, true);
+			else if (player.paused) player.play();
+			else player.pause();
+		});
+		player.addEventListener("ended", () => load(current + 1, true));
+
+		headers.forEach((h, index) => {
+			const btn = h.querySelector(".guia-ouvir-secao");
+			if (btn) {
+				btn.addEventListener("click", (e) => {
+					e.stopPropagation();
+					load(index, true);
+				});
+			}
+		});
+
+		if ("mediaSession" in navigator) {
+			navigator.mediaSession.setActionHandler("play", () => player.play());
+			navigator.mediaSession.setActionHandler("pause", () => player.pause());
+			navigator.mediaSession.setActionHandler("previoustrack", () => load(Math.max(current - 1, 0), true));
+			navigator.mediaSession.setActionHandler("nexttrack", () => load(Math.min(current + 1, headers.length - 1), true));
+		}
+	})();
+</script>
 {% endif %}
 {% endblock %}

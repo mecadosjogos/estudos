@@ -90,6 +90,14 @@ class Lesson(Base):
     guia_arvore_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     guia_trechos_incompletos_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Narração em áudio do guia (TTS local via GPU, ver tts-service/). Um
+    # mp3 por GuiaSecao, gerado pelo worker e cacheado em GUIA_AUDIO_DIR.
+    # Comparado contra guia_gerado_em: mais antigo (ou nulo) = áudio
+    # desatualizado, precisa regenerar -- mesma lógica de "carimbo de
+    # versão" que o resto do guia já usa, sem precisar de hash de conteúdo
+    # por seção.
+    guia_audio_gerado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
         back_populates="lesson", order_by="AudioSegment.ordem", cascade="all, delete-orphan"
     )

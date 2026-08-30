@@ -460,6 +460,26 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     arvore = annotate_arvore_checklist(json.loads(lesson.guia_arvore_json or "[]"), accepted_slugs)
     trechos_incompletos = json.loads(lesson.guia_trechos_incompletos_json or "[]")
 
+    # Narração em áudio (TTS local via GPU, tts-service/): em dia quando
+    # gerada depois da última vez que o guia mudou -- mesma comparação de
+    # "carimbo de versão" que o resto do guia usa (nunca hash de conteúdo).
+    audio_pronto = (
+        lesson.guia_audio_gerado_em is not None and lesson.guia_audio_gerado_em >= lesson.guia_gerado_em
+    )
+    if audio_pronto:
+        for i, view in enumerate(secoes_view):
+            view["audio_url"] = f"/lessons/{lesson_id}/guia/secoes/{secoes[i].ordem}/audio.mp3"
+    audio_gerando = not audio_pronto and (
+        session.scalar(
+            select(TranscriptionJob.id).where(
+                TranscriptionJob.lesson_id == lesson_id,
+                TranscriptionJob.target == "tts_guia",
+                TranscriptionJob.status.in_(["pending", "claimed"]),
+            )
+        )
+        is not None
+    )
+
     return templates.TemplateResponse(
         request,
         "guia.html",
@@ -470,8 +490,21 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "topicos_perdidos": topicos_perdidos,
             "secoes": secoes_view,
             "trechos_incompletos": trechos_incompletos,
+            "audio_pronto": audio_pronto,
+            "audio_gerando": audio_gerando,
         },
     )
+
+
+@router.get("/{lesson_id}/guia/secoes/{ordem}/audio.mp3")
+def guia_secao_audio(lesson_id: int, ordem: int, session: Session = Depends(get_session)):
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+    path = config.GUIA_AUDIO_DIR / f"lesson-{lesson_id}" / f"secao-{ordem}.mp3"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="áudio da seção não encontrado")
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @router.post("/{lesson_id}/guia/topicos/{topico_id}/secao-alvo")

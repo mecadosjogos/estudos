@@ -82,5 +82,11 @@ FEYNMAN_AUDIO_DIR = _resolve(os.environ.get("FEYNMAN_AUDIO_DIR", "data/media/fey
 # cacheados aqui pra não recortar de novo a cada replay.
 DESTAQUES_CLIPS_DIR = _resolve(os.environ.get("DESTAQUES_CLIPS_DIR", "data/media/destaques"))
 
+# Narração do guia de aula (TTS local via GPU, tts-service/) -- um mp3 por
+# GuiaSecao, gerado pelo worker (worker/tts.py) e cacheado aqui. Mesmo
+# princípio de DESTAQUES_CLIPS_DIR: gerar é caro, então guarda em disco em
+# vez de refazer a cada request.
+GUIA_AUDIO_DIR = _resolve(os.environ.get("GUIA_AUDIO_DIR", "data/media/guia-audio"))
+
 SESSION_COOKIE_NAME = "estudos_session"
 SESSION_MAX_AGE = 60 * 60 * 24 * 365  # 1 ano

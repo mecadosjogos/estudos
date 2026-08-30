@@ -121,6 +121,39 @@ def test_process_lesson_automatically_persists_everything(app_env):
         assert json.loads(stored_calls[0].raw_response_json)["assuntos"] == ["Posse"]
 
 
+def test_process_lesson_automatically_enqueues_tts_guia_job(app_env):
+    """Narração do guia (TTS local via GPU, tts-service/): o job é
+    enfileirado sozinho assim que o guia é persistido, sem botão manual --
+    ver ai/pipeline.py::_ingest."""
+    from app.db import holder
+    from app.ai.pipeline import process_lesson_automatically
+    from app.models import Lesson, TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _default_lesson_id(session)
+        lesson = session.get(Lesson, lesson_id)
+        process_lesson_automatically(session, lesson, FakeAIClient(_fake_response()))
+
+        jobs = session.query(TranscriptionJob).filter_by(lesson_id=lesson_id, target="tts_guia").all()
+        assert len(jobs) == 1
+        assert jobs[0].status == "pending"
+
+
+def test_reprocessing_does_not_duplicate_pending_tts_guia_job(app_env):
+    from app.db import holder
+    from app.ai.pipeline import process_lesson_automatically
+    from app.models import Lesson, TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _default_lesson_id(session)
+        lesson = session.get(Lesson, lesson_id)
+        process_lesson_automatically(session, lesson, FakeAIClient(_fake_response()))
+        process_lesson_automatically(session, lesson, FakeAIClient(_fake_response()))
+
+        jobs = session.query(TranscriptionJob).filter_by(lesson_id=lesson_id, target="tts_guia").all()
+        assert len(jobs) == 1
+
+
 def test_process_lesson_persists_termos_as_pending_definitions(app_env):
     """Fase 11: `termos` vira `Definition` pendente, com `term_id` ainda
     nulo -- só a aceitação (routes/glossary.py) resolve/cria o `Term`

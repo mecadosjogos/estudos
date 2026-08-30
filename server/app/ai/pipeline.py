@@ -27,6 +27,7 @@ from ..models import (
     OutlineItem,
     TranscriptSegment,
 )
+from ..routes.jobs import ensure_pending_job
 from .bridge import build_prompt
 from .budget import check_budget_or_raise
 from .deriv_key import compute_deriv_key
@@ -209,6 +210,13 @@ def _ingest(
         trechos_incompletos=output.guia_trechos_incompletos,
     )
     lesson.guia_gerado_em = datetime.now(timezone.utc)
+
+    # Narração em áudio do guia (TTS local via GPU, tts-service/): reprocessar
+    # sempre invalida o áudio anterior (guia_audio_gerado_em vai ficar mais
+    # antigo que guia_gerado_em), então sempre enfileira de novo aqui --
+    # ensure_pending_job é idempotente, não duplica se já houver um job
+    # tts_guia pendente/em andamento pra esta aula.
+    ensure_pending_job(session, lesson.id, target="tts_guia")
 
     block_counts: dict[tuple, int] = {}
     block_items = []

@@ -596,3 +596,19 @@ textarea {
 .guia-secao {
 	margin-bottom: var(--space-4);
 }
+
+.guia-secao-titulo {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	flex-wrap: wrap;
+	scroll-margin-top: calc(var(--nav-height) + var(--space-2));
+}
+
+.guia-ouvir-secao {
+	font-size: 0.75em;
+}
+
+.guia-secao-titulo.guia-secao-atual {
+	color: var(--accent);
+}

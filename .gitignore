@@ -12,6 +12,8 @@ data/media/original/*
 !data/media/original/.gitkeep
 data/media/web/*
 !data/media/web/.gitkeep
+data/media/guia-audio/*
+!data/media/guia-audio/.gitkeep
 data/uploads/
 data/materials/
 

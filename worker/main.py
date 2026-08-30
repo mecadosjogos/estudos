@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from worker import api_client, config  # noqa: E402
+from worker import api_client, config, tts  # noqa: E402
 
 
 def _log(msg: str) -> None:
@@ -260,24 +260,95 @@ def process_rebuild_job(job: dict) -> None:
         heartbeat.stop()
 
 
-def run(mode: str, target: str) -> None:
+def process_tts_job(job: dict) -> None:
+    """Job `tts_guia`: narra cada `GuiaSecao` com o serviço de TTS local
+    (tts-service/, ver worker/tts.py) e sobe um mp3 por seção. Falha parcial
+    é tudo-ou-nada -- se uma seção falhar, o job inteiro falha e tenta de
+    novo do zero (sem guia narrado pela metade); diferente de
+    `process_one_job`, não precisa do cache-parcial-em-disco pra Whisper,
+    porque um job de narração é curto o suficiente pra não precisar retomar
+    do meio."""
+    job_id = job["id"]
+    claim_token = job["claim_token"]
+    secoes = job["guia_secoes"]
+
+    work_dir = config.TMP_DIR / f"job-{job_id}"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    heartbeat = HeartbeatThread(job_id, claim_token)
+    heartbeat.start()
+
+    try:
+        _log(f"job {job_id} — narração do guia \"{job['lesson_titulo']}\" — {len(secoes)} seção(ões)")
+        if not secoes:
+            raise RuntimeError("aula sem GuiaSecao -- nada pra narrar (guia ainda no formato antigo?)")
+
+        section_mp3_paths: dict[int, Path] = {}
+        for secao in secoes:
+            ordem = secao["ordem"]
+            _log(f"narrando seção {ordem}: \"{secao['titulo']}\"")
+            audio_bytes = tts.synthesize(secao["corpo"])
+            mp3_path = work_dir / f"secao-{ordem}.mp3"
+            mp3_path.write_bytes(audio_bytes)
+            section_mp3_paths[ordem] = mp3_path
+
+        _log("enviando narração...")
+        result = api_client.submit_tts_result(
+            job_id, claim_token=claim_token, section_mp3_paths=section_mp3_paths
+        )
+        if result.get("already_received"):
+            _log("servidor já tinha essa narração (reenvio idempotente) — ok")
+        else:
+            _log("narração enviada")
+
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+    except Exception as exc:  # noqa: BLE001 — falha vira status "failed" no servidor, nunca some silenciosa
+        _log(f"FALHOU: {exc}")
+        traceback.print_exc()
+        try:
+            api_client.report_failure(job_id, claim_token, str(exc))
+        except Exception as report_exc:  # noqa: BLE001
+            _log(f"não consegui nem reportar a falha pro servidor: {report_exc}")
+    finally:
+        heartbeat.stop()
+
+
+def run(mode: str, targets: list[str]) -> None:
     if not config.ACCESS_TOKEN:
         _log("ACCESS_TOKEN não configurado no .env — o servidor vai recusar tudo")
 
-    _log(f"worker \"{config.WORKER_NAME}\" — servidor {config.SERVER_URL} — alvo {target} — modo {mode}")
+    _log(
+        f"worker \"{config.WORKER_NAME}\" — servidor {config.SERVER_URL} — "
+        f"alvo(s) {', '.join(targets)} — modo {mode}"
+    )
 
     jobs_done = 0
     while True:
-        job = api_client.get_next_job(config.WORKER_NAME, target)
+        job = None
+        job_target = None
+        for target in targets:
+            # tts_guia depende de um processo separado (tts-service/) que
+            # pode não estar rodando -- pula esse alvo sem travar o resto do
+            # loop em vez de deixar o worker inteiro cair numa exceção.
+            if target == "tts_guia" and not tts.healthz():
+                continue
+            job = api_client.get_next_job(config.WORKER_NAME, target)
+            if job is not None:
+                job_target = target
+                break
+
         if job is None:
             if mode == "watch":
                 time.sleep(config.POLL_INTERVAL_S)
                 continue
-            _log(f"fila vazia — {jobs_done} job(s) processado(s) nesta execução, encerrando")
+            _log(f"fila(s) vazia(s) — {jobs_done} job(s) processado(s) nesta execução, encerrando")
             return
 
-        if target == "rebuild_media":
+        if job_target == "rebuild_media":
             process_rebuild_job(job)
+        elif job_target == "tts_guia":
+            process_tts_job(job)
         else:
             process_one_job(job)
         jobs_done += 1
@@ -288,7 +359,7 @@ def run(mode: str, target: str) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Worker de transcrição")
+    parser = argparse.ArgumentParser(description="Worker de transcrição e narração")
     parser.add_argument(
         "--once", action="store_true", help="processa só um job e sai (útil pra testar)"
     )
@@ -296,14 +367,23 @@ def main():
         "--watch", action="store_true", help="roda contínuo, pegando job assim que aparecer"
     )
     parser.add_argument(
-        "--target", default="gpu_worker", choices=["gpu_worker", "vps_cpu", "rebuild_media"]
+        "--target",
+        default=None,
+        choices=["gpu_worker", "vps_cpu", "rebuild_media", "tts_guia"],
+        help=(
+            "alvo único, pra rodadas avulsas (ex.: --target rebuild_media). "
+            "Sem isso, o modo contínuo padrão alterna sozinho entre gpu_worker "
+            "e tts_guia, priorizando gpu_worker."
+        ),
     )
     args = parser.parse_args()
 
     if args.once and args.watch:
         raise SystemExit("--once e --watch são incompatíveis")
 
-    if args.target == "gpu_worker":
+    targets = [args.target] if args.target else ["gpu_worker", "tts_guia"]
+
+    if "gpu_worker" in targets:
         # Etapa 0 do RUNBOOK.md: acha e enfileira aula com áudio pendente
         # antes de drenar -- assim o atalho do desktop faz as duas coisas
         # (achar o que falta + transcrever) numa tacada só, sem precisar
@@ -320,7 +400,7 @@ def main():
                 _log("nada novo pra enfileirar")
 
     mode = "once" if args.once else "watch" if args.watch else "drain"
-    run(mode=mode, target=args.target)
+    run(mode=mode, targets=targets)
 
 
 if __name__ == "__main__":

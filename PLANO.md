@@ -401,6 +401,8 @@ Duas peças, **um mesmo repositório**, papel escolhido por variável de ambient
 
 **E quando nenhum estiver ligado**, a aula fica com status **aguardando worker** — visível na tela inicial, não escondida. Ao lado, um botão **transcrever na VPS agora**: enfileira o job para a CPU da própria VPS com modelo médio (aula de 2h em ~40–60 min, qualidade um pouco menor em latim e termo técnico). É válvula de emergência, acionada por você, não fallback automático — véspera de prova com o PC quebrado não pode ser um beco sem saída.
 
+**Narração do guia de aula (TTS local via GPU).** Terceira peça, `tts-service/` — um serviço HTTP standalone (Coqui XTTS v2), fora do repositório-como-worker acima de propósito: API genérica ("texto entra, mp3 sai", sem nenhum conceito do Estudos), reusável por qualquer script na máquina, não só este app. O worker fala com ele por HTTP (`worker/tts.py`), nunca importa o modelo direto. Um job `tts_guia` (mesma tabela `TranscriptionJob`, mesmo mecanismo de claim/heartbeat da transcrição, só um `target` novo) é enfileirado sozinho sempre que o guia estruturado de uma aula é (re)gerado; a execução contínua do worker (`run_local.ps1`, sem `--target` fixo) drena transcrição e narração na mesma rodada, priorizando transcrição, e ignora a fila de narração sem travar quando o `tts-service` não está de pé. Instalação opcional, via `scripts/instalar_maquina_worker.ps1` ou `tts-service/instalar.ps1` isolado.
+
 **Ciclo de vida do áudio:** o iPad sobe o original → worker baixa, transcreve, gera mp3 32kbps mono (~30MB por aula de 2h) e devolve → VPS guarda transcrição + mp3 e **apaga o original**, que fica arquivado em `archive/` no seu PC. Resultado: ~30MB por aula na VPS em vez de ~120MB, e você ouve qualquer trecho de qualquer lugar.
 
 ---
@@ -876,8 +878,9 @@ Estudos/
                     study/ (pairs.py · cloze.py · dissertativa.py · feynman.py · plan.py)
                     context/ (window.py)          recorte da transcrição por tópico
                     media/ (clips.py · shortasr.py)      short ASR na CPU da VPS
-  worker/           main.py · transcribe.py · compress.py · config.py
+  worker/           main.py · transcribe.py · compress.py · config.py · tts.py (cliente HTTP do tts-service/)
   shared/schemas.py     contratos Pydantic entre server e worker
+  tts-service/      main.py · instalar.ps1 · iniciar.ps1     serviço de TTS local (Coqui XTTS v2), standalone
   data/             estudos.db · media/original/ · media/web/     (só na VPS)
   archive/          áudios originais                              (só local)
   docker-compose.yml · docker-compose.worker.yml · Caddyfile · .env.example

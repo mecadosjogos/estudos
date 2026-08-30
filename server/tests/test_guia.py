@@ -299,4 +299,145 @@ def test_guia_pacote_and_colar_guia_routes_no_longer_exist(app_env):
 
     assert client.get(f"/lessons/{lesson_id}/guia-pacote.md").status_code == 404
     assert client.get(f"/lessons/{lesson_id}/colar-guia").status_code == 404
+
+
+def test_view_guia_shows_generating_state_while_tts_job_pending(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(titulo="Aula", secoes=[{"titulo": "Posse", "corpo": "Conteúdo."}])},
+    )
+
+    response = client.get(f"/lessons/{lesson_id}/guia")
+    assert "narração sendo gerada" in response.text
+    assert 'id="guia-player"' not in response.text
+
+
+def test_tts_result_saves_section_audios_and_marks_lesson_ready(app_env):
+    client = _authed_client()
+    from app.db import holder
+    from app.models import Lesson, TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={
+            "resposta": _pasted_response(
+                titulo="Aula",
+                secoes=[
+                    {"titulo": "Introdução", "corpo": "Texto 1."},
+                    {"titulo": "Posse", "corpo": "Texto 2."},
+                ],
+                topicos=[{"titulo": "Introdução"}, {"titulo": "Posse"}],
+            )
+        },
+    )
+
+    claim = client.get("/api/jobs/next", params={"worker_name": "w", "target": "tts_guia"}).json()["job"]
+    assert claim is not None
+    assert claim["lesson_id"] == lesson_id
+    assert [s["titulo"] for s in claim["guia_secoes"]] == ["Introdução", "Posse"]
+
+    response = client.post(
+        f"/api/jobs/{claim['id']}/tts-result",
+        data={"claim_token": claim["claim_token"]},
+        files=[
+            ("audios", ("0.mp3", b"audio secao 0")),
+            ("audios", ("1.mp3", b"audio secao 1")),
+        ],
+    )
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "already_received": False}
+
+    with holder.SessionLocal() as session:
+        lesson = session.get(Lesson, lesson_id)
+        assert lesson.guia_audio_gerado_em is not None
+        job = session.get(TranscriptionJob, claim["id"])
+        assert job.status == "done"
+
+    from app import config
+
+    lesson_dir = config.GUIA_AUDIO_DIR / f"lesson-{lesson_id}"
+    assert (lesson_dir / "secao-0.mp3").read_bytes() == b"audio secao 0"
+    assert (lesson_dir / "secao-1.mp3").read_bytes() == b"audio secao 1"
+
+    # Reenvio idempotente (mesmo claim_token, job já "done") não duplica nem falha.
+    again = client.post(
+        f"/api/jobs/{claim['id']}/tts-result",
+        data={"claim_token": claim["claim_token"]},
+        files=[("audios", ("0.mp3", b"audio secao 0"))],
+    )
+    assert again.json() == {"ok": True, "already_received": True}
+
+
+def test_view_guia_shows_player_once_audio_ready(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(titulo="Aula", secoes=[{"titulo": "Posse", "corpo": "Conteúdo."}])},
+    )
+    claim = client.get("/api/jobs/next", params={"worker_name": "w", "target": "tts_guia"}).json()["job"]
+    client.post(
+        f"/api/jobs/{claim['id']}/tts-result",
+        data={"claim_token": claim["claim_token"]},
+        files=[("audios", ("0.mp3", b"audio"))],
+    )
+
+    response = client.get(f"/lessons/{lesson_id}/guia")
+    assert 'id="guia-player"' in response.text
+    assert "narração sendo gerada" not in response.text
+    assert f"/lessons/{lesson_id}/guia/secoes/0/audio.mp3" in response.text
+
+    audio_response = client.get(f"/lessons/{lesson_id}/guia/secoes/0/audio.mp3")
+    assert audio_response.status_code == 200
+    assert audio_response.content == b"audio"
+
+
+def test_reprocessing_makes_existing_audio_stale_and_requeues(app_env):
+    client = _authed_client()
+    from app.db import holder
+    from app.models import TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    secoes = [{"titulo": "Posse", "corpo": "Conteúdo."}]
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(titulo="Aula", secoes=secoes)},
+    )
+    claim = client.get("/api/jobs/next", params={"worker_name": "w", "target": "tts_guia"}).json()["job"]
+    client.post(
+        f"/api/jobs/{claim['id']}/tts-result",
+        data={"claim_token": claim["claim_token"]},
+        files=[("audios", ("0.mp3", b"audio"))],
+    )
+    assert 'id="guia-player"' in client.get(f"/lessons/{lesson_id}/guia").text
+
+    # Reprocessa -- áudio antigo fica desatualizado, novo job entra sozinho.
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(titulo="Aula", secoes=secoes)},
+    )
+
+    response = client.get(f"/lessons/{lesson_id}/guia")
+    assert "narração sendo gerada" in response.text
+    assert 'id="guia-player"' not in response.text
+
+    with holder.SessionLocal() as session:
+        jobs = session.query(TranscriptionJob).filter_by(lesson_id=lesson_id, target="tts_guia").all()
+    assert len(jobs) == 2
+    assert {j.status for j in jobs} == {"done", "pending"}
     assert client.post(f"/lessons/{lesson_id}/colar-guia", data={"resposta": "# x"}).status_code == 404

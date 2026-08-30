@@ -155,6 +155,7 @@ def next_job(
         return JSONResponse({"job": None})
 
     segments = sorted(job.lesson.audio_segments, key=lambda s: s.ordem)
+    guia_secoes = sorted(job.lesson.guia_secoes, key=lambda s: s.ordem)
     return JSONResponse({
         "job": {
             "id": job.id,
@@ -169,6 +170,12 @@ def next_job(
                     "download_url": f"/api/jobs/{job.id}/segments/{s.id}/download",
                 }
                 for s in segments
+            ],
+            # Só usado por jobs target=tts_guia (worker/tts.py) -- vazio pros
+            # demais alvos, sem custo extra (a relationship já vem carregada
+            # junto da aula).
+            "guia_secoes": [
+                {"ordem": s.ordem, "titulo": s.titulo, "corpo": s.corpo} for s in guia_secoes
             ],
         }
     })
@@ -333,6 +340,44 @@ async def submit_rebuild_result(
         while chunk := await audio.read(1024 * 1024):
             out.write(chunk)
 
+    job.status = "done"
+    session.commit()
+    return JSONResponse({"ok": True, "already_received": False})
+
+
+@router.post("/{job_id}/tts-result")
+async def submit_tts_result(
+    job_id: int,
+    claim_token: str = Form(...),
+    audios: list[UploadFile] = File(...),
+    session: Session = Depends(get_session),
+):
+    """Resultado de um job `tts_guia` (narração do guia via TTS local, ver
+    tts-service/ e worker/tts.py): um mp3 por `GuiaSecao`, nomeado
+    `{ordem}.mp3` -- não mexe em transcrição nenhuma, só grava os áudios e
+    marca a narração como em dia (`Lesson.guia_audio_gerado_em`)."""
+    job = session.get(TranscriptionJob, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job não encontrado")
+
+    if job.status == "done" and job.claim_token == claim_token:
+        return JSONResponse({"ok": True, "already_received": True})
+
+    if job.status != "claimed" or job.claim_token != claim_token:
+        raise HTTPException(
+            status_code=409, detail="claim inválido ou expirado — outro worker já processou"
+        )
+
+    lesson_dir = config.GUIA_AUDIO_DIR / f"lesson-{job.lesson_id}"
+    lesson_dir.mkdir(parents=True, exist_ok=True)
+    for audio in audios:
+        ordem = Path(audio.filename).stem
+        dest = lesson_dir / f"secao-{ordem}.mp3"
+        with dest.open("wb") as out:
+            while chunk := await audio.read(1024 * 1024):
+                out.write(chunk)
+
+    job.lesson.guia_audio_gerado_em = datetime.now(timezone.utc)
     job.status = "done"
     session.commit()
     return JSONResponse({"ok": True, "already_received": False})
