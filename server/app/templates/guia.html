@@ -30,6 +30,8 @@
 </div>
 {% elif audio_gerando %}
 <p class="muted">🔊 narração sendo gerada...</p>
+{% elif audio_falhou %}
+<p class="guia-aviso-desatualizado">⚠️ a narração deste guia falhou ao gerar{{ " (" + audio_erro + ")" if audio_erro }} — reprocessar a aula tenta de novo.</p>
 {% endif %}
 
 {% if arvore %}

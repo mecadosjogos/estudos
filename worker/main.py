@@ -262,12 +262,21 @@ def process_rebuild_job(job: dict) -> None:
 
 def process_tts_job(job: dict) -> None:
     """Job `tts_guia`: narra cada `GuiaSecao` com o serviço de TTS local
-    (tts-service/, ver worker/tts.py) e sobe um mp3 por seção. Falha parcial
-    é tudo-ou-nada -- se uma seção falhar, o job inteiro falha e tenta de
-    novo do zero (sem guia narrado pela metade); diferente de
-    `process_one_job`, não precisa do cache-parcial-em-disco pra Whisper,
-    porque um job de narração é curto o suficiente pra não precisar retomar
-    do meio."""
+    (tts-service/, ver worker/tts.py) e sobe um mp3 por seção.
+
+    **Falha de uma seção não derruba as outras** (mudou depois de rodar
+    contra aulas reais de produção: um timeout numa seção longa jogava fora
+    todo o resto já narrado -- ~30min de GPU perdidos em duas aulas reais).
+    Cada seção que falha (mesmo depois do retry em `tts.synthesize`) é
+    pulada e logada; o job só é reportado como falha total
+    (`report_failure`) se **nenhuma** seção sair — caso contrário sobe as
+    que deram certo (narração parcial é estritamente melhor que nenhuma) e
+    o log lista quais faltaram, pra rodar de novo mais tarde se quiser
+    completar (um reprocessamento da aula gera tudo de novo do zero).
+
+    Seções já narradas numa tentativa anterior do **mesmo** job (retomado
+    depois de reivindicação obsoleta, `_reclaim_stale`) não são refeitas —
+    o arquivo em `work_dir` já existe, então pula direto pro upload."""
     job_id = job["id"]
     claim_token = job["claim_token"]
     secoes = job["guia_secoes"]
@@ -284,15 +293,28 @@ def process_tts_job(job: dict) -> None:
             raise RuntimeError("aula sem GuiaSecao -- nada pra narrar (guia ainda no formato antigo?)")
 
         section_mp3_paths: dict[int, Path] = {}
+        failed_ordens: list[int] = []
         for secao in secoes:
             ordem = secao["ordem"]
-            _log(f"narrando seção {ordem}: \"{secao['titulo']}\"")
-            audio_bytes = tts.synthesize(secao["corpo"])
             mp3_path = work_dir / f"secao-{ordem}.mp3"
+            if mp3_path.exists():
+                _log(f"seção {ordem} já narrada numa tentativa anterior — pulando")
+                section_mp3_paths[ordem] = mp3_path
+                continue
+            _log(f"narrando seção {ordem}: \"{secao['titulo']}\"")
+            try:
+                audio_bytes = tts.synthesize(secao["corpo"])
+            except Exception as exc:  # noqa: BLE001 — só essa seção fica sem narração, o job segue
+                _log(f"seção {ordem} falhou ({exc}) — seguindo pras outras")
+                failed_ordens.append(ordem)
+                continue
             mp3_path.write_bytes(audio_bytes)
             section_mp3_paths[ordem] = mp3_path
 
-        _log("enviando narração...")
+        if not section_mp3_paths:
+            raise RuntimeError(f"nenhuma seção conseguiu ser narrada ({len(failed_ordens)} falharam)")
+
+        _log(f"enviando narração ({len(section_mp3_paths)}/{len(secoes)} seções)...")
         result = api_client.submit_tts_result(
             job_id, claim_token=claim_token, section_mp3_paths=section_mp3_paths
         )
@@ -300,12 +322,15 @@ def process_tts_job(job: dict) -> None:
             _log("servidor já tinha essa narração (reenvio idempotente) — ok")
         else:
             _log("narração enviada")
+        if failed_ordens:
+            _log(f"seções sem narração (falharam mesmo com retry): {failed_ordens} — reprocesse a aula pra tentar de novo")
 
         shutil.rmtree(work_dir, ignore_errors=True)
 
     except Exception as exc:  # noqa: BLE001 — falha vira status "failed" no servidor, nunca some silenciosa
         _log(f"FALHOU: {exc}")
         traceback.print_exc()
+        _log(f"nada em {work_dir} foi apagado — uma nova tentativa do mesmo job retoma dali")
         try:
             api_client.report_failure(job_id, claim_token, str(exc))
         except Exception as report_exc:  # noqa: BLE001

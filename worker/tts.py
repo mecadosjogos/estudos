@@ -6,12 +6,19 @@ importada direto: o modelo de TTS roda no processo do tts-service, reusável
 por qualquer outra coisa na máquina, não só este worker.
 """
 
+import time
+
 import httpx
 
 from . import config
 
 _HEALTHZ_TIMEOUT_S = 5.0
-_SYNTHESIZE_TIMEOUT_S = 120.0
+# 120s se mostrou curto demais na prática: numa aula real, a seção mais
+# longa do guia estourou esse teto com a narração já ~90% pronta (achado
+# processando lesson 2/8 de produção) -- 600s dá folga generosa mesmo pra
+# uma seção bem longa, sem custo nenhum quando a seção é curta (a chamada
+# retorna assim que terminar, não espera o teto).
+_SYNTHESIZE_TIMEOUT_S = 600.0
 
 
 def healthz() -> bool:
@@ -25,15 +32,23 @@ def healthz() -> bool:
         return False
 
 
-def synthesize(texto: str, speaker: str | None = None) -> bytes:
-    """Devolve os bytes do mp3 gerado. Levanta em caso de erro -- quem chama
-    (worker/main.py::process_tts_job) trata qualquer falha aqui como falha
-    do job inteiro (tudo-ou-nada, ver PLANO.md/plano desta feature), sem
-    tratamento especial neste cliente."""
-    resp = httpx.post(
-        f"{config.TTS_SERVICE_URL}/synthesize",
-        json={"texto": texto, "speaker": speaker},
-        timeout=_SYNTHESIZE_TIMEOUT_S,
-    )
-    resp.raise_for_status()
-    return resp.content
+def synthesize(texto: str, speaker: str | None = None, *, attempts: int = 2) -> bytes:
+    """Devolve os bytes do mp3 gerado. Tenta de novo uma vez (falha
+    transiente de rede/timeout) antes de desistir -- quem chama
+    (worker/main.py::process_tts_job) trata a falha final como falha só
+    daquela seção, não do job inteiro (ver docstring de process_tts_job)."""
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = httpx.post(
+                f"{config.TTS_SERVICE_URL}/synthesize",
+                json={"texto": texto, "speaker": speaker},
+                timeout=_SYNTHESIZE_TIMEOUT_S,
+            )
+            resp.raise_for_status()
+            return resp.content
+        except httpx.HTTPError as exc:
+            last_exc = exc
+            if attempt < attempts:
+                time.sleep(2)
+    raise last_exc

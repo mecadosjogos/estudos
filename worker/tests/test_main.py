@@ -171,6 +171,8 @@ def test_rebuild_job_fails_clearly_when_archive_missing(tmp_path, monkeypatch):
 
 
 def test_main_enqueues_pending_before_draining_gpu_queue(monkeypatch):
+    """Modo contínuo padrão (sem --target): alterna gpu_worker/tts_guia
+    sozinho -- ver worker/main.py::run, dispatch de dois alvos."""
     monkeypatch.setattr("sys.argv", ["main.py"])
     with (
         patch("worker.api_client.enqueue_pending_transcriptions", return_value=[]) as mock_enqueue,
@@ -179,7 +181,7 @@ def test_main_enqueues_pending_before_draining_gpu_queue(monkeypatch):
         worker_main.main()
 
     mock_enqueue.assert_called_once()
-    mock_run.assert_called_once_with(mode="drain", target="gpu_worker")
+    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"])
 
 
 def test_main_does_not_enqueue_for_vps_cpu_target(monkeypatch):
@@ -191,7 +193,7 @@ def test_main_does_not_enqueue_for_vps_cpu_target(monkeypatch):
         worker_main.main()
 
     mock_enqueue.assert_not_called()
-    mock_run.assert_called_once_with(mode="drain", target="vps_cpu")
+    mock_run.assert_called_once_with(mode="drain", targets=["vps_cpu"])
 
 
 def test_main_keeps_draining_even_if_enqueue_check_fails(monkeypatch):
@@ -207,4 +209,136 @@ def test_main_keeps_draining_even_if_enqueue_check_fails(monkeypatch):
     ):
         worker_main.main()
 
-    mock_run.assert_called_once_with(mode="drain", target="gpu_worker")
+    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"])
+
+
+def test_main_explicit_tts_guia_target_does_not_enqueue_transcriptions(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["main.py", "--target", "tts_guia"])
+    with (
+        patch("worker.api_client.enqueue_pending_transcriptions") as mock_enqueue,
+        patch("worker.main.run") as mock_run,
+    ):
+        worker_main.main()
+
+    mock_enqueue.assert_not_called()
+    mock_run.assert_called_once_with(mode="drain", targets=["tts_guia"])
+
+
+def test_run_skips_tts_guia_when_service_unhealthy_without_crashing(monkeypatch):
+    """Achado real processando aulas de produção: se o tts-service não está
+    de pé, o worker não pode travar nem derrubar o resto do loop -- só
+    ignora esse alvo naquele ciclo."""
+    with (
+        patch("worker.tts.healthz", return_value=False) as mock_healthz,
+        patch("worker.api_client.get_next_job", return_value=None) as mock_get_next_job,
+    ):
+        worker_main.run(mode="once", targets=["gpu_worker", "tts_guia"])
+
+    mock_healthz.assert_called_once()
+    # só tentou gpu_worker -- tts_guia foi pulado antes de perguntar ao servidor
+    mock_get_next_job.assert_called_once()
+    assert mock_get_next_job.call_args.args[1] == "gpu_worker"
+
+
+def _make_tts_job(job_id=500, secoes=None):
+    return {
+        "id": job_id,
+        "claim_token": "tok",
+        "lesson_id": 8,
+        "lesson_titulo": "Aula 2",
+        "guia_secoes": secoes
+        if secoes is not None
+        else [
+            {"ordem": 0, "titulo": "Introdução", "corpo": "texto 1"},
+            {"ordem": 1, "titulo": "Meio", "corpo": "texto 2"},
+            {"ordem": 2, "titulo": "Fim", "corpo": "texto 3"},
+        ],
+    }
+
+
+def test_tts_job_uploads_sections_that_succeeded_when_one_section_fails(tmp_path, monkeypatch):
+    """Achado real processando aulas de produção (lesson 2/8 na VPS): um
+    timeout numa seção jogava fora todo o resto já narrado. Agora só
+    aquela seção fica sem áudio -- o job sobe as demais e é reportado como
+    concluído, não como falha total."""
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+
+    job = _make_tts_job()
+
+    def fake_synthesize(texto, speaker=None):
+        if texto == "texto 2":
+            raise RuntimeError("timeout")
+        return b"audio-" + texto.encode()
+
+    uploaded_bytes = {}
+
+    def fake_submit(job_id, *, claim_token, section_mp3_paths):
+        # lê o conteúdo na hora da chamada -- process_tts_job apaga
+        # work_dir logo depois do envio confirmado, então ler os arquivos
+        # só depois de process_tts_job retornar pegaria tudo já apagado.
+        for ordem, path in section_mp3_paths.items():
+            uploaded_bytes[ordem] = path.read_bytes()
+        return {"ok": True, "already_received": False}
+
+    with (
+        patch("worker.tts.synthesize", side_effect=fake_synthesize),
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.submit_tts_result", side_effect=fake_submit) as mock_submit,
+        patch("worker.api_client.report_failure") as mock_fail,
+    ):
+        worker_main.process_tts_job(job)
+
+    mock_fail.assert_not_called()
+    mock_submit.assert_called_once()
+    assert set(uploaded_bytes.keys()) == {0, 2}  # seção 1 (ordem 1) ficou de fora
+    assert uploaded_bytes[0] == b"audio-texto 1"
+    assert uploaded_bytes[2] == b"audio-texto 3"
+
+    # sucesso (mesmo que parcial): diretório de trabalho é limpo
+    assert not (tmp_path / f"job-{job['id']}").exists()
+
+
+def test_tts_job_reports_total_failure_only_when_every_section_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    job = _make_tts_job()
+
+    with (
+        patch("worker.tts.synthesize", side_effect=RuntimeError("serviço fora do ar")),
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.submit_tts_result") as mock_submit,
+        patch("worker.api_client.report_failure") as mock_fail,
+    ):
+        worker_main.process_tts_job(job)
+
+    mock_submit.assert_not_called()
+    mock_fail.assert_called_once()
+    assert "nenhuma seção" in mock_fail.call_args.args[2]
+
+
+def test_tts_job_resumes_without_resynthesizing_sections_already_on_disk(tmp_path, monkeypatch):
+    """Job retomado (reivindicação obsoleta liberada de novo,
+    `_reclaim_stale`) não refaz seções cujo mp3 já está em work_dir."""
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    job = _make_tts_job()
+
+    work_dir = tmp_path / f"job-{job['id']}"
+    work_dir.mkdir(parents=True)
+    (work_dir / "secao-0.mp3").write_bytes(b"ja-narrada-antes")
+
+    uploaded_bytes = {}
+
+    def fake_submit(job_id, *, claim_token, section_mp3_paths):
+        for ordem, path in section_mp3_paths.items():
+            uploaded_bytes[ordem] = path.read_bytes()
+        return {"ok": True, "already_received": False}
+
+    with (
+        patch("worker.tts.synthesize", return_value=b"audio-novo") as mock_synth,
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.submit_tts_result", side_effect=fake_submit),
+    ):
+        worker_main.process_tts_job(job)
+
+    # só narrou as duas que faltavam -- a seção 0 não foi regenerada
+    assert mock_synth.call_count == 2
+    assert uploaded_bytes[0] == b"ja-narrada-antes"

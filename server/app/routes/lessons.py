@@ -463,22 +463,31 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     # Narração em áudio (TTS local via GPU, tts-service/): em dia quando
     # gerada depois da última vez que o guia mudou -- mesma comparação de
     # "carimbo de versão" que o resto do guia usa (nunca hash de conteúdo).
+    # Narração pode ser parcial (worker/main.py::process_tts_job sobe o que
+    # conseguiu narrar mesmo se uma seção falhar) -- por isso o link de
+    # cada seção só aparece se o arquivo dela existir de verdade, não só
+    # porque `guia_audio_gerado_em` está em dia.
     audio_pronto = (
         lesson.guia_audio_gerado_em is not None and lesson.guia_audio_gerado_em >= lesson.guia_gerado_em
     )
     if audio_pronto:
+        audio_dir = config.GUIA_AUDIO_DIR / f"lesson-{lesson_id}"
         for i, view in enumerate(secoes_view):
-            view["audio_url"] = f"/lessons/{lesson_id}/guia/secoes/{secoes[i].ordem}/audio.mp3"
-    audio_gerando = not audio_pronto and (
-        session.scalar(
-            select(TranscriptionJob.id).where(
-                TranscriptionJob.lesson_id == lesson_id,
-                TranscriptionJob.target == "tts_guia",
-                TranscriptionJob.status.in_(["pending", "claimed"]),
-            )
-        )
-        is not None
+            ordem = secoes[i].ordem
+            if (audio_dir / f"secao-{ordem}.mp3").exists():
+                view["audio_url"] = f"/lessons/{lesson_id}/guia/secoes/{ordem}/audio.mp3"
+
+    ultimo_job_audio = session.scalar(
+        select(TranscriptionJob)
+        .where(TranscriptionJob.lesson_id == lesson_id, TranscriptionJob.target == "tts_guia")
+        .order_by(TranscriptionJob.criado_em.desc())
+        .limit(1)
     )
+    audio_gerando = not audio_pronto and ultimo_job_audio is not None and ultimo_job_audio.status in (
+        "pending",
+        "claimed",
+    )
+    audio_falhou = not audio_pronto and ultimo_job_audio is not None and ultimo_job_audio.status == "failed"
 
     return templates.TemplateResponse(
         request,
@@ -492,6 +501,8 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "trechos_incompletos": trechos_incompletos,
             "audio_pronto": audio_pronto,
             "audio_gerando": audio_gerando,
+            "audio_falhou": audio_falhou,
+            "audio_erro": ultimo_job_audio.error if audio_falhou else None,
         },
     )
 
