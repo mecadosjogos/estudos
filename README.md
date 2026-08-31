@@ -46,6 +46,28 @@ Migração de banco continua manual — se o push mudou o schema, entre por SSH 
 
 Secrets do repositório usados pelo workflow (`Settings → Secrets and variables → Actions`): `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` — a chave é dedicada a este deploy, sem relação com as credenciais dos outros projetos na mesma VPS.
 
+**Rodar isso manualmente (ex.: sessão de Claude Code aplicando migração após um push).** Acesso local à mesma chave/VPS via `VPS_SSH_HOST`/`VPS_SSH_USER`/`VPS_SSH_KEY_PATH` no `.env` (nunca commitar o valor real — repositório é público; `.env` é gitignorado). Com essas três variáveis:
+
+```bash
+# confirma que o container já subiu com a imagem nova antes de migrar
+ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SSH_HOST" "docker inspect estudos-server-1 --format '{{.Created}}'"
+
+# roda a migração
+ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SSH_HOST" "docker exec estudos-server-1 python -m alembic upgrade head"
+
+# confirma
+ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SSH_HOST" "docker exec estudos-server-1 python -m alembic current"
+```
+
+Se o passo "Trigger Watchtower one-shot" do Actions falhar (aconteceu por instabilidade de rede pontual), dispara o mesmo Watchtower manualmente antes de migrar:
+
+```bash
+ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SSH_HOST" \
+  "docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower --run-once estudos-server-1"
+```
+
+**Cuidado**: essa VPS é compartilhada com outros projetos (`meca-interface-*`, `meca-automacoes-*`, `supabase-*`, `root-n8n-*`, `root-traefik-1`, entre outros rodando ali) — todo comando acima mexe *só* no container `estudos-server-1`, nunca use `docker compose down`/`up` sem escopo explícito nessa máquina.
+
 ---
 
 A transcrição de áudio (Whisper `large-v3`, GPU) roda numa máquina local, não no VPS — veja [worker/](worker/) e [docker-compose.worker.yml](docker-compose.worker.yml). O VPS só precisa de CPU para a válvula de emergência "transcrever na VPS agora".
