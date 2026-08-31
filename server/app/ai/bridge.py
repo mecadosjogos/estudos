@@ -53,47 +53,52 @@ explicado, sempre que der pra identificar um trecho claro na transcrição;
 se não der, deixe esses quatro campos como null em vez de inventar um
 horário. Não force pares que o professor não contrastou de verdade.
 
-GUIA DE AULA (campos guia_titulo/guia_arvore/guia_secoes/guia_topicos/
-guia_trechos_incompletos): além dos blocos tipados acima, produza também
-um guia de leitura estruturado — um artefato diferente, não uma cópia dos
-blocos, com uma liberdade que os blocos de `aula_editada` NÃO têm: dentro
-de uma seção, você pode REORDENAR o raciocínio (conceito → explicação →
-exemplo → observações) desde que seja só reorganização do que já foi
-dito, nunca reescrita de conteúdo — os blocos de `aula_editada` continuam
-presos à ordem/tempo originais, porque ▸ ouvir o original depende disso.
-As mesmas regras de fidelidade ("não invente", preserve a voz do
-professor) valem aqui também; não resuma a ponto de perder conteúdo — o
-objetivo é organizar, não encurtar.
+GUIA DE AULA (campo `guia_md`, uma string markdown só): além dos blocos
+tipados acima, produza também um guia de leitura corrido — um artefato
+diferente, não uma cópia dos blocos, com uma liberdade que os blocos de
+`aula_editada` NÃO têm: dentro de uma seção, você pode REORDENAR o
+raciocínio (conceito → explicação → exemplo → observações) desde que seja
+só reorganização do que já foi dito, nunca reescrita de conteúdo — os
+blocos de `aula_editada` continuam presos à ordem/tempo originais, porque
+▸ ouvir o original depende disso. As mesmas regras de fidelidade
+("não invente", preserve a voz do professor) valem aqui também; não
+resuma a ponto de perder conteúdo — o objetivo é organizar, não encurtar.
+Ao reorganizar, preserve as referências cruzadas que o próprio professor
+fez entre momentos/tópicos da aula ("isso a gente já viu", "voltando ao
+artigo tal") — é fala dele, não pode se perder na reorganização.
 
-- guia_titulo: título da aula, se identificável, senão "Aula sem título
-  identificado".
-- guia_arvore: a árvore (na verdade pode ser uma FLORESTA — vários ramos
-  independentes, sem raiz única forçada) de classificações que o
-  professor efetivamente construiu na fala (ex.: "a lei penal se divide
-  em incriminadora ou não incriminadora; a não incriminadora se divide em
-  explicativa ou permissiva" vira três níveis aninhados). Nunca complete
-  com uma classificação "padrão" da doutrina que não foi mencionada nesta
-  aula — um ramo não subdividido pelo professor fica como folha (lista de
-  filhos vazia). Uma ou duas palavras por nó, não frases. Se o professor
-  não construiu classificação nenhuma nesta aula, devolva lista vazia.
-- guia_secoes: o corpo do guia, organizado por seções, nesta ordem.
-  Quando um aluno ou outra pessoa fala, identifique com "Aluno:" ou
-  "Pergunta de aluno:" dentro do texto da seção, separado da fala do
-  professor — só inclua quando relevante pro raciocínio que vem em
-  seguida. Use negrito nos pontos que o próprio professor tratou como
-  centrais (ênfase na fala, repetição, "isso cai em prova", "atenção",
-  "gravem isso").
-- guia_topicos: o sumário — um item por seção de guia_secoes, na MESMA
-  ordem (a ligação entre sumário e seção é a posição na lista, calculada
-  em código depois — não é um campo que você preenche). Só o título de
-  cada tópico.
-- guia_trechos_incompletos: se houver, a lista dos trechos marcados como
-  "[trecho incompleto/inaudível na transcrição]" dentro de guia_secoes.
+Estrutura do `guia_md`, nesta ordem:
+1. Título da aula (se identificável, senão "Aula sem título identificado").
+2. "## Árvore de conhecimento" — lista aninhada em Markdown (marcadores
+   "-", indentada por nível) só com a hierarquia de classificações que o
+   professor efetivamente construiu na fala (ex.: "a lei penal se divide
+   em incriminadora ou não incriminadora; a não incriminadora se divide em
+   explicativa ou permissiva" vira três níveis aninhados). Nunca complete
+   com uma classificação "padrão" da doutrina que não foi mencionada nesta
+   aula — um ramo não subdividido pelo professor fica como folha. Uma ou
+   duas palavras por nó, não frases.
+3. "## Sumário dos tópicos abordados" — lista dos tópicos.
+4. Corpo organizado por seções ("## <título da seção>"), cada uma podendo
+   ter sub-títulos "###" se o próprio professor subdividiu o tópico.
+   Parágrafos devem seguir a pausa/virada de assunto natural da fala, não
+   amontoar tudo num bloco só de texto denso. Quando um aluno ou outra
+   pessoa fala, identifique com "Aluno:" ou "Pergunta de aluno:", separado
+   da fala do professor — só inclua quando relevante pro raciocínio que
+   vem em seguida. Quando o professor apresentar um exemplo ou caso
+   prático, identifique com "Exemplo:" no início do trecho, mesmo padrão
+   do "Aluno:"/"Pergunta de aluno:". Use negrito nos mesmos pontos que os
+   sinais calculados em código (repetição/ritmo, ver acima) já usaram pra
+   marcar um bloco como `destaque-prova` — não redetecte isso do zero,
+   reaproveite a mesma leitura pra manter o guia consistente com a aula
+   editada sobre o que é central.
+5. Ao final, se houver, uma lista dos trechos marcados como
+   "[trecho incompleto/inaudível na transcrição]".
 
-IMPORTANTE: nunca digite números nesses campos (nem "1.", nem "Seção 2",
-nem nada equivalente) — a numeração do sumário e das seções sempre é
-calculada pelo código a partir da posição na lista, nunca por você. Isso
-evita sumário e seções saírem com numeração inconsistente entre si.
+IMPORTANTE: nunca numere manualmente os itens do sumário nem os títulos
+das seções (nem "1.", nem "Seção 2", nem nada equivalente) — a numeração
+sempre é calculada em código a partir da posição na lista, nunca por
+você. Isso evita sumário e seções saírem com numeração inconsistente
+entre si.
 
 Devolva JSON válido no formato do schema abaixo — nada além do JSON."""
 

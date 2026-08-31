@@ -5,7 +5,7 @@ cache, no mesmo formato de sempre (título, árvore, sumário, corpo, trechos
 incompletos), pra export/corpus.py, export/exam_export.py e a rota
 /guia.md continuarem funcionando sem mudança nenhuma."""
 
-from .schemas import GuiaArvoreNoOut, GuiaSecaoOut, GuiaTopicoOut
+from .guia_parser import GuiaArvoreNoOut, GuiaSecaoOut, GuiaTopicoOut
 
 
 def _render_arvore(nodes: list[GuiaArvoreNoOut], nivel: int = 0) -> list[str]:

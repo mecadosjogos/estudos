@@ -40,7 +40,7 @@ def _pasted_response(mapa_mermaid):
         "resumo": "R.", "aula_editada": [
             {"tipo": "conceito", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0}
         ],
-        "indice": [], "guia_titulo": "G", "guia_secoes": [], "guia_topicos": [],
+        "indice": [], "guia_md": "# G\n",
         "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": [], "pares_confundiveis": [], "mapa_mermaid": mapa_mermaid, "assuntos": [],
     }

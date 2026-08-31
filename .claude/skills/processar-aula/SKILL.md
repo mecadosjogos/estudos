@@ -12,12 +12,14 @@ papel que a API paga da Anthropic ocuparia — o usuário decidiu não usar
 `ANTHROPIC_API_KEY` e fazer essa etapa manualmente, através de você.
 
 **Primeiro passo, sempre:** leia [RUNBOOK.md](../../../RUNBOOK.md) na raiz
-do repo inteiro, incluindo a seção "Fluxos por fase". Ele é a fonte de
-verdade de como fazer cada tipo de passada de IA (fase 6: processar aula;
-fases futuras: o que a seção correspondente descrever quando existir). Não
-duplique aqui o que está lá — siga o que estiver escrito nele, mesmo que
-divirja do que este arquivo sugere, porque o runbook é atualizado a cada
-fase nova e este arquivo não é.
+do repo, as seções "Por que isso funciona sem custo", "Ambiente" e
+"Fase 6 — Processar aula" (e "Custo", se for conferir o registro no fim).
+Não precisa ler o resto do arquivo — as demais fases ("Fluxos por fase"
+além da 6) não têm nada a ver com processar aula. Ele é a fonte de
+verdade de como fazer essa passada de IA. Não duplique aqui o que está
+lá — siga o que estiver escrito nele, mesmo que divirja do que este
+arquivo sugere, porque o runbook é atualizado a cada fase nova e este
+arquivo não é.
 
 ## Alvo
 
@@ -43,7 +45,7 @@ completar a primeira** — a etapa 0 do RUNBOOK.md, seguida da etapa 1:
 - **Etapa 1:** só depois disso, aulas com transcrição **já aprovada**
   (`Transcript.aprovado_em` preenchido) e ainda sem `resumo` → processa.
   **Uma leitura só da transcrição gera tudo**: aula editada, cards,
-  propostas e o guia de aula (campos `guia_*`) saem do mesmo JSON — não baixe
+  propostas e o guia de aula (campo `guia_md`) saem do mesmo JSON — não baixe
   nem cole nada duas vezes por aula.
 
 **Aula com transcrição pendente de revisão humana (sem aprovar) NUNCA

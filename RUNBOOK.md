@@ -241,19 +241,22 @@ a transcrição literal de cada aula vinculada (nunca a aula editada) — hoje
 marca onde começa/termina dentro da aula (simplificação deliberada da fase
 8a; ver o módulo pra decisão completa).
 
-**Guia de aula** vem no mesmo `resposta.md` acima, agora em campos
-estruturados (`guia_titulo`, `guia_arvore`, `guia_secoes`, `guia_topicos`,
-`guia_trechos_incompletos`) em vez de uma string markdown só — não é mais
-um passo separado. Árvore e seções (`GuiaSecao`) continuam sem
-`deriv_key`/reconcile — reprocessar substitui por inteiro, mesmo motivo de
-sempre (documento derivado, nada editável). Os itens do sumário
-(`GuiaTopico`) SÃO reconciliados por `deriv_key` de texto normalizado
-(mesmo padrão de `assuntos`), porque carregam um estado editável à mão — a
-correção manual de pra qual seção o item aponta — que precisa sobreviver a
-reprocessamento. `Lesson.guia_md` continua existindo, mas agora é um cache
-remontado por código a partir desses campos (`ai/guia_markdown.py`), não
-mais escrito direto pela IA — é o que a rota `/guia.md` (o botão
-"Exportar") serve.
+**Guia de aula** vem no mesmo `resposta.md` acima, campo `guia_md` do
+JSON — um markdown corrido só (título / árvore de conhecimento / sumário /
+corpo por seções / trechos incompletos, nesta ordem — ver ai/bridge.py),
+não é mais um passo separado. Um parser em código (`ai/guia_parser.py`,
+zero chamada de IA extra) interpreta esses mesmos cabeçalhos pra derivar
+título, árvore e as duas tabelas estruturadas (`GuiaSecao`, `GuiaTopico`).
+Árvore e seções continuam sem `deriv_key`/reconcile — reprocessar substitui
+por inteiro, mesmo motivo de sempre (documento derivado, nada editável).
+Os itens do sumário (`GuiaTopico`) SÃO reconciliados por `deriv_key` de
+texto normalizado (mesmo padrão de `assuntos`), porque carregam um estado
+editável à mão — a correção manual de pra qual seção o item aponta — que
+precisa sobreviver a reprocessamento. `Lesson.guia_md` continua existindo,
+mas agora é um cache remontado por código a partir dos campos derivados
+pelo parser (`ai/guia_markdown.py`) — garante que a numeração de sumário e
+seções seja sempre calculada em código, nunca digitada pela IA — é o que a
+rota `/guia.md` (o botão "Exportar") serve.
 
 **Aulas processadas antes dessa mudança não precisam de nada especial.**
 A tela `/guia` detecta se existe `GuiaSecao` pra aquela aula: se não

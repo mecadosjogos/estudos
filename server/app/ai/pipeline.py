@@ -32,6 +32,7 @@ from .bridge import build_prompt
 from .budget import check_budget_or_raise
 from .deriv_key import compute_deriv_key
 from .guia_markdown import build_guia_markdown
+from .guia_parser import parse_guia_markdown
 from .parse import parse_pasted_response
 from .pricing import estimate_cost_usd
 from .reconcile import reconcile
@@ -170,18 +171,25 @@ def _ingest(
     lesson.mapa_mermaid = output.mapa_mermaid
     transcript_segments = lesson.transcript.segments if lesson.transcript else []
 
-    # Guia estruturado: título/árvore regeneram por inteiro (sem deriv_key,
-    # mesmo motivo do resumo/mapa_mermaid -- nada aqui é editável à mão).
-    lesson.guia_titulo = output.guia_titulo
+    # Guia de aula: a IA escreve `guia_md` como markdown corrido só (ver
+    # ai/bridge.py); um parser em código (ai/guia_parser.py, zero chamada de
+    # IA extra) deriva os mesmos pedaços estruturados que o app persiste --
+    # título/árvore/seções/sumário/trechos incompletos -- a partir dos
+    # cabeçalhos que a IA já usa naturalmente.
+    parsed_guia = parse_guia_markdown(output.guia_md)
+
+    # Título/árvore regeneram por inteiro (sem deriv_key, mesmo motivo do
+    # resumo/mapa_mermaid -- nada aqui é editável à mão).
+    lesson.guia_titulo = parsed_guia.titulo
     lesson.guia_arvore_json = json.dumps(
-        [node.model_dump() for node in output.guia_arvore], ensure_ascii=False
+        [node.model_dump() for node in parsed_guia.arvore], ensure_ascii=False
     )
-    lesson.guia_trechos_incompletos_json = json.dumps(output.guia_trechos_incompletos, ensure_ascii=False)
+    lesson.guia_trechos_incompletos_json = json.dumps(parsed_guia.trechos_incompletos, ensure_ascii=False)
 
     # GuiaSecao: apaga e recria por inteiro, sem reconcile -- mesma
     # filosofia da árvore/título acima.
     session.execute(delete(GuiaSecao).where(GuiaSecao.lesson_id == lesson.id))
-    for ordem, s in enumerate(output.guia_secoes):
+    for ordem, s in enumerate(parsed_guia.secoes):
         session.add(GuiaSecao(lesson_id=lesson.id, ordem=ordem, titulo=s.titulo, corpo=s.corpo))
 
     # GuiaTopico: reconciliado por título normalizado (mesmo padrão de
@@ -189,7 +197,7 @@ def _ingest(
     # que precisa sobreviver a reprocessamento (ver models.py::GuiaTopico).
     topico_counts: dict[str, int] = {}
     topico_items = []
-    for ordem, t in enumerate(output.guia_topicos):
+    for ordem, t in enumerate(parsed_guia.topicos):
         slug = normalize_slug(t.titulo)
         occurrence = topico_counts.get(slug, 0)
         topico_counts[slug] = occurrence + 1
@@ -203,11 +211,11 @@ def _ingest(
     # acima, pra export/corpus.py, export/exam_export.py e a rota /guia.md
     # continuarem funcionando sem mudança.
     lesson.guia_md = build_guia_markdown(
-        titulo=output.guia_titulo,
-        arvore=output.guia_arvore,
-        topicos=output.guia_topicos,
-        secoes=output.guia_secoes,
-        trechos_incompletos=output.guia_trechos_incompletos,
+        titulo=parsed_guia.titulo,
+        arvore=parsed_guia.arvore,
+        topicos=parsed_guia.topicos,
+        secoes=parsed_guia.secoes,
+        trechos_incompletos=parsed_guia.trechos_incompletos,
     )
     lesson.guia_gerado_em = datetime.now(timezone.utc)
 

@@ -79,13 +79,16 @@ class Lesson(Base):
 
     # Guia estruturado: título próprio (pode ser mais descritivo que
     # Lesson.titulo) e a árvore de conhecimento como JSON (lista de
-    # {rotulo, filhos} -- ver GuiaArvoreNoOut). Regenerados por inteiro a
-    # cada reprocessamento, sem deriv_key, mesmo motivo do resumo/guia_md
-    # acima -- nada aqui é editável à mão. `guia_md`/`guia_gerado_em`
-    # continuam existindo como cache remontado por código a partir destes
-    # campos + GuiaSecao/GuiaTopico (ver ai/guia_markdown.py), pra
-    # export/corpus.py, export/exam_export.py e a rota /guia.md
-    # continuarem funcionando sem mudança.
+    # {rotulo, filhos} -- ver GuiaArvoreNoOut em ai/guia_parser.py).
+    # Derivados por um parser em código a partir do `guia_md` que a IA
+    # escreve (markdown corrido só, ver ai/bridge.py), não preenchidos
+    # direto pela IA. Regenerados por inteiro a cada reprocessamento, sem
+    # deriv_key, mesmo motivo do resumo/guia_md acima -- nada aqui é
+    # editável à mão. `guia_md`/`guia_gerado_em` continuam existindo como
+    # cache remontado por código a partir destes campos + GuiaSecao/
+    # GuiaTopico (ver ai/guia_markdown.py), pra export/corpus.py,
+    # export/exam_export.py e a rota /guia.md continuarem funcionando sem
+    # mudança.
     guia_titulo: Mapped[str | None] = mapped_column(String, nullable=True)
     guia_arvore_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     guia_trechos_incompletos_json: Mapped[str | None] = mapped_column(Text, nullable=True)

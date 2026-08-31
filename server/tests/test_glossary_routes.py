@@ -44,8 +44,7 @@ def _pasted_response(termos) -> str:
             {"tipo": "conceito", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0},
         ],
         "indice": [{"titulo": "Posse", "start_s": 0.0, "end_s": 5.0}],
-        "guia_titulo": "Posse", "guia_secoes": [{"titulo": "Posse", "corpo": "Guia de teste."}],
-        "guia_topicos": [{"titulo": "Posse"}],
+        "guia_md": "# Posse\n\n## Posse\n\nGuia de teste.\n",
         "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": termos, "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
     }
@@ -440,7 +439,7 @@ def test_edited_lesson_highlights_active_glossary_terms(app_env):
         "aula_editada": [
             {"tipo": "normal", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0},
         ],
-        "indice": [], "guia_titulo": "Posse", "guia_secoes": [], "guia_topicos": [],
+        "indice": [], "guia_md": "# Posse\n",
         "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
     }

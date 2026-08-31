@@ -38,23 +38,30 @@ def _make_transcribed_lesson(session, texts, titulo="Aula com transcrição"):
 
 def _pasted_response(titulo="Aula sem título identificado", secoes=None, topicos=None) -> str:
     """O guia sai da MESMA resposta que a aula editada (fase 6 revisada) --
-    não existe mais um `colar-guia` separado. Ver ai/schemas.py, guia_titulo
-    e demais campos guia_*."""
+    não existe mais um `colar-guia` separado. A IA escreve `guia_md` como
+    markdown corrido (título/sumário/seções, ver ai/bridge.py); o app deriva
+    GuiaSecao/GuiaTopico/árvore em código a partir dele (ai/guia_parser.py)."""
     if secoes is None:
         secoes = [{"titulo": titulo, "corpo": "Conteúdo do guia."}]
     if topicos is None:
         topicos = [{"titulo": s["titulo"]} for s in secoes]
+
+    parts = [f"# {titulo}\n"]
+    if topicos:
+        parts.append("## Sumário dos tópicos abordados\n")
+        parts.append("\n".join(f"- {t['titulo']}" for t in topicos) + "\n")
+    for s in secoes:
+        parts.append(f"## {s['titulo']}\n")
+        parts.append(s["corpo"] + "\n")
+    guia_md = "\n".join(parts)
+
     payload = {
         "resumo": "Resumo curto.",
         "aula_editada": [
             {"tipo": "destaque-prova", "texto": "A posse exige corpus e animus.", "start_s": 0.0, "end_s": 5.0},
         ],
         "indice": [{"titulo": "Posse", "start_s": 0.0, "end_s": 5.0}],
-        "guia_titulo": titulo,
-        "guia_arvore": [],
-        "guia_secoes": secoes,
-        "guia_topicos": topicos,
-        "guia_trechos_incompletos": [],
+        "guia_md": guia_md,
         "artigos": [], "datas_anunciadas": [], "cards": [],
         "termos": [], "pares_confundiveis": [], "mapa_mermaid": None, "assuntos": [],
     }
