@@ -24,6 +24,10 @@ archive/*
 # Área de trabalho temporária do worker (segmentos baixados, concatenação)
 worker/tmp/
 
+# Vozes de referência do TTS local (tts-service/) -- dado biométrico
+# pessoal, nunca versionado nem enviado pra VPS; fica só nesta máquina.
+tts-service/vozes/
+
 # Backups
 backups/
 

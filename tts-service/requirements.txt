@@ -1,7 +1,5 @@
-coqui-tts
-# coqui-tts 0.27.5 ainda usa transformers.pytorch_utils.isin_mps_friendly,
-# removido no transformers 5.x -- pin explícito até o coqui-tts soltar uma
-# versão compatível com o transformers novo (checar de novo ao atualizar).
-transformers==4.57.1
+chatterbox-tts
+soundfile
+numpy
 fastapi
 uvicorn[standard]

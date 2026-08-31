@@ -1,6 +1,18 @@
-# Instala o serviço de TTS local (Coqui XTTS v2) -- standalone, não depende
-# de nada do resto do repositório Estudos. Reusável por qualquer script na
-# máquina via HTTP (ver main.py).
+# Instala o serviço de TTS local (Chatterbox Multilingual v3, Resemble AI)
+# -- standalone, não depende de nada do resto do repositório Estudos.
+# Reusável por qualquer script na máquina via HTTP (ver main.py).
+#
+# Clonagem de voz: precisa de pelo menos uma pasta em vozes\<nome>\ com
+# ref.wav (alguns segundos, voz limpa, sem eco/ruído de fundo -- qualidade
+# da gravação importa bastante) antes de /synthesize funcionar -- fora do
+# git de propósito, dado biométrico pessoal. GET /speakers lista o que já
+# está configurado.
+#
+# Trocado do F5-TTS pra este depois de comparar os dois com a mesma voz de
+# referência: F5-TTS produzia áudio embaralhado em PT-BR mesmo com dois
+# checkpoints comunitários diferentes (achado real, ver histórico do
+# projeto); Chatterbox tem parâmetro explícito de idioma (`language_id`),
+# não depende só do fine-tune/referência pra "adivinhar" o idioma.
 #
 # Precisa: Python 3.12+, GPU NVIDIA com driver instalado, ffmpeg no PATH --
 # mesmos pré-requisitos que scripts\instalar_maquina_worker.ps1 já confere
@@ -26,4 +38,4 @@ Write-Host "Instalando dependências do serviço..."
 
 Write-Host ""
 Write-Host "Instalado. Rode .\tts-service\iniciar.ps1 para subir o serviço."
-Write-Host "No primeiro start, o modelo XTTS v2 (~2GB) é baixado automaticamente."
+Write-Host "No primeiro start, os pesos do Chatterbox são baixados automaticamente."
