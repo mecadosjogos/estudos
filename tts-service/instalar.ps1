@@ -2,11 +2,11 @@
 # -- standalone, não depende de nada do resto do repositório Estudos.
 # Reusável por qualquer script na máquina via HTTP (ver main.py).
 #
-# Clonagem de voz: precisa de pelo menos uma pasta em vozes\<nome>\ com
-# ref.wav (alguns segundos, voz limpa, sem eco/ruído de fundo -- qualidade
-# da gravação importa bastante) antes de /synthesize funcionar -- fora do
-# git de propósito, dado biométrico pessoal. GET /speakers lista o que já
-# está configurado.
+# Usa a voz embutida padrão do modelo -- sem clonagem, por decisão
+# explícita do usuário, nenhum dado de voz pessoal envolvido. Clonagem
+# opcional continua existindo no código (pasta vozes\<nome>\ref.wav, fora
+# do git de propósito) pra quem quiser reativar depois, mas não é o
+# caminho usado hoje.
 #
 # Trocado do F5-TTS pra este depois de comparar os dois com a mesma voz de
 # referência: F5-TTS produzia áudio embaralhado em PT-BR mesmo com dois

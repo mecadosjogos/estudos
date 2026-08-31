@@ -414,6 +414,15 @@ class GuiaSecao(Base):
     titulo: Mapped[str] = mapped_column(String, nullable=False)
     corpo: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Narração (TTS local via GPU, tts-service/): posição desta seção no
+    # único mp3 do guia (Lesson.guia_audio_gerado_em) -- nulo enquanto a
+    # narração não existe, ou se essa seção específica falhou ao narrar
+    # (worker/main.py::process_tts_job segue sem ela, narração parcial é
+    # melhor que nenhuma). Um áudio só por aula, não um por seção -- pra
+    # tocar contínuo, mesmo padrão de TranscriptSegment.start_s/end_s.
+    audio_start_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    audio_end_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

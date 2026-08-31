@@ -114,6 +114,34 @@ def test_view_guia_renders_structured_page(app_env):
     assert 'id="secao-1"' in response.text
 
 
+def test_view_guia_shows_section_number_in_heading(app_env):
+    """Achado real: o número já era calculado (usado na âncora e no
+    sumário via <ol>), mas nunca aparecia impresso no <h2> da seção --
+    quem lê o guia não via numeração nenhuma acompanhando o título."""
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    secoes = [
+        {"titulo": "Introdução", "corpo": "Texto 1."},
+        {"titulo": "Posse", "corpo": "Texto 2."},
+    ]
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(titulo="Aula", secoes=secoes)},
+    )
+
+    response = client.get(f"/lessons/{lesson_id}/guia")
+    assert "1. Introdução" in response.text
+    assert "2. Posse" in response.text
+
+    md_response = client.get(f"/lessons/{lesson_id}/guia.md")
+    assert "## 1. Introdução" in md_response.text
+    assert "## 2. Posse" in md_response.text
+
+
 def test_view_guia_falls_back_to_legado_without_guia_secao(app_env):
     """Aula processada antes da estruturação do guia (guia_md preenchido,
     mas sem GuiaSecao) continua mostrando o guia do jeito que sempre foi --
@@ -345,34 +373,39 @@ def test_tts_result_saves_section_audios_and_marks_lesson_ready(app_env):
     assert claim["lesson_id"] == lesson_id
     assert [s["titulo"] for s in claim["guia_secoes"]] == ["Introdução", "Posse"]
 
+    timestamps = json.dumps(
+        [{"ordem": 0, "start_s": 0.0, "end_s": 3.0}, {"ordem": 1, "start_s": 3.6, "end_s": 7.0}]
+    )
     response = client.post(
         f"/api/jobs/{claim['id']}/tts-result",
-        data={"claim_token": claim["claim_token"]},
-        files=[
-            ("audios", ("0.mp3", b"audio secao 0")),
-            ("audios", ("1.mp3", b"audio secao 1")),
-        ],
+        data={"claim_token": claim["claim_token"], "timestamps": timestamps},
+        files={"audio": ("guia.mp3", b"audio da aula inteira")},
     )
     assert response.status_code == 200
     assert response.json() == {"ok": True, "already_received": False}
 
     with holder.SessionLocal() as session:
+        from app.models import GuiaSecao
+
         lesson = session.get(Lesson, lesson_id)
         assert lesson.guia_audio_gerado_em is not None
         job = session.get(TranscriptionJob, claim["id"])
         assert job.status == "done"
 
+        secoes = session.query(GuiaSecao).filter_by(lesson_id=lesson_id).order_by(GuiaSecao.ordem).all()
+        assert secoes[0].audio_start_s == 0.0 and secoes[0].audio_end_s == 3.0
+        assert secoes[1].audio_start_s == 3.6 and secoes[1].audio_end_s == 7.0
+
     from app import config
 
     lesson_dir = config.GUIA_AUDIO_DIR / f"lesson-{lesson_id}"
-    assert (lesson_dir / "secao-0.mp3").read_bytes() == b"audio secao 0"
-    assert (lesson_dir / "secao-1.mp3").read_bytes() == b"audio secao 1"
+    assert (lesson_dir / "guia.mp3").read_bytes() == b"audio da aula inteira"
 
     # Reenvio idempotente (mesmo claim_token, job já "done") não duplica nem falha.
     again = client.post(
         f"/api/jobs/{claim['id']}/tts-result",
-        data={"claim_token": claim["claim_token"]},
-        files=[("audios", ("0.mp3", b"audio secao 0"))],
+        data={"claim_token": claim["claim_token"], "timestamps": timestamps},
+        files={"audio": ("guia.mp3", b"audio da aula inteira")},
     )
     assert again.json() == {"ok": True, "already_received": True}
 
@@ -391,16 +424,17 @@ def test_view_guia_shows_player_once_audio_ready(app_env):
     claim = client.get("/api/jobs/next", params={"worker_name": "w", "target": "tts_guia"}).json()["job"]
     client.post(
         f"/api/jobs/{claim['id']}/tts-result",
-        data={"claim_token": claim["claim_token"]},
-        files=[("audios", ("0.mp3", b"audio"))],
+        data={"claim_token": claim["claim_token"], "timestamps": json.dumps([{"ordem": 0, "start_s": 0.0, "end_s": 3.0}])},
+        files={"audio": ("guia.mp3", b"audio")},
     )
 
     response = client.get(f"/lessons/{lesson_id}/guia")
     assert 'id="guia-player"' in response.text
     assert "narração sendo gerada" not in response.text
-    assert f"/lessons/{lesson_id}/guia/secoes/0/audio.mp3" in response.text
+    assert f"/lessons/{lesson_id}/guia/audio.mp3" in response.text
+    assert 'data-audio-start="0.0"' in response.text
 
-    audio_response = client.get(f"/lessons/{lesson_id}/guia/secoes/0/audio.mp3")
+    audio_response = client.get(f"/lessons/{lesson_id}/guia/audio.mp3")
     assert audio_response.status_code == 200
     assert audio_response.content == b"audio"
 
@@ -421,8 +455,8 @@ def test_reprocessing_makes_existing_audio_stale_and_requeues(app_env):
     claim = client.get("/api/jobs/next", params={"worker_name": "w", "target": "tts_guia"}).json()["job"]
     client.post(
         f"/api/jobs/{claim['id']}/tts-result",
-        data={"claim_token": claim["claim_token"]},
-        files=[("audios", ("0.mp3", b"audio"))],
+        data={"claim_token": claim["claim_token"], "timestamps": json.dumps([{"ordem": 0, "start_s": 0.0, "end_s": 3.0}])},
+        files={"audio": ("guia.mp3", b"audio")},
     )
     assert 'id="guia-player"' in client.get(f"/lessons/{lesson_id}/guia").text
 

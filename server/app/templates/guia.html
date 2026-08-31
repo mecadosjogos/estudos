@@ -22,9 +22,11 @@
 
 {% if audio_pronto %}
 <div class="card player-card">
-	<audio id="guia-player"></audio>
+	<audio id="guia-player" src="/lessons/{{ lesson.id }}/guia/audio.mp3" preload="metadata"></audio>
 	<div class="player-controls">
 		<button type="button" id="guia-player-play">▸ tocar</button>
+		<button type="button" id="guia-player-back15">−15s</button>
+		<button type="button" id="guia-player-fwd15">+15s</button>
 		<span id="guia-player-status" class="muted"></span>
 	</div>
 </div>
@@ -69,9 +71,9 @@
 
 {% for secao in secoes %}
 <h2 id="secao-{{ secao.numero }}"
-	{% if secao.audio_url %}class="guia-secao-titulo" data-audio-src="{{ secao.audio_url }}" data-audio-titulo="{{ secao.titulo }}"{% endif %}>
-	{{ secao.titulo }}
-	{% if secao.audio_url %}<button type="button" class="button-ghost guia-ouvir-secao">▸ ouvir esta seção</button>{% endif %}
+	{% if secao.audio_start_s is not none %}class="guia-secao-titulo" data-audio-start="{{ secao.audio_start_s }}" data-audio-end="{{ secao.audio_end_s }}" data-audio-titulo="{{ secao.titulo }}"{% endif %}>
+	{{ secao.numero }}. {{ secao.titulo }}
+	{% if secao.audio_start_s is not none %}<button type="button" class="button-ghost guia-ouvir-secao">▸ ouvir esta seção</button>{% endif %}
 </h2>
 <div class="card markdown-body guia-secao">
 	{{ secao.html | safe }}
@@ -88,55 +90,90 @@
 {% if audio_pronto %}
 <script>
 	(function () {
+		// Áudio único pra aula inteira (mesmo padrão de reading.js pro áudio
+		// real da aula: buscar por tempo, destacar por timeupdate) -- não é
+		// uma fila de faixas separadas, é um mp3 só com as seções em
+		// sequência.
 		const player = document.getElementById("guia-player");
 		const playBtn = document.getElementById("guia-player-play");
+		const back15Btn = document.getElementById("guia-player-back15");
+		const fwd15Btn = document.getElementById("guia-player-fwd15");
 		const statusEl = document.getElementById("guia-player-status");
-		const headers = Array.from(document.querySelectorAll("h2[data-audio-src]"));
-		let current = -1;
+		const secoes = Array.from(document.querySelectorAll("h2[data-audio-start]")).map((el) => ({
+			el,
+			start: parseFloat(el.dataset.audioStart),
+			end: parseFloat(el.dataset.audioEnd),
+			titulo: el.dataset.audioTitulo,
+		}));
 
-		function load(index, autoplay) {
-			if (index < 0 || index >= headers.length) return;
-			current = index;
-			const h = headers[index];
-			const titulo = h.dataset.audioTitulo;
-			player.src = h.dataset.audioSrc;
-			if (autoplay) player.play();
-			statusEl.textContent = `${index + 1}/${headers.length} — ${titulo}`;
-			headers.forEach((el) => el.classList.remove("guia-secao-atual"));
-			h.classList.add("guia-secao-atual");
-			h.scrollIntoView({ behavior: "smooth", block: "center" });
-
-			if ("mediaSession" in navigator) {
-				navigator.mediaSession.metadata = new MediaMetadata({
-					title: titulo,
-					artist: {{ lesson.guia_titulo | tojson }},
-					album: "Guia narrado — Estudos",
-				});
-			}
+		function seekTo(seconds) {
+			player.currentTime = seconds;
+			player.play();
 		}
 
 		playBtn.addEventListener("click", () => {
-			if (current === -1) load(0, true);
-			else if (player.paused) player.play();
+			if (player.paused) player.play();
 			else player.pause();
 		});
-		player.addEventListener("ended", () => load(current + 1, true));
+		back15Btn.addEventListener("click", () => {
+			player.currentTime = Math.max(0, player.currentTime - 15);
+		});
+		fwd15Btn.addEventListener("click", () => {
+			player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 15);
+		});
 
-		headers.forEach((h, index) => {
-			const btn = h.querySelector(".guia-ouvir-secao");
+		secoes.forEach((s) => {
+			const btn = s.el.querySelector(".guia-ouvir-secao");
 			if (btn) {
 				btn.addEventListener("click", (e) => {
 					e.stopPropagation();
-					load(index, true);
+					seekTo(s.start);
 				});
 			}
 		});
+
+		player.addEventListener("play", () => { playBtn.textContent = "⏸ pausar"; });
+		player.addEventListener("pause", () => { playBtn.textContent = "▸ tocar"; });
+
+		let lastHighlighted = null;
+		function highlightCurrentSecao() {
+			const t = player.currentTime;
+			const current = secoes.find((s) => t >= s.start && t < s.end);
+			if (current === lastHighlighted) return;
+			if (lastHighlighted) lastHighlighted.el.classList.remove("guia-secao-atual");
+			if (current) {
+				current.el.classList.add("guia-secao-atual");
+				current.el.scrollIntoView({ behavior: "smooth", block: "center" });
+				statusEl.textContent = current.titulo;
+				if ("mediaSession" in navigator) {
+					navigator.mediaSession.metadata = new MediaMetadata({
+						title: current.titulo,
+						artist: {{ lesson.guia_titulo | tojson }},
+						album: "Guia narrado — Estudos",
+					});
+				}
+			}
+			lastHighlighted = current || null;
+		}
+		player.addEventListener("timeupdate", highlightCurrentSecao);
 
 		if ("mediaSession" in navigator) {
 			navigator.mediaSession.setActionHandler("play", () => player.play());
 			navigator.mediaSession.setActionHandler("pause", () => player.pause());
-			navigator.mediaSession.setActionHandler("previoustrack", () => load(Math.max(current - 1, 0), true));
-			navigator.mediaSession.setActionHandler("nexttrack", () => load(Math.min(current + 1, headers.length - 1), true));
+			navigator.mediaSession.setActionHandler("seekbackward", () => {
+				player.currentTime = Math.max(0, player.currentTime - 15);
+			});
+			navigator.mediaSession.setActionHandler("seekforward", () => {
+				player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 15);
+			});
+			navigator.mediaSession.setActionHandler("previoustrack", () => {
+				const i = secoes.indexOf(lastHighlighted);
+				if (i > 0) seekTo(secoes[i - 1].start);
+			});
+			navigator.mediaSession.setActionHandler("nexttrack", () => {
+				const i = secoes.indexOf(lastHighlighted);
+				if (i !== -1 && i < secoes.length - 1) seekTo(secoes[i + 1].start);
+			});
 		}
 	})();
 </script>

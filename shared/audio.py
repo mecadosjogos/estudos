@@ -9,17 +9,27 @@ import subprocess
 from pathlib import Path
 
 
-def concat_audio_files(paths: list[Path], output_path: Path) -> None:
-    """Concatena um ou mais arquivos de áudio, na ordem dada, num WAV mono 16kHz.
+def concat_audio_files(
+    paths: list[Path], output_path: Path, *, sample_rate: int = 16000, channels: int = 1
+) -> None:
+    """Concatena um ou mais arquivos de áudio, na ordem dada, num WAV mono.
 
     Usa o filtro `concat` (não o demuxer) porque os arquivos de origem podem vir
     de apps diferentes com codecs diferentes — o filtro decodifica cada um antes
     de juntar, o demuxer exige que já sejam idênticos.
+
+    `sample_rate`/`channels` default pro que a transcrição sempre pediu
+    (16kHz mono, suficiente pro Whisper) -- narração do guia (worker/main.py)
+    passa uma taxa mais alta, porque aqui o resultado é pra ouvir, não pra
+    alimentar um modelo de fala.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if len(paths) == 1:
-        cmd = ["ffmpeg", "-y", "-i", str(paths[0]), "-ar", "16000", "-ac", "1", str(output_path)]
+        cmd = [
+            "ffmpeg", "-y", "-i", str(paths[0]),
+            "-ar", str(sample_rate), "-ac", str(channels), str(output_path),
+        ]
     else:
         inputs = []
         for p in paths:
@@ -29,13 +39,27 @@ def concat_audio_files(paths: list[Path], output_path: Path) -> None:
         cmd = [
             "ffmpeg", "-y", *inputs,
             "-filter_complex", filter_complex,
-            "-map", "[out]", "-ar", "16000", "-ac", "1",
+            "-map", "[out]", "-ar", str(sample_rate), "-ac", str(channels),
             str(output_path),
         ]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg falhou ao concatenar: {result.stderr[-2000:]}")
+
+
+def make_silence(duration_s: float, output_path: Path, *, sample_rate: int = 16000, channels: int = 1) -> None:
+    """Gera um clipe de silêncio puro -- usado pra dar uma pausa curta entre
+    seções concatenadas (narração do guia), sem precisar de nenhum arquivo
+    de áudio real como fonte."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r={sample_rate}:cl=mono" if channels == 1 else f"anullsrc=r={sample_rate}:cl=stereo",
+        "-t", str(duration_s), str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg falhou ao gerar silêncio: {result.stderr[-2000:]}")
 
 
 def compress_to_mp3(input_path: Path, output_path: Path, bitrate: str = "32k") -> None:

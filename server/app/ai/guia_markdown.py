@@ -34,8 +34,8 @@ def build_guia_markdown(
         parts.append("## Sumário dos tópicos abordados\n")
         parts.append("\n".join(f"{i}. {t.titulo}" for i, t in enumerate(topicos, start=1)) + "\n")
 
-    for secao in secoes:
-        parts.append(f"## {secao.titulo}\n")
+    for i, secao in enumerate(secoes, start=1):
+        parts.append(f"## {i}. {secao.titulo}\n")
         parts.append(secao.corpo.strip() + "\n")
 
     if trechos_incompletos:

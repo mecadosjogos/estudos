@@ -446,7 +446,13 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     ).all()
 
     secoes_view = [
-        {"numero": i, "titulo": s.titulo, "html": markdown_lib.markdown(s.corpo, extensions=["extra"])}
+        {
+            "numero": i,
+            "titulo": s.titulo,
+            "html": markdown_lib.markdown(s.corpo, extensions=["extra"]),
+            "audio_start_s": s.audio_start_s,
+            "audio_end_s": s.audio_end_s,
+        }
         for i, s in enumerate(secoes, start=1)
     ]
 
@@ -463,19 +469,14 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     # Narração em áudio (TTS local via GPU, tts-service/): em dia quando
     # gerada depois da última vez que o guia mudou -- mesma comparação de
     # "carimbo de versão" que o resto do guia usa (nunca hash de conteúdo).
-    # Narração pode ser parcial (worker/main.py::process_tts_job sobe o que
-    # conseguiu narrar mesmo se uma seção falhar) -- por isso o link de
-    # cada seção só aparece se o arquivo dela existir de verdade, não só
-    # porque `guia_audio_gerado_em` está em dia.
+    # Um mp3 só pra aula inteira (toca contínuo, não recarrega arquivo por
+    # seção); narração pode ser parcial (process_tts_job sobe o que
+    # conseguiu narrar mesmo se uma seção falhar) -- por isso cada seção só
+    # tem link de "ouvir esta seção" se `audio_start_s` estiver preenchido,
+    # não só porque `guia_audio_gerado_em` está em dia.
     audio_pronto = (
         lesson.guia_audio_gerado_em is not None and lesson.guia_audio_gerado_em >= lesson.guia_gerado_em
     )
-    if audio_pronto:
-        audio_dir = config.GUIA_AUDIO_DIR / f"lesson-{lesson_id}"
-        for i, view in enumerate(secoes_view):
-            ordem = secoes[i].ordem
-            if (audio_dir / f"secao-{ordem}.mp3").exists():
-                view["audio_url"] = f"/lessons/{lesson_id}/guia/secoes/{ordem}/audio.mp3"
 
     ultimo_job_audio = session.scalar(
         select(TranscriptionJob)
@@ -507,14 +508,14 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     )
 
 
-@router.get("/{lesson_id}/guia/secoes/{ordem}/audio.mp3")
-def guia_secao_audio(lesson_id: int, ordem: int, session: Session = Depends(get_session)):
+@router.get("/{lesson_id}/guia/audio.mp3")
+def guia_audio(lesson_id: int, session: Session = Depends(get_session)):
     lesson = session.get(Lesson, lesson_id)
     if lesson is None:
         raise HTTPException(status_code=404, detail="aula não encontrada")
-    path = config.GUIA_AUDIO_DIR / f"lesson-{lesson_id}" / f"secao-{ordem}.mp3"
+    path = config.GUIA_AUDIO_DIR / f"lesson-{lesson_id}" / "guia.mp3"
     if not path.exists():
-        raise HTTPException(status_code=404, detail="áudio da seção não encontrado")
+        raise HTTPException(status_code=404, detail="áudio do guia não encontrado")
     return FileResponse(path, media_type="audio/mpeg")
 
 

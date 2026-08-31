@@ -104,6 +104,29 @@ def test_download_guia_pdf_has_header_footer_with_subject(app_env):
     assert texto.count(subject_nome) == 2  # segunda linha, cabeçalho e rodapé
 
 
+def test_download_guia_pdf_includes_section_numbers(app_env):
+    """O PDF renderiza a partir de lesson.guia_md, remontado por
+    ai/guia_markdown.py -- confirma que a numeração de seção (achado real:
+    faltava no <h2> da tela web) também chega no PDF, sem precisar de
+    código extra aqui (mesmo cache de markdown)."""
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    client.post(f"/lessons/{lesson_id}/colar-resposta", data={"resposta": _pasted_response()})
+
+    response = client.get(f"/lessons/{lesson_id}/guia.pdf")
+    assert response.status_code == 200
+
+    import fitz
+
+    doc = fitz.open(stream=response.content, filetype="pdf")
+    texto = "".join(page.get_text() for page in doc)
+    assert "1. Posse" in texto
+
+
 def test_download_guia_pdf_404_without_guia(app_env):
     client = _authed_client()
     from app.db import holder

@@ -259,25 +259,22 @@ def _make_tts_job(job_id=500, secoes=None):
 def test_tts_job_uploads_sections_that_succeeded_when_one_section_fails(tmp_path, monkeypatch):
     """Achado real processando aulas de produção (lesson 2/8 na VPS): um
     timeout numa seção jogava fora todo o resto já narrado. Agora só
-    aquela seção fica sem áudio -- o job sobe as demais e é reportado como
-    concluído, não como falha total."""
+    aquela seção fica sem áudio -- o job concatena as demais num mp3 só e
+    é reportado como concluído, não como falha total."""
     monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
 
     job = _make_tts_job()
 
     def fake_synthesize(texto, speaker=None):
-        if texto == "texto 2":
+        if "texto 2" in texto:
             raise RuntimeError("timeout")
         return b"audio-" + texto.encode()
 
-    uploaded_bytes = {}
+    submitted = {}
 
-    def fake_submit(job_id, *, claim_token, section_mp3_paths):
-        # lê o conteúdo na hora da chamada -- process_tts_job apaga
-        # work_dir logo depois do envio confirmado, então ler os arquivos
-        # só depois de process_tts_job retornar pegaria tudo já apagado.
-        for ordem, path in section_mp3_paths.items():
-            uploaded_bytes[ordem] = path.read_bytes()
+    def fake_submit(job_id, *, claim_token, audio_path, timestamps):
+        submitted["audio_path"] = audio_path
+        submitted["timestamps"] = timestamps
         return {"ok": True, "already_received": False}
 
     with (
@@ -285,14 +282,25 @@ def test_tts_job_uploads_sections_that_succeeded_when_one_section_fails(tmp_path
         patch("worker.api_client.send_heartbeat"),
         patch("worker.api_client.submit_tts_result", side_effect=fake_submit) as mock_submit,
         patch("worker.api_client.report_failure") as mock_fail,
+        patch("shared.audio.probe_duration_s", return_value=2.0),
+        patch("shared.audio.make_silence") as mock_silence,
+        patch("shared.audio.concat_audio_files") as mock_concat,
     ):
         worker_main.process_tts_job(job)
 
     mock_fail.assert_not_called()
     mock_submit.assert_called_once()
-    assert set(uploaded_bytes.keys()) == {0, 2}  # seção 1 (ordem 1) ficou de fora
-    assert uploaded_bytes[0] == b"audio-texto 1"
-    assert uploaded_bytes[2] == b"audio-texto 3"
+
+    # seção 1 (ordem 1, "texto 2") falhou -- só 0 e 2 entram na linha do tempo
+    timestamps = submitted["timestamps"]
+    assert [t["ordem"] for t in timestamps] == [0, 2]
+    assert timestamps[0] == {"ordem": 0, "start_s": 0.0, "end_s": 2.0}
+    # seção seguinte começa depois da pausa entre seções, não colada
+    assert timestamps[1]["start_s"] == 2.0 + worker_main.SILENCE_GAP_S
+
+    mock_silence.assert_called_once()  # só 2 seções concatenadas -- precisa de 1 pausa
+    concat_paths = mock_concat.call_args.args[0]
+    assert len(concat_paths) == 3  # secao-0, silêncio, secao-2 -- a que falhou nunca entra
 
     # sucesso (mesmo que parcial): diretório de trabalho é limpo
     assert not (tmp_path / f"job-{job['id']}").exists()
@@ -325,20 +333,25 @@ def test_tts_job_resumes_without_resynthesizing_sections_already_on_disk(tmp_pat
     work_dir.mkdir(parents=True)
     (work_dir / "secao-0.mp3").write_bytes(b"ja-narrada-antes")
 
-    uploaded_bytes = {}
+    submitted = {}
 
-    def fake_submit(job_id, *, claim_token, section_mp3_paths):
-        for ordem, path in section_mp3_paths.items():
-            uploaded_bytes[ordem] = path.read_bytes()
+    def fake_submit(job_id, *, claim_token, audio_path, timestamps):
+        submitted["timestamps"] = timestamps
         return {"ok": True, "already_received": False}
 
     with (
         patch("worker.tts.synthesize", return_value=b"audio-novo") as mock_synth,
         patch("worker.api_client.send_heartbeat"),
         patch("worker.api_client.submit_tts_result", side_effect=fake_submit),
+        patch("shared.audio.probe_duration_s", return_value=1.5),
+        patch("shared.audio.make_silence"),
+        patch("shared.audio.concat_audio_files") as mock_concat,
     ):
         worker_main.process_tts_job(job)
 
     # só narrou as duas que faltavam -- a seção 0 não foi regenerada
     assert mock_synth.call_count == 2
-    assert uploaded_bytes[0] == b"ja-narrada-antes"
+    # mas as 3 (a retomada + as 2 novas) entram na linha do tempo/concatenação
+    assert [t["ordem"] for t in submitted["timestamps"]] == [0, 1, 2]
+    concat_paths = mock_concat.call_args.args[0]
+    assert concat_paths[0] == work_dir / "secao-0.mp3"

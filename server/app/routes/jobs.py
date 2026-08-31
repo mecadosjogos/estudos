@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from .. import config
 from ..auth import require_session_or_token
 from ..db import get_session
-from ..models import AudioSegment, Lesson, Subject, Transcript, TranscriptionJob, TranscriptSegment
+from ..models import AudioSegment, GuiaSecao, Lesson, Subject, Transcript, TranscriptionJob, TranscriptSegment
 
 router = APIRouter(prefix="/api/jobs", dependencies=[Depends(require_session_or_token)])
 
@@ -349,12 +349,18 @@ async def submit_rebuild_result(
 async def submit_tts_result(
     job_id: int,
     claim_token: str = Form(...),
-    audios: list[UploadFile] = File(...),
+    timestamps: str = Form(...),
+    audio: UploadFile = File(...),
     session: Session = Depends(get_session),
 ):
     """Resultado de um job `tts_guia` (narração do guia via TTS local, ver
-    tts-service/ e worker/tts.py): um mp3 por `GuiaSecao`, nomeado
-    `{ordem}.mp3` -- não mexe em transcrição nenhuma, só grava os áudios e
+    tts-service/ e worker/main.py::process_tts_job): **um mp3 só pra aula
+    inteira** (não um por seção -- toca contínuo, mesmo padrão do áudio da
+    aula gravada), mais `timestamps` (JSON, lista de
+    `{"ordem": int, "start_s": float, "end_s": float}`, uma entrada por
+    seção que narrou com sucesso -- seção que falhou simplesmente não
+    aparece na lista, narração parcial é melhor que nenhuma). Não mexe em
+    transcrição nenhuma, só grava o áudio, marca a posição de cada seção e
     marca a narração como em dia (`Lesson.guia_audio_gerado_em`)."""
     job = session.get(TranscriptionJob, job_id)
     if job is None:
@@ -370,12 +376,18 @@ async def submit_tts_result(
 
     lesson_dir = config.GUIA_AUDIO_DIR / f"lesson-{job.lesson_id}"
     lesson_dir.mkdir(parents=True, exist_ok=True)
-    for audio in audios:
-        ordem = Path(audio.filename).stem
-        dest = lesson_dir / f"secao-{ordem}.mp3"
-        with dest.open("wb") as out:
-            while chunk := await audio.read(1024 * 1024):
-                out.write(chunk)
+    dest = lesson_dir / "guia.mp3"
+    with dest.open("wb") as out:
+        while chunk := await audio.read(1024 * 1024):
+            out.write(chunk)
+
+    marcas = json.loads(timestamps)
+    secoes_by_ordem = {s.ordem: s for s in job.lesson.guia_secoes}
+    for marca in marcas:
+        secao = secoes_by_ordem.get(marca["ordem"])
+        if secao is not None:
+            secao.audio_start_s = marca["start_s"]
+            secao.audio_end_s = marca["end_s"]
 
     job.lesson.guia_audio_gerado_em = datetime.now(timezone.utc)
     job.status = "done"

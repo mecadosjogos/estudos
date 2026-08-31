@@ -3,16 +3,15 @@
 Chatterbox Multilingual v3 (Resemble AI, MIT) -- diferente do F5-TTS
 (abandonado nesta troca: produzia áudio embaralhado em PT-BR mesmo depois
 de eliminar toda causa de configuração, com dois checkpoints comunitários
-diferentes -- ver histórico da conversa), este modelo tem um parâmetro
+diferentes -- ver histórico do projeto), este modelo tem um parâmetro
 explícito de idioma (`language_id="pt"`), não depende só do fine-tune/
-referência pra "adivinhar" o idioma. Clonagem de voz a partir de um clipe
-de referência (`vozes/<nome>/ref.wav`) -- aqui não precisa de transcrição
-do áudio de referência (`ref_text`), diferente do F5-TTS.
+referência pra "adivinhar" o idioma.
 
-Cada voz clonada vive em `vozes/<nome>/ref.wav` -- fora do git de
-propósito (`.gitignore`), é dado biométrico pessoal, nunca sobe pra VPS.
-
-Uso: uvicorn main:app --host 127.0.0.1 --port 8100  (ou tts-service\\iniciar.ps1)
+Usa a **voz embutida padrão** do próprio modelo (`conds.pt`, baixada junto
+com os pesos) -- sem clonagem, por decisão explícita do usuário (nenhum
+dado de voz pessoal envolvido). `POST /synthesize` aceita opcionalmente um
+`speaker` apontando pra `vozes/<nome>/ref.wav` se algum dia fizer sentido
+clonar de novo, mas isso é o caminho não-padrão, não o de hoje.
 """
 
 import re
@@ -28,7 +27,6 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 VOZES_DIR = Path(__file__).resolve().parent / "vozes"
-DEFAULT_VOZ = "wyver"
 LANGUAGE_ID = "pt"
 MAX_CHUNK_CHARS = 300
 
@@ -53,7 +51,7 @@ def _startup():
     _load_model()
 
 
-def _vozes_disponiveis() -> list[str]:
+def _vozes_clonadas_disponiveis() -> list[str]:
     if not VOZES_DIR.exists():
         return []
     return sorted(p.name for p in VOZES_DIR.iterdir() if (p / "ref.wav").exists())
@@ -71,10 +69,10 @@ def healthz():
 
 @app.get("/speakers")
 def speakers():
-    """Vozes clonadas disponíveis (pastas em vozes/, cada uma com um
-    clipe de referência de verdade) -- é sempre clonagem, não tem voz
-    embutida genérica."""
-    return {"speakers": _vozes_disponiveis()}
+    """Voz padrão embutida do modelo é sempre o default (não listada aqui
+    por não precisar de arquivo nenhum) -- isto lista só vozes clonadas
+    extras configuradas em vozes/, se alguma existir."""
+    return {"speakers": _vozes_clonadas_disponiveis(), "padrao": "embutida (Chatterbox), sem clonagem"}
 
 
 def _split_into_chunks(texto: str, max_chars: int = MAX_CHUNK_CHARS) -> list[str]:
@@ -99,14 +97,20 @@ def synthesize(body: SynthesizeBody):
     if not texto:
         raise HTTPException(status_code=400, detail="texto vazio")
 
-    voz = body.speaker or DEFAULT_VOZ
-    ref_wav = VOZES_DIR / voz / "ref.wav"
-    if not ref_wav.exists():
-        raise HTTPException(status_code=400, detail=f"voz desconhecida ou sem referência: {voz}")
+    # Sem `speaker`, usa a voz embutida padrão do modelo (audio_prompt_path
+    # None -- Chatterbox já vem com um `conds.pt` pronto, não precisa de
+    # referência nenhuma). Só clona se um `speaker` nomeado for pedido
+    # explicitamente e tiver referência configurada em vozes/.
+    ref_wav = None
+    if body.speaker:
+        candidate = VOZES_DIR / body.speaker / "ref.wav"
+        if not candidate.exists():
+            raise HTTPException(status_code=400, detail=f"voz desconhecida ou sem referência: {body.speaker}")
+        ref_wav = candidate
 
     pieces = []
     for chunk in _split_into_chunks(texto):
-        wav = model.generate(chunk, language_id=LANGUAGE_ID, audio_prompt_path=str(ref_wav))
+        wav = model.generate(chunk, language_id=LANGUAGE_ID, audio_prompt_path=str(ref_wav) if ref_wav else None)
         pieces.append(wav.squeeze(0).cpu().numpy())
 
     full = pieces[0] if len(pieces) == 1 else np.concatenate(pieces)

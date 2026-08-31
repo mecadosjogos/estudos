@@ -260,23 +260,30 @@ def process_rebuild_job(job: dict) -> None:
         heartbeat.stop()
 
 
+TTS_SAMPLE_RATE = 24000  # taxa de saída típica de modelos de TTS neurais recentes
+SILENCE_GAP_S = 0.6  # pausa entre seções concatenadas, pra soar como transição, não colado
+
+
 def process_tts_job(job: dict) -> None:
     """Job `tts_guia`: narra cada `GuiaSecao` com o serviço de TTS local
-    (tts-service/, ver worker/tts.py) e sobe um mp3 por seção.
+    (tts-service/, ver worker/tts.py) e concatena tudo num **mp3 só pra
+    aula inteira** (toca contínuo, sem recarregar arquivo a cada seção --
+    mesmo padrão do áudio da aula gravada de verdade), com uma pausa curta
+    entre seções e os timestamps de início/fim de cada uma enviados junto.
 
-    **Falha de uma seção não derruba as outras** (mudou depois de rodar
-    contra aulas reais de produção: um timeout numa seção longa jogava fora
-    todo o resto já narrado -- ~30min de GPU perdidos em duas aulas reais).
-    Cada seção que falha (mesmo depois do retry em `tts.synthesize`) é
-    pulada e logada; o job só é reportado como falha total
-    (`report_failure`) se **nenhuma** seção sair — caso contrário sobe as
-    que deram certo (narração parcial é estritamente melhor que nenhuma) e
-    o log lista quais faltaram, pra rodar de novo mais tarde se quiser
-    completar (um reprocessamento da aula gera tudo de novo do zero).
+    **Falha de uma seção não derruba as outras** (achado real processando
+    aulas de produção: um timeout numa seção longa jogava fora todo o
+    resto já narrado -- ~30min de GPU perdidos em duas aulas reais). Cada
+    seção que falha (mesmo depois do retry em `tts.synthesize`) só fica de
+    fora da concatenação -- sem timestamp, sem gerar buraco de silêncio no
+    lugar; o job só é reportado como falha total (`report_failure`) se
+    **nenhuma** seção sair.
 
     Seções já narradas numa tentativa anterior do **mesmo** job (retomado
     depois de reivindicação obsoleta, `_reclaim_stale`) não são refeitas —
-    o arquivo em `work_dir` já existe, então pula direto pro upload."""
+    o fragmento em `work_dir` já existe, então pula direto pra próxima."""
+    from shared.audio import concat_audio_files, make_silence, probe_duration_s
+
     job_id = job["id"]
     claim_token = job["claim_token"]
     secoes = job["guia_secoes"]
@@ -292,31 +299,59 @@ def process_tts_job(job: dict) -> None:
         if not secoes:
             raise RuntimeError("aula sem GuiaSecao -- nada pra narrar (guia ainda no formato antigo?)")
 
-        section_mp3_paths: dict[int, Path] = {}
+        fragment_paths: list[Path] = []
+        timestamps: list[dict] = []
         failed_ordens: list[int] = []
+        running_total_s = 0.0
+
         for secao in secoes:
             ordem = secao["ordem"]
-            mp3_path = work_dir / f"secao-{ordem}.mp3"
-            if mp3_path.exists():
+            fragment_path = work_dir / f"secao-{ordem}.mp3"
+            if fragment_path.exists():
                 _log(f"seção {ordem} já narrada numa tentativa anterior — pulando")
-                section_mp3_paths[ordem] = mp3_path
-                continue
-            _log(f"narrando seção {ordem}: \"{secao['titulo']}\"")
-            try:
-                audio_bytes = tts.synthesize(secao["corpo"])
-            except Exception as exc:  # noqa: BLE001 — só essa seção fica sem narração, o job segue
-                _log(f"seção {ordem} falhou ({exc}) — seguindo pras outras")
-                failed_ordens.append(ordem)
-                continue
-            mp3_path.write_bytes(audio_bytes)
-            section_mp3_paths[ordem] = mp3_path
+            else:
+                _log(f"narrando seção {ordem}: \"{secao['titulo']}\"")
+                try:
+                    # Título entra na narração (achado real: sem isso, o
+                    # áudio pula direto pro conteúdo e não dá pra saber
+                    # quando um assunto terminou e o próximo começou,
+                    # ouvindo em sequência) -- lido como frase própria
+                    # antes do corpo.
+                    texto_narrado = f"{secao['titulo']}. {secao['corpo']}"
+                    audio_bytes = tts.synthesize(texto_narrado)
+                except Exception as exc:  # noqa: BLE001 — só essa seção fica sem narração, o job segue
+                    _log(f"seção {ordem} falhou ({exc}) — seguindo pras outras")
+                    failed_ordens.append(ordem)
+                    continue
+                fragment_path.write_bytes(audio_bytes)
 
-        if not section_mp3_paths:
+            duration_s = probe_duration_s(fragment_path)
+            start_s = running_total_s
+            end_s = start_s + duration_s
+            timestamps.append({"ordem": ordem, "start_s": start_s, "end_s": end_s})
+            fragment_paths.append(fragment_path)
+            running_total_s = end_s + SILENCE_GAP_S
+
+        if not fragment_paths:
             raise RuntimeError(f"nenhuma seção conseguiu ser narrada ({len(failed_ordens)} falharam)")
 
-        _log(f"enviando narração ({len(section_mp3_paths)}/{len(secoes)} seções)...")
+        _log(f"concatenando narração ({len(fragment_paths)}/{len(secoes)} seções)...")
+        silence_path = work_dir / "silencio.wav"
+        if len(fragment_paths) > 1 and not silence_path.exists():
+            make_silence(SILENCE_GAP_S, silence_path, sample_rate=TTS_SAMPLE_RATE)
+
+        concat_list: list[Path] = []
+        for i, fragment_path in enumerate(fragment_paths):
+            if i > 0:
+                concat_list.append(silence_path)
+            concat_list.append(fragment_path)
+
+        final_mp3 = work_dir / "guia.mp3"
+        concat_audio_files(concat_list, final_mp3, sample_rate=TTS_SAMPLE_RATE, channels=1)
+
+        _log("enviando narração...")
         result = api_client.submit_tts_result(
-            job_id, claim_token=claim_token, section_mp3_paths=section_mp3_paths
+            job_id, claim_token=claim_token, audio_path=final_mp3, timestamps=timestamps
         )
         if result.get("already_received"):
             _log("servidor já tinha essa narração (reenvio idempotente) — ok")
