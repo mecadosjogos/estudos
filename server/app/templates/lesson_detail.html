@@ -83,6 +83,21 @@
 	{% endif %}
 </div>
 
+<div class="card">
+	<h2>Fonte em aula (Lousa etc)</h2>
+	<p class="muted">
+		Cole aqui o que foi escrito na lousa ou material dado em aula — a
+		formatação e a indentação são preservadas como você colar. É fonte
+		prioritária: ajuda a IA a calibrar o que é importante e a corrigir
+		grafia de termo que o áudio deixou dúvida, e pode aparecer citada no
+		guia de aula.
+	</p>
+	<form method="post" action="/lessons/{{ lesson.id }}/material-aula">
+		<textarea name="texto" rows="10" style="width:100%; font-family: monospace;">{{ lesson.material_aula_texto or "" }}</textarea>
+		<button type="submit">Salvar</button>
+	</form>
+</div>
+
 {% if lesson.transcript %}
 <div class="card">
 	<h2>Aula editada (IA) <span class="badge badge-danger">fluxo em revisão</span></h2>

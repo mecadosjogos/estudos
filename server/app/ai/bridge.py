@@ -36,6 +36,20 @@ detectados automaticamente — use-os para calibrar destaque (uma ideia
 repetida três vezes é candidata a "destaque-prova"; um trecho de ritmo muito
 lento é candidato a "ditado"), não repita esse trabalho.
 
+MATERIAL DADO EM AULA (LOUSA ETC), se aparecer mais abaixo: texto colado à
+mão por quem processa a aula — fonte tão primária quanto a transcrição, o
+professor escreveu ou distribuiu isso na aula, não é algo que você deduziu.
+Use pra duas coisas: (1) calibrar importância — o que aparece aqui é forte
+candidato a "destaque-prova"/negrito, já que foi grifado fisicamente pelo
+próprio professor; (2) corrigir grafia de termo, artigo ou citação que a
+transcrição trouxe errado ou ambíguo, quando o mesmo ponto aparece escrito
+aqui. Diferente da transcrição, este material NÃO tem timestamp — nunca
+vira bloco de `aula_editada` nem card com start_s/end_s inventado (essas
+duas coisas continuam presas só ao que foi realmente falado). No `guia_md`,
+porém, você pode citá-lo ou incorporá-lo diretamente — até literalmente, se
+for prioritário — sempre prefixado com "**Material da aula:**" pra quem lê
+saber que aquele trecho não foi falado, veio escrito.
+
 Tipos de bloco (use exatamente um destes por bloco, em `tipo`):
 - destaque-prova: o professor sinalizou que cai na prova, ou repetiu muito
 - ditado: ritmo lento, ele quer que você copie literalmente
@@ -115,6 +129,13 @@ def build_prompt(lesson: Lesson, segments: list[TranscriptSegment], signals_anno
     signals_json = json.dumps(signals_annotation, ensure_ascii=False, indent=2)
     transcript_text = _format_segments(segments)
 
+    material_block = ""
+    if lesson.material_aula_texto:
+        material_block = f"""
+MATERIAL DADO EM AULA (LOUSA ETC) — colado à mão, prioritário, sem timestamp:
+{lesson.material_aula_texto}
+"""
+
     return f"""{INSTRUCTIONS}
 
 MATÉRIA: {lesson.subject.nome} ({lesson.subject.sigla})
@@ -123,7 +144,7 @@ AULA: {lesson.titulo} — {lesson.data.isoformat()}
 
 SINAIS CALCULADOS EM CÓDIGO:
 {signals_json}
-
+{material_block}
 SCHEMA DE SAÍDA:
 {schema_json}
 

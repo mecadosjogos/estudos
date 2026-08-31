@@ -160,6 +160,22 @@ def update_lesson(
     return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
 
 
+@router.post("/{lesson_id}/material-aula")
+def update_material_aula(
+    lesson_id: int,
+    texto: str = Form(""),
+    session: Session = Depends(get_session),
+):
+    """Fonte em aula fora do áudio (lousa, anotações coladas por você) --
+    texto primário, não artefato derivado, sem deriv_key. `.strip()` só
+    tira borda; indentação interna do texto colado fica intacta."""
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is not None:
+        lesson.material_aula_texto = texto.strip() or None
+        session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
+
+
 @router.post("/{lesson_id}/move")
 def move_lesson(lesson_id: int, subject_id: int = Form(...), session: Session = Depends(get_session)):
     lesson = session.get(Lesson, lesson_id)

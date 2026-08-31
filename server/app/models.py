@@ -55,6 +55,16 @@ class Lesson(Base):
     # Aqui é só o link para abrir a cópia no Google Docs.
     google_doc_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Fonte em aula fora do áudio (lousa, anotações coladas por você) --
+    # texto colado à mão, formatação/indentação preservadas exatamente como
+    # colado (só `.strip()` nas bordas). É fonte primária como o áudio, não
+    # artefato derivado -- sem deriv_key, sem reconcile. Prioritária na
+    # fase 6: ajuda a IA a calibrar o que é importante e a corrigir grafia
+    # de termo/citação que o Whisper errou; pode ser citada/incorporada no
+    # guia (ver ai/bridge.py), mas nunca vira bloco de aula editada -- sem
+    # timestamp, não tem "▸ ouvir o original" pra ancorar.
+    material_aula_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Posição salva do player (fase 5) — retoma de onde parou.
     posicao_s: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
