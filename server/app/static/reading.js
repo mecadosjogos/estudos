@@ -94,7 +94,14 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 	const speedSelect = document.getElementById("player-speed");
 	const speedDownBtn = document.getElementById("player-speed-down");
 	const speedUpBtn = document.getElementById("player-speed-up");
+	const autoscrollCheckbox = document.getElementById("player-autoscroll");
 	const timeLabel = document.getElementById("player-time");
+
+	const savedAutoscroll = localStorage.getItem("estudos-player-autoscroll");
+	if (savedAutoscroll !== null) autoscrollCheckbox.checked = savedAutoscroll === "true";
+	autoscrollCheckbox.addEventListener("change", () => {
+		localStorage.setItem("estudos-player-autoscroll", String(autoscrollCheckbox.checked));
+	});
 
 	function formatTime(s) {
 		if (!isFinite(s)) return "00:00";
@@ -167,7 +174,9 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		if (lastHighlighted) lastHighlighted.el.classList.remove("segment-active");
 		if (current) {
 			current.el.classList.add("segment-active");
-			current.el.scrollIntoView({ behavior: "smooth", block: "center" });
+			if (autoscrollCheckbox.checked) {
+				current.el.scrollIntoView({ behavior: "smooth", block: "center" });
+			}
 		}
 		lastHighlighted = current || null;
 	}
