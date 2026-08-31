@@ -42,6 +42,15 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		playSegment(seg);
 	}
 
+	// Botão "editar" (diferente do duplo clique, que já toca em loop): só
+	// devolve o áudio pro início do trecho clicado e pausa ali, sem tocar
+	// sozinho -- retoma só quando "Salvar" for clicado.
+	function pauseAndSeek(seg) {
+		loopRange = null;
+		seekTo(seg.start);
+		audio.pause();
+	}
+
 	segments.forEach((seg) => {
 		seg.el.addEventListener("click", (ev) => {
 			if (!hasAudio) return;
@@ -51,7 +60,15 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		});
 	});
 
-	if (editable) initInlineEditing(lessonId, segments, hasAudio ? playSegmentLooped : null);
+	if (editable) {
+		initInlineEditing(
+			lessonId,
+			segments,
+			hasAudio ? playSegmentLooped : null,
+			hasAudio ? pauseAndSeek : null,
+			hasAudio ? () => audio.play() : null
+		);
+	}
 
 	const nextLowConfidenceBtn = document.getElementById("next-low-confidence");
 	if (nextLowConfidenceBtn) {
@@ -75,6 +92,8 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 	const back15Btn = document.getElementById("player-back15");
 	const fwd15Btn = document.getElementById("player-fwd15");
 	const speedSelect = document.getElementById("player-speed");
+	const speedDownBtn = document.getElementById("player-speed-down");
+	const speedUpBtn = document.getElementById("player-speed-up");
 	const timeLabel = document.getElementById("player-time");
 
 	function formatTime(s) {
@@ -103,15 +122,26 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
 		audio.currentTime = Math.min(audio.duration || Infinity, audio.currentTime + 15);
 	});
 
-	const savedSpeed = localStorage.getItem("estudos-player-speed");
-	if (savedSpeed) {
-		speedSelect.value = savedSpeed;
-		audio.playbackRate = parseFloat(savedSpeed);
+	const speedSteps = [...speedSelect.options].map((opt) => parseFloat(opt.value));
+
+	function setSpeed(value) {
+		speedSelect.value = String(value);
+		audio.playbackRate = value;
+		localStorage.setItem("estudos-player-speed", String(value));
 	}
-	speedSelect.addEventListener("change", () => {
-		audio.playbackRate = parseFloat(speedSelect.value);
-		localStorage.setItem("estudos-player-speed", speedSelect.value);
-	});
+
+	const savedSpeed = localStorage.getItem("estudos-player-speed");
+	if (savedSpeed) setSpeed(parseFloat(savedSpeed));
+
+	speedSelect.addEventListener("change", () => setSpeed(parseFloat(speedSelect.value)));
+
+	function stepSpeed(direction) {
+		const current = speedSteps.indexOf(parseFloat(speedSelect.value));
+		const next = speedSteps[current + direction];
+		if (next !== undefined) setSpeed(next);
+	}
+	speedDownBtn.addEventListener("click", () => stepSpeed(-1));
+	speedUpBtn.addEventListener("click", () => stepSpeed(1));
 
 	audio.addEventListener("play", () => {
 		playPauseBtn.textContent = "⏸ Pausar";
@@ -204,7 +234,7 @@ function initReadingPage({ lessonId, hasAudio, initialPosition, editable }) {
  * final. Duplo clique no trecho abre a edição direto (sem precisar mirar
  * no botão "editar") e já toca o áudio em loop nele, pra corrigir
  * ouvindo repetidas vezes. */
-function initInlineEditing(lessonId, segments, playSegmentLooped) {
+function initInlineEditing(lessonId, segments, playSegmentLooped, pauseAndSeek, resume) {
 	segments.forEach((seg) => {
 		const segmentEl = seg.el;
 		const btn = segmentEl.querySelector(".segment-edit-btn");
@@ -274,6 +304,7 @@ function initInlineEditing(lessonId, segments, playSegmentLooped) {
 						badge.textContent = "editado";
 						btn.before(badge);
 					}
+					if (resume) resume();
 				} catch (err) {
 					alert(`Não foi possível salvar: ${err.message}`);
 					saveBtn.disabled = false;
@@ -283,6 +314,7 @@ function initInlineEditing(lessonId, segments, playSegmentLooped) {
 
 		btn.addEventListener("click", (ev) => {
 			ev.stopPropagation();
+			if (pauseAndSeek) pauseAndSeek(seg);
 			startEditing();
 		});
 
