@@ -402,6 +402,7 @@ def run(mode: str, targets: list[str]) -> None:
             if mode == "watch":
                 time.sleep(config.POLL_INTERVAL_S)
                 continue
+            _unload_tts_if_relevant(targets)
             _log(f"fila(s) vazia(s) — {jobs_done} job(s) processado(s) nesta execução, encerrando")
             return
 
@@ -414,8 +415,22 @@ def run(mode: str, targets: list[str]) -> None:
         jobs_done += 1
 
         if mode == "once":
+            if job_target == "tts_guia":
+                _unload_tts_if_relevant(targets)
             return
         # "drain" e "watch" voltam pro topo do loop e pegam o próximo
+
+
+def _unload_tts_if_relevant(targets: list[str]) -> None:
+    """Libera o modelo de narração da GPU ao encerrar (modo drenar/once,
+    nunca --watch, que fica de pé esperando o próximo job por natureza) --
+    sem isso, a VRAM fica ocupada à toa entre uma leva de aulas e a
+    próxima. No-op silencioso se tts_guia nem era um dos alvos, ou se o
+    serviço já não tinha nada carregado."""
+    if "tts_guia" not in targets:
+        return
+    _log("liberando o modelo de narração da GPU...")
+    tts.unload()
 
 
 def main():

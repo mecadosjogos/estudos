@@ -32,6 +32,19 @@ def healthz() -> bool:
         return False
 
 
+def unload() -> bool:
+    """Pede pro tts-service liberar o modelo da VRAM -- chamado pelo
+    worker quando termina de drenar a fila de narração (modo contínuo
+    padrão), pra não deixar a GPU ocupada à toa até o próximo lote de
+    aulas. Falha aqui não é grave (serviço fora do ar, ou já sem nada
+    carregado) -- só reporta False, quem chama só loga e segue."""
+    try:
+        resp = httpx.post(f"{config.TTS_SERVICE_URL}/unload", timeout=30.0)
+        return resp.status_code == 200
+    except httpx.HTTPError:
+        return False
+
+
 def synthesize(texto: str, speaker: str | None = None, *, attempts: int = 2) -> bytes:
     """Devolve os bytes do mp3 gerado. Tenta de novo uma vez (falha
     transiente de rede/timeout) antes de desistir -- quem chama

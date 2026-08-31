@@ -64,7 +64,32 @@ class SynthesizeBody(BaseModel):
 
 @app.get("/healthz")
 def healthz():
+    """`ok` reflete se o modelo está carregado na VRAM agora -- fica
+    `false` depois de um `/unload` até a próxima síntese recarregar
+    sozinha. O serviço em si (o processo) continua de pé de qualquer
+    jeito, só o modelo é que entra/sai da GPU."""
     return {"ok": _model is not None, "model": "ChatterboxMultilingualTTS"}
+
+
+@app.post("/unload")
+def unload():
+    """Libera o modelo da VRAM -- chamado pelo worker quando termina de
+    drenar a fila de narração (modo contínuo padrão, sem --watch), pra não
+    deixar a GPU ocupada à toa entre uma leva e a próxima. Próxima
+    chamada a /synthesize recarrega sozinha (paga o custo de novo, mas só
+    quando realmente for usar)."""
+    global _model
+    was_loaded = _model is not None
+    if was_loaded:
+        _model = None
+        import gc
+
+        import torch
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    return {"ok": True, "liberado": was_loaded}
 
 
 @app.get("/speakers")
