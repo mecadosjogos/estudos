@@ -406,7 +406,7 @@ def run(mode: str, targets: list[str]) -> None:
             if mode == "watch":
                 time.sleep(config.POLL_INTERVAL_S)
                 continue
-            _unload_tts_if_relevant(targets)
+            _shutdown_tts_if_relevant(targets)
             _log(f"fila(s) vazia(s) — {jobs_done} job(s) processado(s) nesta execução, encerrando")
             return
 
@@ -420,21 +420,23 @@ def run(mode: str, targets: list[str]) -> None:
 
         if mode == "once":
             if job_target == "tts_guia":
-                _unload_tts_if_relevant(targets)
+                _shutdown_tts_if_relevant(targets)
             return
         # "drain" e "watch" voltam pro topo do loop e pegam o próximo
 
 
-def _unload_tts_if_relevant(targets: list[str]) -> None:
-    """Libera o modelo de narração da GPU ao encerrar (modo drenar/once,
+def _shutdown_tts_if_relevant(targets: list[str]) -> None:
+    """Encerra o processo do tts-service ao terminar (modo drenar/once,
     nunca --watch, que fica de pé esperando o próximo job por natureza) --
-    sem isso, a VRAM fica ocupada à toa entre uma leva de aulas e a
-    próxima. No-op silencioso se tts_guia nem era um dos alvos, ou se o
-    serviço já não tinha nada carregado."""
+    isto é o último passo do script antes de ficar ocioso, então devolve a
+    GPU por completo (contexto CUDA incluso, não só o modelo -- ver
+    tts.shutdown()) em vez de deixar o processo vivo. Próxima narração
+    precisa de `tts-service\\iniciar.ps1` rodando nele de novo. No-op
+    silencioso se tts_guia nem era um dos alvos."""
     if "tts_guia" not in targets:
         return
-    _log("liberando o modelo de narração da GPU...")
-    tts.unload()
+    _log("encerrando o processo de narração pra liberar a GPU por completo...")
+    tts.shutdown()
 
 
 def main():

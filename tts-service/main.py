@@ -92,6 +92,32 @@ def unload():
     return {"ok": True, "liberado": was_loaded}
 
 
+@app.post("/shutdown")
+def shutdown():
+    """Encerra o processo inteiro -- diferente de `/unload`, que só larga o
+    modelo e mantém o processo (e o contexto CUDA) vivo pra recarregar
+    rápido depois. O contexto CUDA (kernels do cuDNN/cuBLAS, cache do
+    alocador do PyTorch) só é liberado quando o processo termina de
+    verdade -- `del`/`empty_cache()` não alcança isso, então mesmo depois
+    de um `/unload` sobra ~1-1.5GB preso na GPU enquanto o processo segue
+    de pé (achado real, GPU RTX 4070). Pedido explícito do usuário: já que
+    o worker (`worker/main.py::_shutdown_tts_if_relevant`) chama isto como
+    último passo antes de ficar ocioso, vale devolver a GPU por completo
+    em vez de só descarregar o modelo -- o preço é que a próxima narração
+    precisa de `tts-service\\iniciar.ps1` rodando de novo (o processo não
+    fica mais de pé esperando)."""
+    import os
+    import threading
+    import time
+
+    def _exit():
+        time.sleep(0.3)  # dá tempo da resposta HTTP sair antes do processo morrer
+        os._exit(0)
+
+    threading.Thread(target=_exit, daemon=True).start()
+    return {"ok": True}
+
+
 @app.get("/speakers")
 def speakers():
     """Voz padrão embutida do modelo é sempre o default (não listada aqui

@@ -32,14 +32,19 @@ def healthz() -> bool:
         return False
 
 
-def unload() -> bool:
-    """Pede pro tts-service liberar o modelo da VRAM -- chamado pelo
+def shutdown() -> bool:
+    """Pede pro tts-service encerrar o processo inteiro -- chamado pelo
     worker quando termina de drenar a fila de narração (modo contínuo
-    padrão), pra não deixar a GPU ocupada à toa até o próximo lote de
-    aulas. Falha aqui não é grave (serviço fora do ar, ou já sem nada
-    carregado) -- só reporta False, quem chama só loga e segue."""
+    padrão), pra devolver a GPU por completo. Diferente de um simples
+    "descarregar o modelo": o contexto CUDA (kernels do cuDNN/cuBLAS,
+    cache do alocador do PyTorch) só some quando o processo morre de
+    verdade -- ficava ~1-1.5GB preso na GPU mesmo depois de liberar só o
+    modelo (achado real). Preço: a próxima narração precisa que alguém
+    rode `tts-service\\iniciar.ps1` de novo -- o serviço não fica mais de
+    pé esperando. Falha aqui não é grave (serviço já fora do ar) -- só
+    reporta False, quem chama só loga e segue."""
     try:
-        resp = httpx.post(f"{config.TTS_SERVICE_URL}/unload", timeout=30.0)
+        resp = httpx.post(f"{config.TTS_SERVICE_URL}/shutdown", timeout=30.0)
         return resp.status_code == 200
     except httpx.HTTPError:
         return False

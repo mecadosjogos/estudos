@@ -240,33 +240,34 @@ def test_run_skips_tts_guia_when_service_unhealthy_without_crashing(monkeypatch)
     assert mock_get_next_job.call_args.args[1] == "gpu_worker"
 
 
-def test_run_unloads_tts_model_when_draining_ends_with_tts_guia_as_target(monkeypatch):
-    """Sem isso, o modelo de narração fica ocupando VRAM à toa entre uma
-    leva de aulas e a próxima -- worker libera sozinho ao esvaziar a fila,
-    sem precisar de comando manual."""
+def test_run_shuts_down_tts_service_when_draining_ends_with_tts_guia_as_target(monkeypatch):
+    """Sem isso, o processo do tts-service (contexto CUDA incluso) fica
+    ocupando VRAM à toa entre uma leva de aulas e a próxima -- worker
+    encerra sozinho ao esvaziar a fila, sem precisar de comando manual."""
     with (
         patch("worker.tts.healthz", return_value=True),
         patch("worker.api_client.get_next_job", return_value=None),
-        patch("worker.tts.unload") as mock_unload,
+        patch("worker.tts.shutdown") as mock_shutdown,
     ):
         worker_main.run(mode="drain", targets=["gpu_worker", "tts_guia"])
 
-    mock_unload.assert_called_once()
+    mock_shutdown.assert_called_once()
 
 
-def test_run_does_not_unload_when_tts_guia_is_not_a_target(monkeypatch):
+def test_run_does_not_shutdown_tts_when_tts_guia_is_not_a_target(monkeypatch):
     with (
         patch("worker.api_client.get_next_job", return_value=None),
-        patch("worker.tts.unload") as mock_unload,
+        patch("worker.tts.shutdown") as mock_shutdown,
     ):
         worker_main.run(mode="drain", targets=["gpu_worker"])
 
-    mock_unload.assert_not_called()
+    mock_shutdown.assert_not_called()
 
 
-def test_run_does_not_unload_in_watch_mode(monkeypatch):
+def test_run_does_not_shutdown_tts_in_watch_mode(monkeypatch):
     """--watch fica de pé esperando o próximo job por natureza -- não faz
-    sentido descarregar o modelo só porque a fila esvaziou num instante."""
+    sentido encerrar o serviço de narração só porque a fila esvaziou num
+    instante."""
     calls = {"n": 0}
 
     def fake_get_next_job(worker_name, target):
@@ -278,7 +279,7 @@ def test_run_does_not_unload_in_watch_mode(monkeypatch):
     with (
         patch("worker.tts.healthz", return_value=True),
         patch("worker.api_client.get_next_job", side_effect=fake_get_next_job),
-        patch("worker.tts.unload") as mock_unload,
+        patch("worker.tts.shutdown") as mock_shutdown,
         patch("worker.main.time.sleep"),
     ):
         try:
@@ -286,12 +287,13 @@ def test_run_does_not_unload_in_watch_mode(monkeypatch):
         except KeyboardInterrupt:
             pass
 
-    mock_unload.assert_not_called()
+    mock_shutdown.assert_not_called()
 
 
-def test_process_tts_job_result_unloads_model_in_once_mode(tmp_path, monkeypatch):
-    """Modo --once também libera, não só o drenar padrão -- é usado pra
-    teste/depuração, mas não deveria deixar a GPU ocupada depois."""
+def test_process_tts_job_result_shuts_down_tts_in_once_mode(tmp_path, monkeypatch):
+    """Modo --once também encerra o tts-service, não só o drenar padrão --
+    é usado pra teste/depuração, mas não deveria deixar a GPU ocupada
+    depois."""
     monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
     job = {
         "id": 999,
@@ -310,11 +312,11 @@ def test_process_tts_job_result_unloads_model_in_once_mode(tmp_path, monkeypatch
         patch("shared.audio.probe_duration_s", return_value=1.0),
         patch("shared.audio.concat_audio_files"),
         patch("shared.audio.compress_to_mp3"),
-        patch("worker.tts.unload") as mock_unload,
+        patch("worker.tts.shutdown") as mock_shutdown,
     ):
         worker_main.run(mode="once", targets=["tts_guia"])
 
-    mock_unload.assert_called_once()
+    mock_shutdown.assert_called_once()
 
 
 def _make_tts_job(job_id=500, secoes=None):
