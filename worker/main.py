@@ -283,6 +283,7 @@ def process_tts_job(job: dict) -> None:
     depois de reivindicação obsoleta, `_reclaim_stale`) não são refeitas —
     o fragmento em `work_dir` já existe, então pula direto pra próxima."""
     from shared.audio import compress_to_mp3, concat_audio_files, make_silence, probe_duration_s
+    from shared.text import markdown_para_narracao
 
     job_id = job["id"]
     claim_token = job["claim_token"]
@@ -316,8 +317,15 @@ def process_tts_job(job: dict) -> None:
                     # áudio pula direto pro conteúdo e não dá pra saber
                     # quando um assunto terminou e o próximo começou,
                     # ouvindo em sequência) -- lido como frase própria
-                    # antes do corpo.
-                    texto_narrado = f"{secao['titulo']}. {secao['corpo']}"
+                    # antes do corpo. `corpo` é Markdown de verdade (a IA
+                    # usa sub-título/lista/negrito pra estrutura -- ver
+                    # server/app/ai/bridge.py), por isso passa por
+                    # markdown_para_narracao antes de virar fala (achado
+                    # real: sem isso, o TTS lia "##"/"**"/marcadores de
+                    # lista como ruído no meio da narração).
+                    titulo_falado = markdown_para_narracao(secao["titulo"])
+                    corpo_falado = markdown_para_narracao(secao["corpo"])
+                    texto_narrado = f"{titulo_falado}. {corpo_falado}"
                     audio_bytes = tts.synthesize(texto_narrado)
                 except Exception as exc:  # noqa: BLE001 — só essa seção fica sem narração, o job segue
                     _log(f"seção {ordem} falhou ({exc}) — seguindo pras outras")

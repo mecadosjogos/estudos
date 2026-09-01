@@ -567,6 +567,22 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     )
 
 
+@router.post("/{lesson_id}/guia/renarrar")
+def renarrar_guia(lesson_id: int, session: Session = Depends(get_session)):
+    """Recoloca só a narração (`tts_guia`) na fila -- sem tocar em guia_md,
+    resumo, cards ou qualquer outro campo. Existe separado de "reprocessar
+    a aula" porque a lógica de narração (limpeza de Markdown antes do TTS,
+    voz, etc.) muda sem que o conteúdo do guia precise mudar junto -- nesses
+    casos reprocessar com IA de novo seria desperdício e risco (reescreveria
+    resumo/cards/mapa à toa). `ensure_pending_job` é idempotente: clicar de
+    novo com um job já pendente não duplica."""
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.guia_md is None:
+        raise HTTPException(status_code=404, detail="guia de aula não gerado ainda")
+    ensure_pending_job(session, lesson_id, target="tts_guia")
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia", status_code=303)
+
+
 @router.get("/{lesson_id}/guia/audio.mp3")
 def guia_audio(lesson_id: int, session: Session = Depends(get_session)):
     lesson = session.get(Lesson, lesson_id)

@@ -335,6 +335,54 @@ def _make_tts_job(job_id=500, secoes=None):
     }
 
 
+def test_tts_job_strips_markdown_before_synthesizing(tmp_path, monkeypatch):
+    """Achado real (aula 16 em produção): `corpo` é Markdown de verdade (a
+    IA usa sub-título/lista/negrito pra estrutura, ver server/app/ai/bridge.py)
+    -- sem limpeza, o TTS lia "##"/"**"/marcadores de lista em voz alta no
+    meio da narração. O texto passado a tts.synthesize precisa estar livre
+    desses sinais."""
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    job = _make_tts_job(
+        secoes=[
+            {
+                "ordem": 0,
+                "titulo": "Introdução",
+                "corpo": (
+                    "O Código Civil de 2002 (Lei 10.406).\n\n"
+                    "### Fontes\n"
+                    "- **Art. 1º**: personalidade civil\n"
+                    "- [CF/88](https://example.com): fundamento\n\n"
+                    "Os sujeitos da relação jurídica..."
+                ),
+            }
+        ]
+    )
+
+    captured = {}
+
+    def fake_synthesize(texto, speaker=None):
+        captured["texto"] = texto
+        return b"audio"
+
+    with (
+        patch("worker.tts.synthesize", side_effect=fake_synthesize),
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.submit_tts_result", return_value={"ok": True, "already_received": False}),
+        patch("shared.audio.probe_duration_s", return_value=1.0),
+        patch("shared.audio.concat_audio_files"),
+        patch("shared.audio.compress_to_mp3"),
+    ):
+        worker_main.process_tts_job(job)
+
+    texto = captured["texto"]
+    for marker in ("#", "**", "- ", "[CF/88]", "]("):
+        assert marker not in texto, f"{marker!r} vazou pro texto narrado: {texto!r}"
+    assert "Lei 10.406" in texto
+    assert "Art. 1º" in texto
+    assert "CF/88" in texto
+    assert "Os sujeitos da relação jurídica" in texto
+
+
 def test_tts_job_uploads_sections_that_succeeded_when_one_section_fails(tmp_path, monkeypatch):
     """Achado real processando aulas de produção (lesson 2/8 na VPS): um
     timeout numa seção jogava fora todo o resto já narrado. Agora só

@@ -446,6 +446,60 @@ def test_view_guia_shows_player_once_audio_ready(app_env):
     assert audio_response.content == b"audio"
 
 
+def test_renarrar_requeues_tts_job_without_touching_guia_content(app_env):
+    """Botão "gerar narração de novo": recoloca só o job tts_guia na fila --
+    pra quando a lógica de narração muda (limpeza de Markdown, voz) sem que o
+    conteúdo do guia precise mudar junto, sem reprocessar a aula inteira com IA."""
+    client = _authed_client()
+    from app.db import holder
+    from app.models import Lesson, TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    secoes = [{"titulo": "Posse", "corpo": "Conteúdo."}]
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(titulo="Aula", secoes=secoes)},
+    )
+    claim = client.get("/api/jobs/next", params={"worker_name": "w", "target": "tts_guia"}).json()["job"]
+    client.post(
+        f"/api/jobs/{claim['id']}/tts-result",
+        data={"claim_token": claim["claim_token"], "timestamps": json.dumps([{"ordem": 0, "start_s": 0.0, "end_s": 3.0}])},
+        files={"audio": ("guia.mp3", b"audio")},
+    )
+    with holder.SessionLocal() as session:
+        guia_md_antes = session.get(Lesson, lesson_id).guia_md
+
+    response = client.post(f"/lessons/{lesson_id}/guia/renarrar", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/lessons/{lesson_id}/guia"
+
+    with holder.SessionLocal() as session:
+        lesson = session.get(Lesson, lesson_id)
+        assert lesson.guia_md == guia_md_antes  # conteúdo do guia intocado
+
+        jobs = session.query(TranscriptionJob).filter_by(lesson_id=lesson_id, target="tts_guia").all()
+    assert len(jobs) == 2
+    assert {j.status for j in jobs} == {"done", "pending"}
+
+    # idempotente -- clicar de novo com o job ainda pendente não duplica
+    client.post(f"/lessons/{lesson_id}/guia/renarrar")
+    with holder.SessionLocal() as session:
+        jobs = session.query(TranscriptionJob).filter_by(lesson_id=lesson_id, target="tts_guia").all()
+    assert len(jobs) == 2
+
+
+def test_renarrar_404_before_guia_generated(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["a posse exige corpus e animus"])
+
+    assert client.post(f"/lessons/{lesson_id}/guia/renarrar").status_code == 404
+
+
 def test_reprocessing_makes_existing_audio_stale_and_requeues(app_env):
     client = _authed_client()
     from app.db import holder
