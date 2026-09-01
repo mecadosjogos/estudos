@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Estudar{% endblock %}
+{% block content %}
+<h1>Estudar</h1>
+<p class="muted">Todas as formas de estudar já implantadas no sistema, num só lugar.</p>
+
+<div class="study-grid">
+
+	<div class="card{% if review_count %} card-primary{% endif %}">
+		<h2>Revisão espaçada</h2>
+		<p class="muted">Fila diária de flashcards, cards de discriminação e cloze, com repetição espaçada.</p>
+		{% if review_count %}
+		<p>Hoje: <strong>{{ review_count }}</strong> card(s){% if review_recovery %} <span class="badge error">recuperação</span>{% endif %}</p>
+		{% else %}
+		<p class="muted">Nada pendente na fila de hoje.</p>
+		{% endif %}
+		<p><a class="button" href="/revisao">Revisar agora →</a></p>
+	</div>
+
+	<div class="card">
+		<h2>Calibração de confiança</h2>
+		<p class="muted">Compara a confiança declarada em cada resposta com o acerto real, pra ver onde você se superestima.</p>
+		<p><a class="button" href="/revisao/calibracao">Ver calibração →</a></p>
+	</div>
+
+	<div class="card">
+		<h2>Dissertativas</h2>
+		<p class="muted">Questão gerada por rubrica a partir de uma aula ou assunto, resposta e correção com histórico de tentativas.</p>
+		<p><a class="button" href="/dissertativas">Ver dissertativas →</a></p>
+	</div>
+
+	<div class="card">
+		<h2>Treino oral (Feynman)</h2>
+		<p class="muted">Grave você explicando um termo do glossário em voz alta; a transcrição é comparada com a definição do professor.</p>
+		<p><a class="button" href="/termos">Escolher termo →</a></p>
+	</div>
+
+	<div class="card">
+		<h2>Destaques em áudio</h2>
+		<p class="muted">Fila tocável dos trechos que o professor marcou como "cai na prova" ou ditou, cortados direto do áudio da aula.</p>
+		<p><a class="button" href="/destaques">Ouvir destaques →</a></p>
+	</div>
+
+	<div class="card">
+		<h2>Modo prova por matéria</h2>
+		<p class="muted">Revisão sem mostrar a resposta certa até você responder — sem atalho de "já sei", igual numa prova de verdade.</p>
+		{% if subjects %}
+		<ul class="subject-list">
+			{% for subject in subjects %}
+			<li>
+				<span class="dot" style="background: {{ subject.cor or 'var(--border)' }}"></span>
+				<a href="/revisao/prova/{{ subject.id }}">{{ subject.sigla }} — {{ subject.nome }}</a>
+			</li>
+			{% endfor %}
+		</ul>
+		{% else %}
+		<p class="muted">Cadastre uma matéria primeiro.</p>
+		{% endif %}
+	</div>
+
+	<div class="card">
+		<h2>Provas e plano regressivo</h2>
+		<p class="muted">Painel por prova: dias restantes, cobertura do escopo, cards vencidos e ritmo necessário até a data. Cadastro e acesso ficam na página de cada matéria.</p>
+		<p><a class="button" href="/subjects">Escolher matéria →</a></p>
+	</div>
+
+	<div class="card">
+		<h2>Mapa de taxonomia</h2>
+		<p class="muted">Árvore Mermaid dos assuntos de uma aula, ou de todas as aulas de uma matéria já unidas — nó com verbete no glossário é clicável.</p>
+		<p><a class="button" href="/subjects">Escolher matéria →</a></p>
+	</div>
+
+</div>
+{% endblock %}

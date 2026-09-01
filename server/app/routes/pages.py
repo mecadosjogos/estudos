@@ -24,3 +24,14 @@ def home(request: Request, session: Session = Depends(get_session)):
         "home.html",
         {"subjects": subjects, "review_count": len(queue), "review_recovery": in_recovery},
     )
+
+
+@router.get("/estudar")
+def estudar(request: Request, session: Session = Depends(get_session)):
+    subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
+    queue, in_recovery = build_daily_queue(session, daily_cap=config.REVIEW_DAILY_CAP)
+    return templates.TemplateResponse(
+        request,
+        "estudar.html",
+        {"subjects": subjects, "review_count": len(queue), "review_recovery": in_recovery},
+    )
