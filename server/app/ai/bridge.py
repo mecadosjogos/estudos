@@ -88,11 +88,13 @@ diferente, não uma cópia dos blocos, com uma liberdade que os blocos de
 raciocínio (conceito → explicação → exemplo → observações) desde que seja
 só reorganização do que já foi dito, nunca reescrita de conteúdo — os
 blocos de `aula_editada` continuam presos à ordem/tempo originais, porque
-▸ ouvir o original depende disso. Essa liberdade é só DENTRO de uma
-seção — as seções em si seguem a ordem em que os assuntos foram
-discutidos na aula: não agrupe um tema que o professor tocou em momentos
-diferentes da aula numa seção só fora de ordem, organize o que já existe,
-não reordene assuntos. As mesmas regras de fidelidade
+▸ ouvir o original depende disso. Essa liberdade vale também entre
+seções: se o professor volta a um assunto em outro momento da aula
+(retomou depois de uma digressão, complementou algo que já tinha
+explicado antes), agrupe esse conteúdo na MESMA seção onde o assunto foi
+tratado da primeira vez, em vez de criar uma seção nova e separada pra
+cada retomada — o critério é o assunto, não o instante em que foi dito.
+As mesmas regras de fidelidade
 ("não invente", preserve a voz do professor) valem aqui também; não
 resuma a ponto de perder conteúdo — o objetivo é organizar, não encurtar.
 Ao reorganizar, preserve as referências cruzadas que o próprio professor
