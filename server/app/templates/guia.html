@@ -20,6 +20,7 @@
 	<a class="button button-ghost" href="/lessons/{{ lesson.id }}">Ver a aula →</a>
 </div>
 
+{% set eh_admin = request.state.user and request.state.user.papel == "admin" %}
 {% if audio_pronto %}
 <div class="card player-card">
 	<audio id="guia-player" src="/lessons/{{ lesson.id }}/guia/audio.mp3" preload="metadata"></audio>
@@ -30,16 +31,22 @@
 		<span id="guia-player-status" class="muted"></span>
 	</div>
 </div>
+{% if audio_atualizando %}
+<p class="muted">🔊 gerando narração atualizada...</p>
+{% elif eh_admin %}
 <form method="post" action="/lessons/{{ lesson.id }}/guia/renarrar" class="button-row" style="margin-top: var(--space-2)">
 	<button type="submit" class="button-ghost">🔄 gerar narração de novo</button>
 </form>
+{% endif %}
 {% elif audio_gerando %}
 <p class="muted">🔊 narração sendo gerada...</p>
 {% elif audio_falhou %}
 <p class="guia-aviso-desatualizado">⚠️ a narração deste guia falhou ao gerar{{ " (" + audio_erro + ")" if audio_erro }}.</p>
+{% if eh_admin %}
 <form method="post" action="/lessons/{{ lesson.id }}/guia/renarrar" class="button-row">
 	<button type="submit" class="button-ghost">🔊 tentar narrar de novo</button>
 </form>
+{% endif %}
 {% endif %}
 
 {% if arvore %}

@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import config, db
-from ..auth import require_session
+from ..auth import require_admin, require_session
 from ..db import get_session
 from ..library.gdocs import build_create_doc_url, extract_doc_id, get_drive_client
 from ..library.html_to_md import html_to_markdown
@@ -29,6 +29,7 @@ from ..models import (
     Transcript,
     TranscriptionJob,
     TranscriptSegment,
+    User,
 )
 from ..transcript_confidence import is_suspicious_segment
 from .jobs import claim_job_by_id, ensure_pending_job, ingest_result
@@ -548,6 +549,15 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
         "claimed",
     )
     audio_falhou = not audio_pronto and ultimo_job_audio is not None and ultimo_job_audio.status == "failed"
+    # Botão "renarrar" (guia/renarrar): enfileira sem invalidar guia_audio_gerado_em,
+    # então audio_pronto continua true (o áudio antigo toca normalmente enquanto o
+    # novo não chega) -- sem este flag à parte, clicar no botão não dava nenhum sinal
+    # visual de que o job entrou na fila (achado real).
+    audio_atualizando = (
+        ultimo_job_audio is not None
+        and ultimo_job_audio.status in ("pending", "claimed")
+        and (lesson.guia_audio_gerado_em is None or ultimo_job_audio.criado_em > lesson.guia_audio_gerado_em)
+    )
 
     return templates.TemplateResponse(
         request,
@@ -562,20 +572,23 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "audio_pronto": audio_pronto,
             "audio_gerando": audio_gerando,
             "audio_falhou": audio_falhou,
+            "audio_atualizando": audio_atualizando,
             "audio_erro": ultimo_job_audio.error if audio_falhou else None,
         },
     )
 
 
 @router.post("/{lesson_id}/guia/renarrar")
-def renarrar_guia(lesson_id: int, session: Session = Depends(get_session)):
+def renarrar_guia(lesson_id: int, session: Session = Depends(get_session), _admin: User = Depends(require_admin)):
     """Recoloca só a narração (`tts_guia`) na fila -- sem tocar em guia_md,
     resumo, cards ou qualquer outro campo. Existe separado de "reprocessar
     a aula" porque a lógica de narração (limpeza de Markdown antes do TTS,
     voz, etc.) muda sem que o conteúdo do guia precise mudar junto -- nesses
     casos reprocessar com IA de novo seria desperdício e risco (reescreveria
     resumo/cards/mapa à toa). `ensure_pending_job` é idempotente: clicar de
-    novo com um job já pendente não duplica."""
+    novo com um job já pendente não duplica. Restrito a admin (diferente do
+    resto de /guia, que qualquer sessão vê) -- é uma ação de custo de GPU,
+    não algo que todo usuário deveria disparar à vontade."""
     lesson = session.get(Lesson, lesson_id)
     if lesson is None or lesson.guia_md is None:
         raise HTTPException(status_code=404, detail="guia de aula não gerado ainda")
