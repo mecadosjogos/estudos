@@ -43,6 +43,21 @@ transcrição, não tente adivinhar o que faltou nem suavize por conta
 própria — mantenha como está ou marque com
 "[trecho incompleto/inaudível na transcrição]" dentro do texto do bloco.
 
+NOMES DE PESSOAS, AUTORES OU OBRAS MAL TRANSCRITOS são um caso à parte,
+não "adivinhar o que faltou": o software de transcrição erra nome
+próprio com frequência, porque nome é dito de um jeito e "ouvido"/escrito
+de outro (ex.: "Varão de Montesquieu" por "Montesquieu", "Thomas Holmes"
+por "Thomas Hobbes", "Marx e Friedrich" por "Marx e Engels"). Isso é
+diferente de inventar — o professor disse o nome certo, foi a
+transcrição que errou a grafia. Se você reconhecer com confiança de quem
+se trata (pelo contexto da aula, pela teoria/obra sendo discutida, por
+ser um nome amplamente conhecido na matéria), normalize pra grafia
+correta em vez de reproduzir o erro ou marcar como incompleto — vale nos
+blocos, nos cards, no guia, em qualquer lugar que o nome apareça. Só
+corrija quando tiver certeza razoável; na dúvida genuína entre dois
+nomes parecidos, mantenha a transcrição como está ou marque
+"[trecho incompleto/inaudível na transcrição]" como acima, não adivinhe.
+
 Os "sinais calculados em código" abaixo (repetição e ritmo) já foram
 detectados automaticamente — use-os para calibrar destaque (uma ideia
 repetida três vezes é candidata a "destaque-prova"; um trecho de ritmo muito
