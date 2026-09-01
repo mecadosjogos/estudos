@@ -1,16 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Colar questão{% endblock %}
+{% block title %}Gravar questão{% endblock %}
 {% block content %}
 <p><a href="{{ voltar_url }}">← Voltar</a></p>
-<h1>Colar questão</h1>
+<h1>Gravar questão (manual)</h1>
 <p class="muted">Cole aqui a resposta que você recebeu do Claude (pode vir com conversa em volta do bloco <code>```json</code> — o parser é tolerante).</p>
 
 {% if request.query_params.get("erro") %}
 <div class="card error">{{ request.query_params.get("erro") }}</div>
+{% endif %}
+{% if request.query_params.get("ok") %}
+<div class="card">Questão #{{ request.query_params.get("ok") }} gravada. <a href="/dissertativas/{{ request.query_params.get('ok') }}">Ver →</a></div>
 {% endif %}
 
 <form method="post" action="{{ action_url }}">
 	<textarea name="resposta" rows="16" style="width:100%; font-family: monospace;" required></textarea>
 	<p><button type="submit">Processar resposta</button></p>
 </form>
+
+{% if existing_questions is defined and existing_questions %}
+<h2>Questões já gravadas ({{ existing_questions|length }})</h2>
+<ul class="search-results">
+	{% for q in existing_questions %}
+	<li><a href="/dissertativas/{{ q.id }}">{{ q.enunciado[:120] }}{% if q.enunciado|length > 120 %}…{% endif %}</a></li>
+	{% endfor %}
+</ul>
+{% endif %}
 {% endblock %}

@@ -46,7 +46,8 @@
 </div>
 
 <div class="card" id="empty-state" hidden>
-	<p>Fila vazia — nada pra revisar agora. 🎉</p>
+	<p id="empty-message">Fila vazia — nada pra revisar agora. 🎉</p>
+	<p><button type="button" class="button" id="refill-btn">Carregar mais cards →</button></p>
 </div>
 
 <p><a href="/revisao/calibracao">Ver calibração →</a></p>
@@ -72,11 +73,14 @@
 		ouvirTermoB: document.getElementById("ouvir-termo-b"),
 		nextBtn: document.getElementById("next-btn"),
 		emptyState: document.getElementById("empty-state"),
+		emptyMessage: document.getElementById("empty-message"),
+		refillBtn: document.getElementById("refill-btn"),
 		audio: document.getElementById("review-audio"),
 	};
 
 	let queue = [];
 	let confiancaEscolhida = null;
+	let answeredIds = [];
 
 	function loadQueue() {
 		try {
@@ -136,6 +140,7 @@
 		if (!queue.length) {
 			els.card.hidden = true;
 			els.emptyState.hidden = false;
+			els.emptyMessage.textContent = "Fila vazia — nada pra revisar agora. 🎉";
 			els.progress.textContent = "";
 			return;
 		}
@@ -195,9 +200,28 @@
 			setupTermoButton(els.ouvirTermoB, current.termo_b, current.start_s_b);
 		}
 
+		answeredIds.push(current.id);
 		queue.shift();
 		saveQueue();
 	}
+
+	async function refill() {
+		try {
+			const resp = await fetch(`/revisao/mais.json?excluir=${answeredIds.join(",")}`);
+			if (!resp.ok) return;
+			const data = await resp.json();
+			if (!data.cards.length) {
+				els.emptyMessage.textContent = "Não sobrou mais nenhum card pra revisar. 🎉";
+				return;
+			}
+			queue = data.cards;
+			saveQueue();
+			render();
+		} catch {
+			els.emptyMessage.textContent = "Sem conexão — tente de novo quando a rede voltar.";
+		}
+	}
+	els.refillBtn.addEventListener("click", refill);
 
 	function setupTermoButton(btn, termo, start) {
 		if (start === null || start === undefined) {

@@ -105,9 +105,18 @@ def download_generation_package_from_lesson(lesson_id: int, session: Session = D
 @router.get("/lessons/{lesson_id}/dissertativas/colar-questao")
 def paste_question_form_from_lesson(request: Request, lesson_id: int, session: Session = Depends(get_session)):
     lesson = _get_lesson_or_404(session, lesson_id)
+    existing_questions = session.scalars(
+        select(DissertativaQuestion)
+        .where(DissertativaQuestion.lesson_id == lesson_id)
+        .order_by(DissertativaQuestion.criado_em.desc())
+    ).all()
     return templates.TemplateResponse(
         request, "dissertativa_paste_question.html",
-        {"voltar_url": f"/lessons/{lesson_id}", "action_url": f"/lessons/{lesson_id}/dissertativas/colar-questao"},
+        {
+            "voltar_url": f"/lessons/{lesson_id}",
+            "action_url": f"/lessons/{lesson_id}/dissertativas/colar-questao",
+            "existing_questions": existing_questions,
+        },
     )
 
 
@@ -122,7 +131,9 @@ def paste_question_submit_from_lesson(lesson_id: int, resposta: str = Form(...),
         return RedirectResponse(
             url=f"/lessons/{lesson_id}/dissertativas/colar-questao?erro={_url_escape(str(exc))}", status_code=303
         )
-    return RedirectResponse(url=f"/dissertativas/{question.id}", status_code=303)
+    return RedirectResponse(
+        url=f"/lessons/{lesson_id}/dissertativas/colar-questao?ok={question.id}", status_code=303
+    )
 
 
 # --- geração a partir de um assunto ----------------------------------------------
@@ -166,9 +177,18 @@ def download_generation_package_from_assunto(assunto_id: int, session: Session =
 @router.get("/assuntos/{assunto_id}/dissertativas/colar-questao")
 def paste_question_form_from_assunto(request: Request, assunto_id: int, session: Session = Depends(get_session)):
     _get_assunto_or_404(session, assunto_id)
+    existing_questions = session.scalars(
+        select(DissertativaQuestion)
+        .where(DissertativaQuestion.assunto_id == assunto_id)
+        .order_by(DissertativaQuestion.criado_em.desc())
+    ).all()
     return templates.TemplateResponse(
         request, "dissertativa_paste_question.html",
-        {"voltar_url": f"/assuntos/{assunto_id}", "action_url": f"/assuntos/{assunto_id}/dissertativas/colar-questao"},
+        {
+            "voltar_url": f"/assuntos/{assunto_id}",
+            "action_url": f"/assuntos/{assunto_id}/dissertativas/colar-questao",
+            "existing_questions": existing_questions,
+        },
     )
 
 
@@ -183,7 +203,9 @@ def paste_question_submit_from_assunto(assunto_id: int, resposta: str = Form(...
         return RedirectResponse(
             url=f"/assuntos/{assunto_id}/dissertativas/colar-questao?erro={_url_escape(str(exc))}", status_code=303
         )
-    return RedirectResponse(url=f"/dissertativas/{question.id}", status_code=303)
+    return RedirectResponse(
+        url=f"/assuntos/{assunto_id}/dissertativas/colar-questao?ok={question.id}", status_code=303
+    )
 
 
 # --- lista, detalhe, responder, corrigir -----------------------------------------

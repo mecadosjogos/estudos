@@ -155,6 +155,14 @@ def calibration_report(session: Session) -> dict[str, dict]:
     return report
 
 
+def _weakness(card: CardProposal) -> tuple[int, float]:
+    logs = card.review_logs
+    if not logs:
+        return (0, 0.0)
+    acertos = sum(1 for log in logs if log.acertou)
+    return (1, acertos / len(logs))
+
+
 def exam_mode_queue(session: Session, subject_id: int) -> list[CardProposal]:
     """Modo prova, versão MVP por matéria (o escopo por assunto/prova real
     é fase 8/14, quando assunto e exam existirem). Ignora agendamento,
@@ -165,12 +173,16 @@ def exam_mode_queue(session: Session, subject_id: int) -> list[CardProposal]:
         .join(Lesson, CardProposal.lesson_id == Lesson.id)
         .where(CardProposal.status == "aceito", Lesson.subject_id == subject_id)
     ).all()
+    return sorted(cards, key=_weakness)
 
-    def weakness(card: CardProposal) -> tuple[int, float]:
-        logs = card.review_logs
-        if not logs:
-            return (0, 0.0)
-        acertos = sum(1 for log in logs if log.acertou)
-        return (1, acertos / len(logs))
 
-    return sorted(cards, key=weakness)
+def practice_queue(session: Session, *, exclude_ids: set[int] | None = None) -> list[CardProposal]:
+    """Fila de reforço pra quando a fila do dia (build_daily_queue) já
+    esvaziou e ainda dá pra continuar estudando -- ignora due_date de
+    propósito (senão não sobraria nada pra mostrar) e prioriza os cards
+    mais fracos. exclude_ids evita repetir na hora os cards já respondidos
+    nesta mesma sessão de reforço."""
+    exclude_ids = exclude_ids or set()
+    cards = [c for c in session.scalars(select(CardProposal).where(CardProposal.status == "aceito")) if c.id not in exclude_ids]
+    cards.sort(key=_weakness)
+    return _interleave_by_subject(cards)

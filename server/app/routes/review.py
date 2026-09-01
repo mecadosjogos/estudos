@@ -12,10 +12,33 @@ from .. import config
 from ..auth import require_session
 from ..db import get_session
 from ..models import CardProposal, Subject
-from ..study.scheduler import CONFIDENCE_LEVELS, build_daily_queue, calibration_report, exam_mode_queue, submit_review
+from ..study.scheduler import (
+    CONFIDENCE_LEVELS,
+    build_daily_queue,
+    calibration_report,
+    exam_mode_queue,
+    practice_queue,
+    submit_review,
+)
 
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+
+
+def _serialize_card(card: CardProposal) -> dict:
+    return {
+        "id": card.id,
+        "lesson_id": card.lesson_id,
+        "tipo": card.tipo,
+        "frente": card.frente,
+        "verso": card.verso,
+        "start_s": card.start_s,
+        "termo_a": card.termo_a,
+        "termo_b": card.termo_b,
+        "start_s_a": card.start_s_a,
+        "start_s_b": card.start_s_b,
+        "subject_sigla": card.lesson.subject.sigla,
+    }
 
 
 @router.get("/revisao")
@@ -35,27 +58,18 @@ def daily_queue_json(session: Session = Depends(get_session)):
     revisar sem rede no meio do trajeto (PLANO.md, fase 7)."""
     today = datetime.now(timezone.utc).date()
     queue, in_recovery = build_daily_queue(session, daily_cap=config.REVIEW_DAILY_CAP, today=today)
-    return JSONResponse(
-        {
-            "in_recovery": in_recovery,
-            "cards": [
-                {
-                    "id": card.id,
-                    "lesson_id": card.lesson_id,
-                    "tipo": card.tipo,
-                    "frente": card.frente,
-                    "verso": card.verso,
-                    "start_s": card.start_s,
-                    "termo_a": card.termo_a,
-                    "termo_b": card.termo_b,
-                    "start_s_a": card.start_s_a,
-                    "start_s_b": card.start_s_b,
-                    "subject_sigla": card.lesson.subject.sigla,
-                }
-                for card in queue
-            ],
-        }
-    )
+    return JSONResponse({"in_recovery": in_recovery, "cards": [_serialize_card(card) for card in queue]})
+
+
+@router.get("/revisao/mais.json")
+def more_cards(excluir: str = "", session: Session = Depends(get_session)):
+    """Fila de reforço pra quando a fila do dia acabou e ainda dá pra
+    continuar estudando (PLANO.md: revisão não tem teto de baixo, só de
+    cima). excluir é uma lista de ids separados por vírgula -- os cards já
+    respondidos nesta sessão de reforço, pra não repetir na hora."""
+    exclude_ids = {int(x) for x in excluir.split(",") if x}
+    cards = practice_queue(session, exclude_ids=exclude_ids)
+    return JSONResponse({"cards": [_serialize_card(card) for card in cards[: config.REVIEW_DAILY_CAP]]})
 
 
 @router.post("/revisao/{card_id}/responder")
