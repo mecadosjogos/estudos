@@ -58,9 +58,9 @@
 	{% elif latest_job is not none and latest_job.status == "pending" %}
 		<p><span class="badge muted">aguardando worker</span></p>
 		<form method="post" action="/lessons/{{ lesson.id }}/transcrever-na-vps">
-			<button type="submit">Transcrever na VPS agora</button>
+			<button type="submit" disabled title="Desativado — travava a VPS inteira">Transcrever na VPS agora</button>
 		</form>
-		<p class="muted">Válvula de emergência: mais lento e um pouco pior em termo técnico que a GPU, mas não depende de nenhum PC ligado.</p>
+		<p class="muted">Desativado: essa válvula de emergência travava a VPS inteira. Aguarde o worker da GPU pegar a fila.</p>
 	{% elif latest_job is not none and latest_job.status == "claimed" %}
 		<p><span class="badge muted">transcrevendo... ({{ latest_job.claimed_by }})</span></p>
 	{% else %}
@@ -74,7 +74,7 @@
 				<button type="submit">Transcrever (fila da GPU)</button>
 			</form>
 			<form method="post" action="/lessons/{{ lesson.id }}/transcrever-na-vps">
-				<button type="submit">Transcrever na VPS agora</button>
+				<button type="submit" disabled title="Desativado — travava a VPS inteira">Transcrever na VPS agora</button>
 			</form>
 		</div>
 	{% endif %}
