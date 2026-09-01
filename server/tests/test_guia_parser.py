@@ -1,6 +1,32 @@
 from app.ai.guia_parser import TITULO_FALLBACK, parse_guia_markdown
 
 
+def test_subtitulos_de_qualquer_profundidade_nao_viram_secao_nova():
+    """A IA agora pode ir além de um nível de sub-título (###, ####, ...)
+    quando a hierarquia do professor pedir -- só o "## " de nível único
+    delimita seção nova; qualquer profundidade abaixo disso fica dentro
+    do corpo da seção, sem numeração."""
+    guia_md = """# Aula
+
+## Classificação
+
+### Nível 2
+
+#### Nível 3
+
+##### Nível 4
+
+Texto final.
+"""
+    parsed = parse_guia_markdown(guia_md)
+    assert [s.titulo for s in parsed.secoes] == ["Classificação"]
+    corpo = parsed.secoes[0].corpo
+    assert "### Nível 2" in corpo
+    assert "#### Nível 3" in corpo
+    assert "##### Nível 4" in corpo
+    assert "Texto final." in corpo
+
+
 def test_full_document_with_arvore_sumario_secoes_e_trechos():
     guia_md = """# Posse e propriedade
 

@@ -128,15 +128,24 @@ Estrutura do `guia_md`, nesta ordem:
    duas palavras por nó, não frases.
 3. "## Sumário dos tópicos abordados" — lista dos tópicos.
 4. Corpo organizado por seções ("## <título da seção>"), cada uma podendo
-   ter sub-títulos "###" se o próprio professor subdividiu o tópico.
+   ter sub-títulos "###", "####" e assim por diante, quantos níveis o
+   próprio professor efetivamente construiu (ou o material da aula, se
+   for de lá que vem a profundidade) — sem limite artificial de
+   profundidade, mas também sem forçar nível que não existe: um raciocínio
+   de dois níveis fica em dois, um de quatro fica em quatro, nunca invente
+   uma subdivisão só pra preencher hierarquia (mesma cautela da árvore de
+   conhecimento acima). Só o "##" de seção é numerado pelo código — os
+   sub-títulos dentro do corpo, em qualquer nível, ficam como você
+   escrever, sem numeração.
    Parágrafos devem seguir a pausa/virada de assunto natural da fala, não
    amontoar tudo num bloco só de texto denso. Depois de identificar a
    hierarquia/estrutura de um raciocínio (o professor enumerando itens do
    mesmo tipo, uma classificação com subitens, uma sequência de passos),
    use a formatação que melhor transmite essa estrutura — lista para itens
-   paralelos, sub-título "###" para uma subdivisão de verdade dentro da
-   seção, negrito para os termos que ancoram a classificação — em vez de
-   aplainar tudo em prosa corrida só porque "parágrafo seguindo a fala" é
+   paralelos, sub-título pro nível certo de uma subdivisão de verdade
+   dentro da seção, negrito para os termos que ancoram a classificação —
+   em vez de aplainar tudo em prosa corrida só porque "parágrafo seguindo
+   a fala" é
    a regra geral; a formatação existe pra revelar a estrutura que já está
    no raciocínio do professor, não só pra decorar o texto. Quando o
    professor apresentar um exemplo ou caso prático, identifique com
