@@ -17,6 +17,11 @@ _FENCE_LINE_RE = re.compile(r"^```(?:json)?[ \t]*$", re.MULTILINE)
 
 
 def parse_pasted_response(text: str) -> dict:
+    # CRLF (arquivo gravado no Windows) deixa um `\r` sobrando antes da
+    # quebra de linha -- sem isso, a cerca de fechamento "```" + "\r" não
+    # batia com `[ \t]*$` e o parser tentava o texto inteiro, sempre
+    # falhando (achado real processando a aula 16 pela segunda vez).
+    text = text.replace("\r\n", "\n")
     fences = list(_FENCE_LINE_RE.finditer(text))
     if len(fences) >= 2:
         # Pareia abre/fecha consecutivos e usa o último par -- se a resposta

@@ -51,3 +51,12 @@ def test_no_fence_falls_back_to_whole_text():
 def test_invalid_json_raises_value_error_with_helpful_message():
     with pytest.raises(ValueError, match="não consegui entender"):
         parse_pasted_response("```json\n{not valid json\n```")
+
+
+def test_crlf_line_endings_do_not_break_fence_matching():
+    """Achado real (aula 16, segunda passada): arquivo gravado no Windows
+    com CRLF deixava um \\r antes da quebra de linha, e a cerca de
+    fechamento parava de bater com o regex."""
+    payload = {"a": 1}
+    text = ("```json\n" + json.dumps(payload) + "\n```").replace("\n", "\r\n")
+    assert parse_pasted_response(text) == payload
