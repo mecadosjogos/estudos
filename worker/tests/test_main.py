@@ -181,7 +181,7 @@ def test_main_enqueues_pending_before_draining_gpu_queue(monkeypatch):
         worker_main.main()
 
     mock_enqueue.assert_called_once()
-    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"])
+    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"], lesson_id=None)
 
 
 def test_main_does_not_enqueue_for_vps_cpu_target(monkeypatch):
@@ -193,7 +193,7 @@ def test_main_does_not_enqueue_for_vps_cpu_target(monkeypatch):
         worker_main.main()
 
     mock_enqueue.assert_not_called()
-    mock_run.assert_called_once_with(mode="drain", targets=["vps_cpu"])
+    mock_run.assert_called_once_with(mode="drain", targets=["vps_cpu"], lesson_id=None)
 
 
 def test_main_keeps_draining_even_if_enqueue_check_fails(monkeypatch):
@@ -209,7 +209,7 @@ def test_main_keeps_draining_even_if_enqueue_check_fails(monkeypatch):
     ):
         worker_main.main()
 
-    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"])
+    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"], lesson_id=None)
 
 
 def test_main_explicit_tts_guia_target_does_not_enqueue_transcriptions(monkeypatch):
@@ -221,7 +221,7 @@ def test_main_explicit_tts_guia_target_does_not_enqueue_transcriptions(monkeypat
         worker_main.main()
 
     mock_enqueue.assert_not_called()
-    mock_run.assert_called_once_with(mode="drain", targets=["tts_guia"])
+    mock_run.assert_called_once_with(mode="drain", targets=["tts_guia"], lesson_id=None)
 
 
 def test_run_skips_tts_guia_when_service_unhealthy_without_crashing(monkeypatch):
@@ -270,7 +270,7 @@ def test_run_does_not_shutdown_tts_in_watch_mode(monkeypatch):
     instante."""
     calls = {"n": 0}
 
-    def fake_get_next_job(worker_name, target):
+    def fake_get_next_job(worker_name, target, lesson_id=None):
         calls["n"] += 1
         if calls["n"] > 2:
             raise KeyboardInterrupt  # sai do loop infinito do modo watch

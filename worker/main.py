@@ -386,7 +386,7 @@ def process_tts_job(job: dict) -> None:
         heartbeat.stop()
 
 
-def run(mode: str, targets: list[str]) -> None:
+def run(mode: str, targets: list[str], lesson_id: int | None = None) -> None:
     if not config.ACCESS_TOKEN:
         _log("ACCESS_TOKEN não configurado no .env — o servidor vai recusar tudo")
 
@@ -405,7 +405,7 @@ def run(mode: str, targets: list[str]) -> None:
             # loop em vez de deixar o worker inteiro cair numa exceção.
             if target == "tts_guia" and not tts.healthz():
                 continue
-            job = api_client.get_next_job(config.WORKER_NAME, target)
+            job = api_client.get_next_job(config.WORKER_NAME, target, lesson_id)
             if job is not None:
                 job_target = target
                 break
@@ -465,6 +465,16 @@ def main():
             "e tts_guia, priorizando gpu_worker."
         ),
     )
+    parser.add_argument(
+        "--lesson-id",
+        type=int,
+        default=None,
+        help=(
+            "restringe a claim a essa aula -- pra rodada manual avulsa "
+            "(ex.: testar narração de uma aula específica) sem correr o risco "
+            "de pegar o job mais antigo de outra aula no mesmo alvo."
+        ),
+    )
     args = parser.parse_args()
 
     if args.once and args.watch:
@@ -489,7 +499,7 @@ def main():
                 _log("nada novo pra enfileirar")
 
     mode = "once" if args.once else "watch" if args.watch else "drain"
-    run(mode=mode, targets=targets)
+    run(mode=mode, targets=targets, lesson_id=args.lesson_id)
 
 
 if __name__ == "__main__":

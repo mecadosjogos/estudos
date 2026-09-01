@@ -86,17 +86,27 @@ def _reclaim_stale(session: Session, target: str) -> None:
     session.commit()
 
 
-def claim_next_job(session: Session, worker_name: str, target: str) -> TranscriptionJob | None:
+def claim_next_job(
+    session: Session, worker_name: str, target: str, lesson_id: int | None = None
+) -> TranscriptionJob | None:
     """Reivindica o job pendente mais antigo daquele alvo, ou None se não achar
     nenhum (ou perder a corrida para outro processo). Idempotente em `chamar de
-    novo`: um None não significa erro, só "tenta na próxima"."""
+    novo`: um None não significa erro, só "tenta na próxima".
+
+    `lesson_id`, quando informado, restringe a busca àquela aula -- pensado
+    pra rodada manual avulsa (`worker/main.py --lesson-id`), quando outras
+    aulas podem ter job mais antigo no mesmo alvo e não é isso que quem está
+    testando quer pegar (achado real: `--once --target tts_guia` sem esse
+    filtro reivindicou a narração de outra aula por engano). Sem `lesson_id`,
+    comportamento idêntico a antes."""
     _reclaim_stale(session, target)
 
+    filters = [TranscriptionJob.target == target, TranscriptionJob.status == "pending"]
+    if lesson_id is not None:
+        filters.append(TranscriptionJob.lesson_id == lesson_id)
+
     candidate_id = session.scalar(
-        select(TranscriptionJob.id)
-        .where(TranscriptionJob.target == target, TranscriptionJob.status == "pending")
-        .order_by(TranscriptionJob.criado_em)
-        .limit(1)
+        select(TranscriptionJob.id).where(*filters).order_by(TranscriptionJob.criado_em).limit(1)
     )
     if candidate_id is None:
         return None
@@ -148,9 +158,12 @@ def claim_job_by_id(session: Session, job_id: int, worker_name: str) -> Transcri
 
 @router.get("/next")
 def next_job(
-    worker_name: str, target: str = "gpu_worker", session: Session = Depends(get_session)
+    worker_name: str,
+    target: str = "gpu_worker",
+    lesson_id: int | None = None,
+    session: Session = Depends(get_session),
 ):
-    job = claim_next_job(session, worker_name, target)
+    job = claim_next_job(session, worker_name, target, lesson_id)
     if job is None:
         return JSONResponse({"job": None})
 

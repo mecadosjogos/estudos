@@ -27,10 +27,13 @@ def enqueue_pending_transcriptions() -> list[dict]:
     return response.json()["enqueued"]
 
 
-def get_next_job(worker_name: str, target: str = "gpu_worker") -> dict | None:
+def get_next_job(worker_name: str, target: str = "gpu_worker", lesson_id: int | None = None) -> dict | None:
+    params = {"worker_name": worker_name, "target": target}
+    if lesson_id is not None:
+        params["lesson_id"] = lesson_id
     response = httpx.get(
         f"{config.SERVER_URL}/api/jobs/next",
-        params={"worker_name": worker_name, "target": target},
+        params=params,
         headers=_headers(),
         timeout=30,
     )

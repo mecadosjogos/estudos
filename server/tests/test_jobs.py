@@ -112,6 +112,31 @@ def test_next_job_endpoint_returns_download_urls(app_env):
     assert "/download" in job["segments"][0]["download_url"]
 
 
+def test_next_job_with_lesson_id_ignores_older_job_from_another_lesson(app_env):
+    """Achado real: `--once --target tts_guia` sem esse filtro reivindicou a
+    narração de outra aula (job mais antigo na fila) em vez da que estava
+    sendo testada. `lesson_id` restringe a claim a uma aula específica."""
+    client = _authed_client()
+    from app.db import holder
+    from app.models import TranscriptionJob
+
+    with holder.SessionLocal() as session:
+        lesson_id_velha = _make_lesson_with_segment(session, titulo="Aula velha")
+        lesson_id_alvo = _make_lesson_with_segment(session, titulo="Aula alvo")
+        session.add(TranscriptionJob(lesson_id=lesson_id_velha, target="tts_guia"))
+        session.add(TranscriptionJob(lesson_id=lesson_id_alvo, target="tts_guia"))
+        session.commit()
+
+    response = client.get(
+        "/api/jobs/next",
+        params={"worker_name": "w", "target": "tts_guia", "lesson_id": lesson_id_alvo},
+    )
+    assert response.status_code == 200
+    job = response.json()["job"]
+    assert job is not None
+    assert job["lesson_id"] == lesson_id_alvo
+
+
 def test_next_job_returns_none_when_empty(app_env):
     client = _authed_client()
     response = client.get("/api/jobs/next", params={"worker_name": "x"})
