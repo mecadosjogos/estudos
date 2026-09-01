@@ -92,6 +92,14 @@
 		grafia de termo que o áudio deixou dúvida, e pode aparecer citada no
 		guia de aula.
 	</p>
+	{% if request.query_params.get("erro_material") %}
+	<p class="error">{{ request.query_params.get("erro_material") }}</p>
+	{% endif %}
+	<form method="post" action="/lessons/{{ lesson.id }}/material-aula/buscar-link" class="button-row">
+		<input type="text" name="url" value="{{ lesson.material_aula_url or '' }}" placeholder="Link do Google Doc" style="flex:1">
+		<button type="submit">Buscar conteúdo</button>
+	</form>
+	<p class="muted">Cola o link do Google Doc e busca sozinho — preserva a indentação de listas melhor que colar na mão, porque não depende do clipboard do navegador. Ou cola/edita o texto direto abaixo.</p>
 	<form method="post" action="/lessons/{{ lesson.id }}/material-aula">
 		<textarea name="texto" rows="10" style="width:100%; font-family: monospace;">{{ lesson.material_aula_texto or "" }}</textarea>
 		<button type="submit">Salvar</button>

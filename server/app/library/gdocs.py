@@ -132,6 +132,15 @@ def build_create_doc_url(modelo_id: str, titulo: str, folder_id: str | None) -> 
     return url
 
 
+def extract_doc_id(url: str) -> str | None:
+    """Tira o file id de um link de Google Doc colado à mão (formatos
+    .../document/d/<id>/edit, .../document/d/<id>/edit?tab=..., etc.)."""
+    import re
+
+    match = re.search(r"/document/d/([a-zA-Z0-9_-]+)", url)
+    return match.group(1) if match else None
+
+
 def get_drive_client() -> GoogleDriveClient:
     from .. import config
 

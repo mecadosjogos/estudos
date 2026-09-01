@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from .. import config, db
 from ..auth import require_session
 from ..db import get_session
-from ..library.gdocs import build_create_doc_url
+from ..library.gdocs import build_create_doc_url, extract_doc_id, get_drive_client
+from ..library.html_to_md import html_to_markdown
 from ..models import (
     Assunto,
     AudioSegment,
@@ -173,6 +174,48 @@ def update_material_aula(
     if lesson is not None:
         lesson.material_aula_texto = texto.strip() or None
         session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
+
+
+@router.post("/{lesson_id}/material-aula/buscar-link")
+def fetch_material_aula_from_link(
+    lesson_id: int,
+    url: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    """Busca o conteúdo de um Google Doc colado e sobrescreve
+    `material_aula_texto` -- alternativa a colar o texto direto, útil
+    porque copiar/colar na mão perde a indentação de listas aninhadas (o
+    clipboard "texto puro" do navegador não carrega isso; exportar via API
+    e converter com html_to_markdown, sim). Mesmo cliente/conversão do
+    sync de materiais (library/gdocs.py), sem virar Material/MaterialUse --
+    é conteúdo de uma aula só."""
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="aula não encontrada")
+
+    doc_id = extract_doc_id(url)
+    if doc_id is None:
+        return RedirectResponse(
+            url=f"/lessons/{lesson_id}?erro_material=Link+n%C3%A3o+parece+um+Google+Doc",
+            status_code=303,
+        )
+
+    try:
+        client = get_drive_client()
+        html = client.export_html(doc_id)
+        texto = html_to_markdown(html)
+    except Exception as exc:
+        from urllib.parse import quote
+
+        return RedirectResponse(
+            url=f"/lessons/{lesson_id}?erro_material={quote(f'Falha ao buscar o doc: {exc}')}",
+            status_code=303,
+        )
+
+    lesson.material_aula_url = url.strip()
+    lesson.material_aula_texto = texto.strip() or None
+    session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
 
 
