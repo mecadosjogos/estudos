@@ -134,7 +134,19 @@ Estrutura do `guia_md`, nesta ordem:
    profundidade, mas também sem forçar nível que não existe: um raciocínio
    de dois níveis fica em dois, um de quatro fica em quatro, nunca invente
    uma subdivisão só pra preencher hierarquia (mesma cautela da árvore de
-   conhecimento acima). Só o "##" de seção é numerado pelo código — os
+   conhecimento acima).
+   A divisão e os títulos das seções/sub-títulos devem se inspirar nessa
+   mesma árvore de conhecimento — um nó dela costuma ser um bom título de
+   seção ou sub-título, já que é a própria classificação que o professor
+   construiu. Mas "se inspirar" não é seguir à risca nem exigir
+   correspondência 1:1: pode ser necessário um título pra um trecho de
+   transição, um exemplo desenvolvido ou uma observação que não é, ela
+   mesma, um ramo da árvore; e pode haver conteúdo relevante da aula sobre
+   um assunto que a árvore não cobre (ela registra só a classificação que o
+   professor construiu, não é um índice completo de tudo que foi dito). Use
+   a árvore como referência que orienta a organização do corpo, não como
+   sumário a reproduzir campo a campo.
+   Só o "##" de seção é numerado pelo código — os
    sub-títulos dentro do corpo, em qualquer nível, ficam como você
    escrever, sem numeração.
    Parágrafos devem seguir a pausa/virada de assunto natural da fala, não
