@@ -309,6 +309,7 @@ def test_process_tts_job_result_unloads_model_in_once_mode(tmp_path, monkeypatch
         patch("worker.api_client.submit_tts_result", return_value={"ok": True, "already_received": False}),
         patch("shared.audio.probe_duration_s", return_value=1.0),
         patch("shared.audio.concat_audio_files"),
+        patch("shared.audio.compress_to_mp3"),
         patch("worker.tts.unload") as mock_unload,
     ):
         worker_main.run(mode="once", targets=["tts_guia"])
@@ -361,6 +362,7 @@ def test_tts_job_uploads_sections_that_succeeded_when_one_section_fails(tmp_path
         patch("shared.audio.probe_duration_s", return_value=2.0),
         patch("shared.audio.make_silence") as mock_silence,
         patch("shared.audio.concat_audio_files") as mock_concat,
+        patch("shared.audio.compress_to_mp3"),
     ):
         worker_main.process_tts_job(job)
 
@@ -422,6 +424,7 @@ def test_tts_job_resumes_without_resynthesizing_sections_already_on_disk(tmp_pat
         patch("shared.audio.probe_duration_s", return_value=1.5),
         patch("shared.audio.make_silence"),
         patch("shared.audio.concat_audio_files") as mock_concat,
+        patch("shared.audio.compress_to_mp3"),
     ):
         worker_main.process_tts_job(job)
 

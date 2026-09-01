@@ -282,7 +282,7 @@ def process_tts_job(job: dict) -> None:
     Seções já narradas numa tentativa anterior do **mesmo** job (retomado
     depois de reivindicação obsoleta, `_reclaim_stale`) não são refeitas —
     o fragmento em `work_dir` já existe, então pula direto pra próxima."""
-    from shared.audio import concat_audio_files, make_silence, probe_duration_s
+    from shared.audio import compress_to_mp3, concat_audio_files, make_silence, probe_duration_s
 
     job_id = job["id"]
     claim_token = job["claim_token"]
@@ -346,8 +346,12 @@ def process_tts_job(job: dict) -> None:
                 concat_list.append(silence_path)
             concat_list.append(fragment_path)
 
+        concatenated_wav = work_dir / "guia.wav"
+        concat_audio_files(concat_list, concatenated_wav, sample_rate=TTS_SAMPLE_RATE, channels=1)
+
+        _log("comprimindo narração pra mp3 32kbps...")
         final_mp3 = work_dir / "guia.mp3"
-        concat_audio_files(concat_list, final_mp3, sample_rate=TTS_SAMPLE_RATE, channels=1)
+        compress_to_mp3(concatenated_wav, final_mp3)
 
         _log("enviando narração...")
         result = api_client.submit_tts_result(
