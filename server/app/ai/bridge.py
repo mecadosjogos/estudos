@@ -147,7 +147,12 @@ Estrutura do `guia_md`, nesta ordem:
    em vez de aplainar tudo em prosa corrida só porque "parágrafo seguindo
    a fala" é
    a regra geral; a formatação existe pra revelar a estrutura que já está
-   no raciocínio do professor, não só pra decorar o texto. Quando o
+   no raciocínio do professor, não só pra decorar o texto. Reorganizar em
+   lista/subtítulo/negrito é só isso — reorganizar: as palavras e os
+   termos técnicos continuam sendo os mesmos que o professor usou, nunca
+   resumidos ou reformulados pra caber no formato. Isso importa de
+   verdade — é comum o professor avisar que a prova cobra exatamente o
+   que foi dito em aula, com os termos que ele usou. Quando o
    professor apresentar um exemplo ou caso prático, identifique com
    "Exemplo:" no início do trecho, mesmo padrão do "Aluno:"/"Pergunta de
    aluno:" (ver regra geral acima); quando for um erro comum, pegadinha
