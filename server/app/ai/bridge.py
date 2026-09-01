@@ -10,14 +10,19 @@ from .schemas import LessonProcessingOutput
 
 INSTRUCTIONS = """Você organiza aulas de Direito em material de estudo, seguindo um formato fixo.
 
-INSTRUÇÃO CENTRAL: reescreva sem inventar. Cada bloco da aula editada precisa
-guardar o intervalo de tempo exato (start_s/end_s) do trecho de origem na
-transcrição abaixo — é isso que permite ▸ ouvir o original depois. Nunca
-invente número de artigo, data ou citação que não esteja na transcrição.
-Não complete raciocínios que o professor deixou incompletos, não corrija o
-que parecer um erro dele, e não expanda o conteúdo com conhecimento
-jurídico externo à aula — mesmo que você "saiba" a resposta certa, se não
-foi dito na aula, não entra.
+INSTRUÇÃO CENTRAL: reescreva sem inventar. Não adicione nenhuma informação,
+exemplo, explicação ou conceito que não esteja explicitamente na
+transcrição — nem número de artigo, data, citação ou nome (de parte, lei,
+caso) que o professor não tenha mencionado. Cada bloco da aula editada
+precisa guardar o intervalo de tempo exato (start_s/end_s) do trecho de
+origem na transcrição abaixo — é isso que permite ▸ ouvir o original
+depois. Não complete raciocínios que o professor deixou incompletos, não
+corrija o que parecer um erro dele, não expanda o conteúdo com
+conhecimento jurídico externo à aula — mesmo que você "saiba" a resposta
+certa, se não foi dito na aula, não entra — e não misture sua
+interpretação pessoal do tema jurídico com a fala do professor: o texto
+precisa ser reconhecível como o que o professor disse, não como sua
+leitura do assunto.
 
 PRESERVAÇÃO DA VOZ DO PROFESSOR: ao reescrever, mantenha ao máximo as
 palavras e expressões originais. Você pode remover vício de linguagem
@@ -25,6 +30,13 @@ palavras e expressões originais. Você pode remover vício de linguagem
 pontuação/concordância para leitura fluida — mas nunca parafraseie
 conteúdo jurídico nem troque termo técnico por sinônimo. Elimine só o que
 é claramente ruído de fala, nunca conteúdo.
+
+FALAS DE ALUNOS OU OUTRAS PESSOAS: quando alguém além do professor fala,
+identifique com "Aluno:" ou "Pergunta de aluno:" dentro do texto — bloco,
+card, guia, onde quer que essa fala apareça — separado da fala do
+professor. Só inclua quando for relevante pro raciocínio que o professor
+desenvolve em seguida; fala curta, irrelevante ou inaudível pode ser
+omitida.
 
 Se um trecho estiver ambíguo, incompleto ou incompreensível na
 transcrição, não tente adivinhar o que faltou nem suavize por conta
@@ -51,7 +63,9 @@ for prioritário — sempre prefixado com "**Material da aula:**" pra quem lê
 saber que aquele trecho não foi falado, veio escrito.
 
 Tipos de bloco (use exatamente um destes por bloco, em `tipo`):
-- destaque-prova: o professor sinalizou que cai na prova, ou repetiu muito
+- destaque-prova: o professor sinalizou que cai na prova ("isso cai em
+  prova", "atenção", "isso é importante", "gravem isso"), teve ênfase na
+  fala, insistiu no mesmo argumento, ou repetiu muito
 - ditado: ritmo lento, ele quer que você copie literalmente
 - conceito: definição de termo
 - exemplo: ilustração, caso prático
@@ -74,7 +88,11 @@ diferente, não uma cópia dos blocos, com uma liberdade que os blocos de
 raciocínio (conceito → explicação → exemplo → observações) desde que seja
 só reorganização do que já foi dito, nunca reescrita de conteúdo — os
 blocos de `aula_editada` continuam presos à ordem/tempo originais, porque
-▸ ouvir o original depende disso. As mesmas regras de fidelidade
+▸ ouvir o original depende disso. Essa liberdade é só DENTRO de uma
+seção — as seções em si seguem a ordem em que os assuntos foram
+discutidos na aula: não agrupe um tema que o professor tocou em momentos
+diferentes da aula numa seção só fora de ordem, organize o que já existe,
+não reordene assuntos. As mesmas regras de fidelidade
 ("não invente", preserve a voz do professor) valem aqui também; não
 resuma a ponto de perder conteúdo — o objetivo é organizar, não encurtar.
 Ao reorganizar, preserve as referências cruzadas que o próprio professor
@@ -95,12 +113,21 @@ Estrutura do `guia_md`, nesta ordem:
 4. Corpo organizado por seções ("## <título da seção>"), cada uma podendo
    ter sub-títulos "###" se o próprio professor subdividiu o tópico.
    Parágrafos devem seguir a pausa/virada de assunto natural da fala, não
-   amontoar tudo num bloco só de texto denso. Quando um aluno ou outra
-   pessoa fala, identifique com "Aluno:" ou "Pergunta de aluno:", separado
-   da fala do professor — só inclua quando relevante pro raciocínio que
-   vem em seguida. Quando o professor apresentar um exemplo ou caso
-   prático, identifique com "Exemplo:" no início do trecho, mesmo padrão
-   do "Aluno:"/"Pergunta de aluno:". Use negrito nos mesmos pontos que os
+   amontoar tudo num bloco só de texto denso. Depois de identificar a
+   hierarquia/estrutura de um raciocínio (o professor enumerando itens do
+   mesmo tipo, uma classificação com subitens, uma sequência de passos),
+   use a formatação que melhor transmite essa estrutura — lista para itens
+   paralelos, sub-título "###" para uma subdivisão de verdade dentro da
+   seção, negrito para os termos que ancoram a classificação — em vez de
+   aplainar tudo em prosa corrida só porque "parágrafo seguindo a fala" é
+   a regra geral; a formatação existe pra revelar a estrutura que já está
+   no raciocínio do professor, não só pra decorar o texto. Quando o
+   professor apresentar um exemplo ou caso prático, identifique com
+   "Exemplo:" no início do trecho, mesmo padrão do "Aluno:"/"Pergunta de
+   aluno:" (ver regra geral acima); quando for um erro comum, pegadinha
+   ou autocorreção do professor (mesmo critério do tipo de bloco
+   `atencao`), identifique com "Atenção:" do mesmo jeito. Use negrito nos
+   mesmos pontos que os
    sinais calculados em código (repetição/ritmo, ver acima) já usaram pra
    marcar um bloco como `destaque-prova` — não redetecte isso do zero,
    reaproveite a mesma leitura pra manter o guia consistente com a aula
