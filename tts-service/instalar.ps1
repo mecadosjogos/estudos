@@ -15,7 +15,7 @@
 # não depende só do fine-tune/referência pra "adivinhar" o idioma.
 #
 # Precisa: Python 3.12+, GPU NVIDIA com driver instalado, ffmpeg no PATH --
-# mesmos pré-requisitos que scripts\instalar_maquina_worker.ps1 já confere
+# mesmos pré-requisitos que scripts\instalar_transcricao.ps1 já confere
 # pro worker de transcrição; se você já rodou aquele nesta máquina, esses já
 # estão ok.
 

@@ -168,11 +168,11 @@ def test_download_latest_backup_requires_admin(app_env):
     assert comum_response.status_code == 403
 
 
-def test_download_install_script_embeds_server_url_and_token(app_env):
+def test_download_transcricao_script_embeds_server_url_and_token(app_env):
     client = _authed_client()
-    response = client.get("/admin/instalar-worker.ps1")
+    response = client.get("/admin/instalar-transcricao.ps1")
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == 'attachment; filename="instalar_maquina_worker.ps1"'
+    assert response.headers["content-disposition"] == 'attachment; filename="instalar_transcricao.ps1"'
     assert '$env:ESTUDOS_SERVER_URL = "http://testserver"' in response.text
     assert '$env:ESTUDOS_ACCESS_TOKEN = "test-token"' in response.text
     # o resto do script continua intacto, não é substituído por engano
@@ -180,7 +180,7 @@ def test_download_install_script_embeds_server_url_and_token(app_env):
     assert "nvidia-smi" in response.text
 
 
-def test_download_install_script_requires_admin(app_env):
+def test_download_transcricao_script_requires_admin(app_env):
     from app.db import holder
     from app.main import app
     from app.models import User
@@ -192,51 +192,44 @@ def test_download_install_script_requires_admin(app_env):
 
     comum_client = TestClient(app)
     comum_client.post("/login", data={"username": "comum2", "senha": "x"})
-    response = comum_client.get("/admin/instalar-worker.ps1")
+    response = comum_client.get("/admin/instalar-transcricao.ps1")
     assert response.status_code == 403
 
 
-def test_download_install_package_zip_contains_prefilled_script_and_no_duplicates(app_env):
+def test_download_transcricao_package_zip_contains_prefilled_script_and_no_duplicates(app_env):
     import io
     import zipfile
 
     client = _authed_client()
-    response = client.get("/admin/instalar-worker.zip")
+    response = client.get("/admin/instalar-transcricao.zip")
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == 'attachment; filename="estudos-worker-setup.zip"'
+    assert response.headers["content-disposition"] == 'attachment; filename="estudos-transcricao-setup.zip"'
 
     zf = zipfile.ZipFile(io.BytesIO(response.content))
     names = zf.namelist()
 
     # sem duplicata: a versão pré-preenchida substitui a crua, não soma
-    assert names.count("scripts/instalar_maquina_worker.ps1") == 1
-    script_content = zf.read("scripts/instalar_maquina_worker.ps1").decode("utf-8")
+    assert names.count("scripts/instalar_transcricao.ps1") == 1
+    script_content = zf.read("scripts/instalar_transcricao.ps1").decode("utf-8")
     assert '$env:ESTUDOS_SERVER_URL = "http://testserver"' in script_content
     assert '$env:ESTUDOS_ACCESS_TOKEN = "test-token"' in script_content
 
-    # amostra de cada área que a máquina de worker precisa
-    assert "scripts/instalar_maquina_worker.bat" in names
-    assert "PLANO.md" in names
-    assert "RUNBOOK.md" in names
+    # amostra do que a máquina de transcrição precisa -- sem GPU não roda,
+    # então não carrega o server/app inteiro (isso é do pacote de processar
+    # aula), só o requirements.txt pro venv compartilhado
+    assert "scripts/instalar_transcricao.bat" in names
     assert ".env.example" in names
+    assert "server/requirements.txt" in names
     assert any(n.startswith("worker/") for n in names)
-    assert any(n.startswith("server/app/") for n in names)
-
-    # atalhos de raiz que o RUNBOOK.md manda usar -- ficaram de fora numa
-    # passada anterior e a máquina nova não conseguia processar aula/página
-    assert "disparar-skill.ps1" in names
-    assert "iniciar-servidor-testes.bat" in names
-    assert "processar-aulas.ps1" in names
-    assert "processar-aulas.bat" in names
-    assert "transcrever-paginas.ps1" in names
-    assert "transcrever-paginas.bat" in names
+    assert any(n.startswith("shared/") for n in names)
+    assert not any(n.startswith("server/app/") for n in names)
 
     # nunca o backup de dados (nem seria copiado na imagem, mas confirma
     # que a lista de caminhos empacotados não inclui isso por engano)
     assert not any(n.startswith("data-backup/") for n in names)
 
 
-def test_download_install_package_requires_admin(app_env):
+def test_download_transcricao_package_requires_admin(app_env):
     from app.db import holder
     from app.main import app
     from app.models import User
@@ -248,7 +241,134 @@ def test_download_install_package_requires_admin(app_env):
 
     comum_client = TestClient(app)
     comum_client.post("/login", data={"username": "comum3", "senha": "x"})
-    response = comum_client.get("/admin/instalar-worker.zip")
+    response = comum_client.get("/admin/instalar-transcricao.zip")
+    assert response.status_code == 403
+
+
+def test_download_processar_aula_script_embeds_server_url_but_not_token(app_env):
+    client = _authed_client()
+    response = client.get("/admin/instalar-processar-aula.ps1")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="instalar_processar_aula.ps1"'
+    assert '$env:ESTUDOS_SERVER_URL = "http://testserver"' in response.text
+    # ACCESS_TOKEN é a credencial de máquina do worker, não a autenticação
+    # usuário/senha do RUNBOOK.md -- não faz sentido embutir aqui
+    assert "ESTUDOS_ACCESS_TOKEN" not in response.text
+    assert "claude" in response.text.lower()
+
+
+def test_download_processar_aula_script_requires_admin(app_env):
+    from app.db import holder
+    from app.main import app
+    from app.models import User
+    from app.security import hash_password
+
+    with holder.SessionLocal() as session:
+        session.add(User(username="comum4", senha_hash=hash_password("x"), papel="usuario", status="aprovado"))
+        session.commit()
+
+    comum_client = TestClient(app)
+    comum_client.post("/login", data={"username": "comum4", "senha": "x"})
+    response = comum_client.get("/admin/instalar-processar-aula.ps1")
+    assert response.status_code == 403
+
+
+def test_download_processar_aula_package_zip_contains_prefilled_script_and_no_duplicates(app_env):
+    import io
+    import zipfile
+
+    client = _authed_client()
+    response = client.get("/admin/instalar-processar-aula.zip")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="estudos-processar-aula-setup.zip"'
+
+    zf = zipfile.ZipFile(io.BytesIO(response.content))
+    names = zf.namelist()
+
+    assert names.count("scripts/instalar_processar_aula.ps1") == 1
+    script_content = zf.read("scripts/instalar_processar_aula.ps1").decode("utf-8")
+    assert '$env:ESTUDOS_SERVER_URL = "http://testserver"' in script_content
+
+    # amostra de cada área que o processamento manual de aula precisa
+    assert "scripts/instalar_processar_aula.bat" in names
+    assert "PLANO.md" in names
+    assert "RUNBOOK.md" in names
+    assert ".env.example" in names
+    assert any(n.startswith("server/app/") for n in names)
+    assert any(n.startswith(".claude/skills/") for n in names)
+
+    # atalhos de raiz que o RUNBOOK.md manda usar
+    assert "disparar-skill.ps1" in names
+    assert "iniciar-servidor-testes.bat" in names
+    assert "processar-aulas.ps1" in names
+    assert "processar-aulas.bat" in names
+    assert "transcrever-paginas.ps1" in names
+    assert "transcrever-paginas.bat" in names
+
+    # não precisa de GPU pra processar aula -- worker/ é o pacote de transcrição
+    assert not any(n.startswith("worker/") for n in names)
+
+    assert not any(n.startswith("data-backup/") for n in names)
+
+
+def test_download_processar_aula_package_requires_admin(app_env):
+    from app.db import holder
+    from app.main import app
+    from app.models import User
+    from app.security import hash_password
+
+    with holder.SessionLocal() as session:
+        session.add(User(username="comum5", senha_hash=hash_password("x"), papel="usuario", status="aprovado"))
+        session.commit()
+
+    comum_client = TestClient(app)
+    comum_client.post("/login", data={"username": "comum5", "senha": "x"})
+    response = comum_client.get("/admin/instalar-processar-aula.zip")
+    assert response.status_code == 403
+
+
+def test_download_narracao_package_is_standalone(app_env):
+    import io
+    import zipfile
+
+    client = _authed_client()
+    response = client.get("/admin/instalar-narracao.zip")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="estudos-narracao-setup.zip"'
+
+    zf = zipfile.ZipFile(io.BytesIO(response.content))
+    names = zf.namelist()
+
+    assert "tts-service/instalar.ps1" in names
+    assert "tts-service/instalar.bat" in names
+    assert "tts-service/iniciar.ps1" in names
+    assert "tts-service/main.py" in names
+    assert "tts-service/requirements.txt" in names
+
+    # standalone: nenhum arquivo do server/worker deste deploy, nem
+    # SERVER_URL/ACCESS_TOKEN embutido em nada (não há placeholder pra
+    # substituir -- o serviço nunca fala com este deploy)
+    assert all(n.startswith("tts-service/") for n in names)
+    for name in names:
+        if name.endswith(".ps1"):
+            content = zf.read(name).decode("utf-8")
+            assert "ESTUDOS_SERVER_URL" not in content
+            assert "ESTUDOS_ACCESS_TOKEN" not in content
+
+
+def test_download_narracao_package_requires_admin(app_env):
+    from app.db import holder
+    from app.main import app
+    from app.models import User
+    from app.security import hash_password
+
+    with holder.SessionLocal() as session:
+        session.add(User(username="comum6", senha_hash=hash_password("x"), papel="usuario", status="aprovado"))
+        session.commit()
+
+    comum_client = TestClient(app)
+    comum_client.post("/login", data={"username": "comum6", "senha": "x"})
+    response = comum_client.get("/admin/instalar-narracao.zip")
     assert response.status_code == 403
 
 

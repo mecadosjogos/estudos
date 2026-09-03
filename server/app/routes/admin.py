@@ -6,7 +6,9 @@ segurança do estado atual, e recusa rodar se houver job de transcrição em
 andamento.
 """
 
+import io
 import shutil
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -88,28 +90,48 @@ def list_lessons_json(session: Session = Depends(get_session)):
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
-# Tudo que uma máquina de worker nova precisa: código (server inteiro,
-# porque o processamento manual de aula por Claude Code lê server/app/ai/
-# pra montar o mesmo prompt -- ver RUNBOOK.md), o worker em si, os skills
-# (não .claude inteiro -- resto é sessão local, ver .gitignore), os docs
-# que RUNBOOK.md referencia, e os atalhos de raiz que o próprio RUNBOOK.md
-# manda usar (disparar-skill.ps1 é a base de processar-aulas/
-# transcrever-paginas; iniciar-servidor-testes.bat sobe o Docker que
-# disparar-skill.ps1 confere antes de rodar). Nunca data-backup/ (não
-# copiado na imagem em primeiro lugar, não precisa de exclusão especial
-# aqui).
-INSTALL_PACKAGE_PATHS = [
-    "scripts", "worker", "shared", "server", ".claude/skills", "docs",
-    "RUNBOOK.md", "PLANO.md", "CLAUDE.md", ".env.example",
+# Três processos, três máquinas possivelmente diferentes (PLANO.md,
+# "Arquitetura") -- cada um baixável separado em /admin/backups pra não
+# obrigar quem só quer narração a também baixar o venv de GPU do worker,
+# por exemplo. Nunca data-backup/ em nenhum dos três (não copiado na
+# imagem em primeiro lugar, não precisa de exclusão especial aqui).
+
+# 1. Transcrição (worker Whisper, precisa de GPU) -- só o que
+# worker/main.py importa em runtime (worker + shared) e o requirements.txt
+# do server (o venv fica em server\.venv, decisão antiga, mas não precisa
+# do código do server em si pra transcrever).
+TRANSCRICAO_PACKAGE_PATHS = [
+    "scripts/instalar_transcricao.ps1", "scripts/instalar_transcricao.bat",
+    "worker", "shared", "server/requirements.txt", ".env.example",
+]
+
+# 2. Processar aula (IA via Claude Code, sem GPU) -- server inteiro porque
+# o processamento manual lê server/app/ai/ pra montar o mesmo prompt (ver
+# RUNBOOK.md), os skills (não .claude inteiro -- resto é sessão local, ver
+# .gitignore), os docs que RUNBOOK.md referencia, e os atalhos de raiz que
+# o próprio RUNBOOK.md manda usar (disparar-skill.ps1 é a base de
+# processar-aulas/transcrever-paginas; iniciar-servidor-testes.bat sobe o
+# Docker local que disparar-skill.ps1 confere antes de rodar, caso
+# SERVER_URL aponte pra 127.0.0.1 em vez de uma VPS de verdade).
+PROCESSAR_AULA_PACKAGE_PATHS = [
+    "scripts/instalar_processar_aula.ps1", "scripts/instalar_processar_aula.bat",
     "disparar-skill.ps1", "iniciar-servidor-testes.bat",
     "processar-aulas.ps1", "processar-aulas.bat",
     "transcrever-paginas.ps1", "transcrever-paginas.bat",
+    ".claude/skills", "server", "docs",
+    "RUNBOOK.md", "PLANO.md", "CLAUDE.md", ".env.example",
 ]
 
+# 3. Narração (TTS local) -- tts-service/ é standalone de propósito (PLANO.md:
+# "API genérica, reusável por qualquer script na máquina"), sem SERVER_URL
+# nem credencial nenhuma pra embutir -- por isso não passa por
+# _build_deploy_script como os outros dois.
+NARRACAO_PACKAGE_PATHS = ["tts-service"]
 
-def _build_install_script(request: Request) -> str:
-    """scripts/instalar_maquina_worker.ps1 com SERVER_URL/ACCESS_TOKEN JÁ
-    deste deploy embutidos -- quem baixa já está autenticado como admin,
+
+def _build_deploy_script(request: Request, script_rel_path: str, *, include_access_token: bool) -> str:
+    """Um .ps1 de instalação com SERVER_URL (e, quando pedido, ACCESS_TOKEN)
+    JÁ deste deploy embutidos -- quem baixa já está autenticado como admin,
     então isso não é uma exposição nova, só evita copiar/colar na hora do
     prompt.
 
@@ -117,60 +139,118 @@ def _build_install_script(request: Request) -> str:
     o uvicorn recebe a requisição como HTTP simples do container -- sem
     isso o script baixado apontaria pra http://, não https://.
     """
-    script_path = REPO_ROOT / "scripts" / "instalar_maquina_worker.ps1"
+    script_path = REPO_ROOT / script_rel_path
     content = script_path.read_text(encoding="utf-8")
 
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = request.headers.get("x-forwarded-host", request.url.netloc)
     server_url = f"{scheme}://{host}"
 
-    prelude = f'$env:ESTUDOS_SERVER_URL = "{server_url}"\n$env:ESTUDOS_ACCESS_TOKEN = "{config.ACCESS_TOKEN}"\n'
+    prelude = f'$env:ESTUDOS_SERVER_URL = "{server_url}"\n'
+    if include_access_token:
+        prelude += f'$env:ESTUDOS_ACCESS_TOKEN = "{config.ACCESS_TOKEN}"\n'
     return content.replace('$ErrorActionPreference = "Stop"\n', '$ErrorActionPreference = "Stop"\n' + prelude, 1)
 
 
-@router.get("/instalar-worker.ps1")
-def download_install_script(request: Request):
-    """Só o script, pra quem já tem o repositório clonado numa máquina de
-    worker e só quer atualizar SERVER_URL/ACCESS_TOKEN sem baixar tudo de
-    novo."""
-    content = _build_install_script(request)
-    return PlainTextResponse(
-        content,
-        media_type="text/plain",
-        headers={"Content-Disposition": 'attachment; filename="instalar_maquina_worker.ps1"'},
-    )
-
-
-@router.get("/instalar-worker.zip")
-def download_install_package(request: Request):
-    """Pra uma máquina totalmente nova, sem repositório nenhum ainda:
-    baixa, extrai, roda o .ps1 de dentro -- self-contained, nem precisa
-    de Git na máquina de worker (só o que instalar_maquina_worker.ps1
-    já pressupõe: driver NVIDIA, Python, ffmpeg via winget)."""
-    import io
-    import zipfile
-
+def _build_install_zip(request: Request, paths: list[str], deploy_script_rel_path: str, *, include_access_token: bool) -> io.BytesIO:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for rel in INSTALL_PACKAGE_PATHS:
+        for rel in paths:
             path = REPO_ROOT / rel
             if path.is_file():
+                if rel == deploy_script_rel_path:
+                    continue  # entra abaixo, já com SERVER_URL/ACCESS_TOKEN
                 zf.write(path, arcname=rel)
             elif path.is_dir():
                 for file_path in path.rglob("*"):
                     if file_path.is_file():
                         arcname = file_path.relative_to(REPO_ROOT).as_posix()
-                        if arcname == "scripts/instalar_maquina_worker.ps1":
-                            continue  # entra abaixo, já com SERVER_URL/ACCESS_TOKEN
+                        if arcname == deploy_script_rel_path:
+                            continue
                         zf.write(file_path, arcname=arcname)
 
-        zf.writestr("scripts/instalar_maquina_worker.ps1", _build_install_script(request))
+        zf.writestr(
+            deploy_script_rel_path,
+            _build_deploy_script(request, deploy_script_rel_path, include_access_token=include_access_token),
+        )
+
+    buffer.seek(0)
+    return buffer
+
+
+@router.get("/instalar-transcricao.ps1")
+def download_transcricao_script(request: Request):
+    """Só o script, pra quem já tem o repositório clonado numa máquina de
+    worker e só quer atualizar SERVER_URL/ACCESS_TOKEN sem baixar tudo de
+    novo."""
+    content = _build_deploy_script(request, "scripts/instalar_transcricao.ps1", include_access_token=True)
+    return PlainTextResponse(
+        content,
+        media_type="text/plain",
+        headers={"Content-Disposition": 'attachment; filename="instalar_transcricao.ps1"'},
+    )
+
+
+@router.get("/instalar-transcricao.zip")
+def download_transcricao_package(request: Request):
+    """Pra uma máquina de GPU totalmente nova, sem repositório nenhum
+    ainda: baixa, extrai, roda o .ps1 de dentro -- self-contained, nem
+    precisa de Git nessa máquina (só o que instalar_transcricao.ps1 já
+    pressupõe: driver NVIDIA, Python, ffmpeg via winget)."""
+    buffer = _build_install_zip(
+        request, TRANSCRICAO_PACKAGE_PATHS, "scripts/instalar_transcricao.ps1", include_access_token=True
+    )
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="estudos-transcricao-setup.zip"'},
+    )
+
+
+@router.get("/instalar-processar-aula.ps1")
+def download_processar_aula_script(request: Request):
+    content = _build_deploy_script(request, "scripts/instalar_processar_aula.ps1", include_access_token=False)
+    return PlainTextResponse(
+        content,
+        media_type="text/plain",
+        headers={"Content-Disposition": 'attachment; filename="instalar_processar_aula.ps1"'},
+    )
+
+
+@router.get("/instalar-processar-aula.zip")
+def download_processar_aula_package(request: Request):
+    """Pra uma máquina nova (sem GPU nenhuma -- não precisa) que só vai
+    abrir chats do Claude Code pra processar aula/página (RUNBOOK.md)."""
+    buffer = _build_install_zip(
+        request, PROCESSAR_AULA_PACKAGE_PATHS, "scripts/instalar_processar_aula.ps1", include_access_token=False
+    )
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="estudos-processar-aula-setup.zip"'},
+    )
+
+
+@router.get("/instalar-narracao.zip")
+def download_narracao_package():
+    """tts-service/ puro -- nenhum dado deste deploy pra embutir (serviço
+    standalone, ver NARRACAO_PACKAGE_PATHS), então sem variante ".ps1 só".
+    Roda na mesma máquina que já tem o worker de transcrição de pé: é o
+    modo contínuo dele (worker/run_local.ps1) que drena a fila de narração
+    assim que este serviço responde em 127.0.0.1:8100."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for rel in NARRACAO_PACKAGE_PATHS:
+            path = REPO_ROOT / rel
+            for file_path in path.rglob("*"):
+                if file_path.is_file():
+                    zf.write(file_path, arcname=file_path.relative_to(REPO_ROOT).as_posix())
 
     buffer.seek(0)
     return StreamingResponse(
         buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="estudos-worker-setup.zip"'},
+        headers={"Content-Disposition": 'attachment; filename="estudos-narracao-setup.zip"'},
     )
 
 

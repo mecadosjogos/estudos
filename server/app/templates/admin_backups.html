@@ -34,13 +34,32 @@
 </div>
 
 <div class="card">
-	<h2>Instalar máquina de worker</h2>
-	<p class="muted">Prepara uma máquina Windows com GPU pra rodar o worker de transcrição contra <strong>este</strong> deploy — endereço e credencial já vêm embutidos, só falta rodar.</p>
+	<h2>Instalar transcrição (worker)</h2>
+	<p class="muted">Prepara uma máquina Windows <strong>com GPU</strong> pra rodar o worker de transcrição (Whisper) contra <strong>este</strong> deploy — endereço e credencial já vêm embutidos, só falta rodar.</p>
 	<div class="button-row">
-		<a class="button" href="/admin/instalar-worker.zip">Baixar pacote completo (.zip)</a>
-		<a class="button button-ghost" href="/admin/instalar-worker.ps1">Só o script (.ps1)</a>
+		<a class="button" href="/admin/instalar-transcricao.zip">Baixar pacote completo (.zip)</a>
+		<a class="button button-ghost" href="/admin/instalar-transcricao.ps1">Só o script (.ps1)</a>
 	</div>
-	<p class="muted">Máquina nova, sem nada configurado ainda: o <strong>.zip</strong> — baixa, extrai, roda <code>scripts\instalar_maquina_worker.ps1</code> (ou dê dois cliques em <code>instalar_maquina_worker.bat</code>) de dentro da pasta extraída. Já tem o repositório clonado nessa máquina: o <strong>.ps1</strong> sozinho já serve, só atualiza endereço/credencial.</p>
+	<p class="muted">Máquina nova, sem nada configurado ainda: o <strong>.zip</strong> — baixa, extrai, roda <code>scripts\instalar_transcricao.ps1</code> (ou dê dois cliques em <code>instalar_transcricao.bat</code>) de dentro da pasta extraída. Já tem o repositório clonado nessa máquina: o <strong>.ps1</strong> sozinho já serve, só atualiza endereço/credencial — pode rodar de novo a qualquer momento pra puxar uma versão atualizada do script.</p>
+</div>
+
+<div class="card">
+	<h2>Instalar processamento de aula (IA)</h2>
+	<p class="muted">Prepara uma máquina Windows <strong>sem precisar de GPU</strong> pra processar aula e transcrever página de material por um chat do Claude Code (RUNBOOK.md) contra <strong>este</strong> deploy — nunca a API paga.</p>
+	<div class="button-row">
+		<a class="button" href="/admin/instalar-processar-aula.zip">Baixar pacote completo (.zip)</a>
+		<a class="button button-ghost" href="/admin/instalar-processar-aula.ps1">Só o script (.ps1)</a>
+	</div>
+	<p class="muted">Máquina nova, sem nada configurado ainda: o <strong>.zip</strong> — baixa, extrai, roda <code>scripts\instalar_processar_aula.ps1</code> (ou dê dois cliques em <code>instalar_processar_aula.bat</code>). Já tem o repositório clonado: o <strong>.ps1</strong> sozinho já serve. Depois de instalado, rode <code>.\processar-aulas.ps1</code> ou <code>.\transcrever-paginas.ps1</code> direto — cada um dispara o Claude Code sozinho, sem pedir confirmação.</p>
+</div>
+
+<div class="card">
+	<h2>Instalar narração (TTS)</h2>
+	<p class="muted">Serviço de TTS local (Chatterbox), <strong>standalone</strong> — não fala com este deploy, então não precisa de endereço nem credencial embutidos. Instale na <strong>mesma máquina com GPU</strong> que já roda a transcrição: é o worker (modo contínuo, <code>worker\run_local.ps1</code>) quem drena a fila de narração sozinho assim que este serviço estiver de pé.</p>
+	<div class="button-row">
+		<a class="button" href="/admin/instalar-narracao.zip">Baixar pacote (.zip)</a>
+	</div>
+	<p class="muted">Baixa, extrai, roda <code>tts-service\instalar.ps1</code> (ou dê dois cliques em <code>instalar.bat</code>) — baixa PyTorch e o modelo (~4GB) no primeiro uso. Pra subir o serviço depois de instalado: <code>tts-service\iniciar.ps1</code> (ou <code>iniciar.bat</code>) — fica em primeiro plano em <code>127.0.0.1:8100</code> até fechar a janela.</p>
 </div>
 
 <div class="card">
