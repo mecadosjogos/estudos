@@ -1,7 +1,14 @@
-# Prepara esta máquina Windows pra rodar o worker (Whisper com GPU) e o
-# processamento manual de aula por Claude Code, contra QUALQUER deploy deste
-# repositório (a VPS de produção original, ou uma nova pra outro curso) --
-# rode de dentro do clone que vai usar de verdade.
+# Prepara esta máquina Windows pra rodar o worker de transcrição (Whisper
+# com GPU) contra QUALQUER deploy deste repositório (a VPS de produção
+# original, ou uma nova pra outro curso) -- rode de dentro do clone que vai
+# usar de verdade.
+#
+# Um dos três processos que a página /admin/backups deixa instalar
+# separado (os outros dois: scripts/instalar_processar_aula.ps1 -- IA via
+# Claude Code, sem GPU -- e tts-service/instalar.ps1 -- narração do guia).
+# Separados porque cada um serve um proposito e uma maquina possivelmente
+# diferente: esta aqui precisa de GPU pra Whisper, a de processar aula não
+# precisa de GPU nenhuma.
 #
 # Pressupostos que este script NÃO tenta instalar sozinho (arriscado demais
 # pra automatizar sem ver a tela, ex.: driver de GPU pode exigir reiniciar):
@@ -14,11 +21,10 @@
 #   - Configura .env (SERVER_URL, ACCESS_TOKEN, WORKER_NAME) pro deploy que
 #     esta máquina vai servir
 #   - Testa se a GPU responde de verdade (carrega um modelo Whisper pequeno)
-#   - Confere se o Claude Code CLI está disponível (só avisa, não instala)
 #
-# Uso: .\scripts\instalar_maquina_worker.ps1
+# Uso: .\scripts\instalar_transcricao.ps1
 #
-# Baixado direto de um servidor rodando (GET /admin/instalar-worker.ps1,
+# Baixado direto de um servidor rodando (GET /admin/instalar-transcricao.ps1,
 # autenticado como admin)? SERVER_URL e ACCESS_TOKEN já vêm prontos pra
 # aquele deploy específico -- só pergunta o nome do worker.
 
@@ -125,7 +131,7 @@ function Read-HostSafe($prompt) {
 }
 
 # $env:ESTUDOS_SERVER_URL / $env:ESTUDOS_ACCESS_TOKEN só existem quando este
-# script foi baixado direto de um servidor rodando (GET /admin/instalar-worker.ps1
+# script foi baixado direto de um servidor rodando (GET /admin/instalar-transcricao.ps1
 # injeta essas duas linhas no topo do arquivo antes de servir) -- nesse caso já
 # sabemos os valores certos pra ESTE deploy e nem faz sentido perguntar.
 if ($env:ESTUDOS_SERVER_URL) {
@@ -190,38 +196,10 @@ if ($gpuOk) {
     Write-Warn "Confira CUDA_PATH/driver -- o resto da instalação já está pronto mesmo assim."
 }
 
-# --- 6. Serviço de TTS local (opcional -- narração do guia de aula) ---
-Write-Step "Serviço de TTS local (tts-service/)"
-
-$ttsServiceDir = Join-Path $repoRoot "tts-service"
-$ttsVenvPython = Join-Path $ttsServiceDir ".venv\Scripts\python.exe"
-
-if (Test-Path $ttsVenvPython) {
-    Write-Ok "já instalado em tts-service\.venv"
-} else {
-    Write-Host "Standalone -- não é exclusivo do worker do Estudos, qualquer script na" -ForegroundColor DarkGray
-    Write-Host "máquina pode chamar via HTTP depois de instalado (ver tts-service\main.py)." -ForegroundColor DarkGray
-    $installTts = Read-HostSafe "Instalar agora? Baixa PyTorch + modelo XTTS v2 (~4GB) [s/N]"
-    if ($installTts -match "^[sSyY]") {
-        & (Join-Path $ttsServiceDir "instalar.ps1")
-    } else {
-        Write-Warn "pulado -- rode .\tts-service\instalar.ps1 quando quiser ativar a narração do guia"
-    }
-}
-
-# --- 7. Claude Code CLI (só informativo) ---
-Write-Step "Claude Code CLI"
-
-if (Get-Command claude -ErrorAction SilentlyContinue) {
-    Write-Ok "encontrado no PATH -- os skills em .claude\skills\ já vêm com o clone do repositório"
-} else {
-    Write-Warn "não encontrado no PATH. Instale separadamente (https://claude.com/claude-code) pra processar aula manualmente (RUNBOOK.md)."
-}
-
 Write-Step "Pronto"
-Write-Host "Pra transcrever: .\worker\run_local.ps1"
-Write-Host "Pra processar aula com IA: abra um chat do Claude Code neste repositório e siga RUNBOOK.md"
-if (Test-Path $ttsVenvPython) {
-    Write-Host "Pra narração do guia funcionar, deixe o TTS de pé: .\tts-service\iniciar.ps1"
-}
+Write-Host "Pra transcrever: .\worker\run_local.ps1 (ou dois cliques em worker\transcrever-agora.bat)"
+Write-Host "O modo contínuo do worker também narra o guia sozinho quando a fila de"
+Write-Host "transcrição está vazia -- mas só se o serviço de TTS estiver de pé nesta"
+Write-Host "máquina (instalação separada: /admin/backups -> 'Narração', ou"
+Write-Host "tts-service\instalar.ps1 se já tiver o repositório clonado)."
 try { Read-Host "`nPressione Enter para fechar" | Out-Null } catch {}
