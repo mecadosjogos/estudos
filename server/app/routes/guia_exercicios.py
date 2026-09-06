@@ -23,7 +23,7 @@ from ..ai.guia_exercicios import (
 )
 from ..auth import require_session
 from ..db import get_session
-from ..models import GuiaExercicio, Lesson
+from ..models import GuiaExercicio, Lesson, Subject
 from ..study.guia_scheduler import manual_adjust, mastery_percent, next_exercicio, submit_attempt
 
 router = APIRouter(dependencies=[Depends(require_session)])
@@ -87,6 +87,28 @@ def _gabarito_lines(tipo: str, gabarito: dict) -> list[str]:
             linhas.append("Conceito correto: " + gabarito["conceito_correto"])
         return linhas
     return [json.dumps(gabarito, ensure_ascii=False)]
+
+
+# --- escolher aula (hub, a partir de /estudar) -----------------------------------
+
+
+@router.get("/guia")
+def choose_lesson(request: Request, subject_id: int | None = None, session: Session = Depends(get_session)):
+    subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
+
+    query = select(Lesson).where(Lesson.guia_titulo.is_not(None))
+    if subject_id is not None:
+        query = query.where(Lesson.subject_id == subject_id)
+    lessons = session.scalars(query.order_by(Lesson.data.desc())).all()
+
+    lessons_context = [
+        {"lesson": lesson, "mastery_percent": mastery_percent(session, lesson.id)} for lesson in lessons
+    ]
+    return templates.TemplateResponse(
+        request,
+        "guia_escolher.html",
+        {"subjects": subjects, "subject_id": subject_id, "lessons_context": lessons_context},
+    )
 
 
 # --- geração ------------------------------------------------------------------
