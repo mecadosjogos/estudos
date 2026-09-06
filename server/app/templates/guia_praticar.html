@@ -8,6 +8,22 @@
 {% endif %}
 <p class="muted">Mesa: <strong>{{ pool.ativos }}</strong> ativo(s) agora (tamanho alvo {{ pool.mesa_tamanho }}) · {{ pool.dominados }} dominado(s) de {{ pool.total }} no total</p>
 
+<details class="card" open>
+	<summary><strong>Como funcionam os botões</strong></summary>
+	<dl>
+		<dt>1 · Não lembrei</dt>
+		<dd>Reseta a caixa pra 0 — volta a aparecer quase já.</dd>
+		<dt>2 · Quase</dt>
+		<dd>Neutro: não sobe nem reseta a caixa — volta a aparecer no mesmo ritmo de antes.</dd>
+		<dt>3 · Lembrei</dt>
+		<dd>Sobe uma caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas), até graduar e sair da roda ativa (conta pro % dominado).</dd>
+		<dt>↓ quero ver de novo mais cedo</dt>
+		<dd>Ajuste manual: aproxima a próxima aparição sem contar como resposta — não muda a caixa nem o histórico.</dd>
+		<dt>↑ já sei, espaçar mais</dt>
+		<dd>O oposto: afasta a próxima aparição sem precisar responder certo de novo.</dd>
+	</dl>
+</details>
+
 {% if exercicio %}
 <div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}">
 	<span class="badge">{{ exercicio.tipo }}</span>
@@ -27,7 +43,7 @@
 			<li>{{ linha }}</li>
 			{% endfor %}
 		</ul>
-		<p class="muted">Como foi? (isso decide quando este exercício volta a aparecer)</p>
+		<p class="muted">Como foi? (isso decide quando este exercício volta a aparecer — ver "Como funcionam os botões" acima)</p>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form">
 			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
 			<input type="hidden" name="shortcut" id="shortcut-field">
@@ -36,9 +52,7 @@
 				<button type="submit" class="quality-btn" data-shortcut="2">2 · Quase</button>
 				<button type="submit" class="quality-btn" data-shortcut="3">3 · Lembrei</button>
 			</div>
-			<p class="muted">Não lembrei: volta quase já. Quase: nem avança nem reseta, volta no mesmo ritmo de antes. Lembrei: demora mais a cada vez, até graduar (100% dominado, sai da roda).</p>
 		</form>
-		<p class="muted">Ajuste manual, sem contar como resposta (não muda a caixa nem o histórico):</p>
 		<div class="button-row">
 			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline">
 				<input type="hidden" name="delta" value="-1">
