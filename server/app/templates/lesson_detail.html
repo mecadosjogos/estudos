@@ -118,6 +118,7 @@
 			<a class="button" href="/lessons/{{ lesson.id }}/aula-editada">Ver aula editada</a>
 			<a class="button" href="/lessons/{{ lesson.id }}/aprovacao">Aprovar propostas</a>
 			{% if lesson.guia_md %}<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia de aula</a>{% endif %}
+			{% if lesson.guia_titulo %}<a class="button" href="/lessons/{{ lesson.id }}/guia/praticar">Praticar guia (memorização)</a>{% endif %}
 			{% if lesson.mapa_mermaid %}<a class="button" href="/lessons/{{ lesson.id }}/mapa">Ver mapa de taxonomia</a>{% endif %}
 		</div>
 	{% else %}
