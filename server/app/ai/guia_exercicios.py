@@ -43,9 +43,12 @@ tipos, não só um:
 
 - **definicao**: pergunta direta de definição/conceito. `gabarito`:
   {{"resposta": "..."}}.
-- **cloze**: uma frase-chave do guia com um termo ou trecho central
-  substituído por "______". `gabarito`: {{"texto_com_lacunas": "...",
-  "respostas": ["...", ...]}}.
+- **cloze**: `pergunta` é A PRÓPRIA frase-chave do guia com um termo ou
+  trecho central substituído por "______" (ex.: "A posse exige ______ e
+  animus.") -- NUNCA uma instrução genérica tipo "complete a frase sobre
+  X": a lacuna em si tem que estar visível ANTES de responder, senão a
+  pessoa não tem o que preencher. `gabarito`: {{"respostas": ["...",
+  ...]}} -- só o(s) termo(s) que preenchem a(s) lacuna(s), na ordem.
 - **lista_ordenada**: quando o guia apresenta uma enumeração ou sequência
   (fases, requisitos, excludentes, etc.), peça para reconstruir a ordem.
   `gabarito`: {{"itens_em_ordem": ["...", ...]}}.

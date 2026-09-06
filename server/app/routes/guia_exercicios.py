@@ -65,8 +65,10 @@ def _gabarito_lines(tipo: str, gabarito: dict) -> list[str]:
     if tipo == "definicao":
         return [gabarito.get("resposta", "")]
     if tipo == "cloze":
-        linhas = [gabarito.get("texto_com_lacunas", "")]
         respostas = gabarito.get("respostas", [])
+        # Compat com exercícios gerados antes desta correção, que
+        # guardavam a frase com lacuna aqui em vez de em `pergunta`.
+        linhas = [gabarito["texto_com_lacunas"]] if gabarito.get("texto_com_lacunas") else []
         if respostas:
             linhas.append("Respostas: " + ", ".join(respostas))
         return linhas

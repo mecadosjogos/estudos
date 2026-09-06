@@ -154,7 +154,8 @@ class GuiaExercicioOut(BaseModel):
     UMA aula (não da transcrição). `gabarito` muda de forma por tipo:
 
     - definicao: {"resposta": "..."}
-    - cloze: {"texto_com_lacunas": "...", "respostas": ["...", ...]}
+    - cloze: {"respostas": ["...", ...]} -- a frase com a lacuna vai em
+      `pergunta`, não aqui; `gabarito` só guarda o(s) termo(s) certo(s)
     - lista_ordenada: {"itens_em_ordem": ["...", ...]}
     - hierarquia: {"arvore_alvo": {"rotulo": "...", "filhos": [...]}}
     - discriminacao: {"termo_a": "...", "termo_b": "...", "eixo": "..."}
