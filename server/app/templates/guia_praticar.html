@@ -6,6 +6,7 @@
 {% if mastery_percent is not none %}
 <p class="muted">{{ (mastery_percent * 100) | round(0, "floor") | int }}% dominado</p>
 {% endif %}
+<p class="muted">Mesa: <strong>{{ pool.ativos }}</strong> ativo(s) agora (tamanho alvo {{ pool.mesa_tamanho }}) · {{ pool.dominados }} dominado(s) de {{ pool.total }} no total</p>
 
 {% if exercicio %}
 <div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}">
@@ -26,7 +27,7 @@
 			<li>{{ linha }}</li>
 			{% endfor %}
 		</ul>
-		<p class="muted">Como foi?</p>
+		<p class="muted">Como foi? (isso decide quando este exercício volta a aparecer)</p>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form">
 			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
 			<input type="hidden" name="shortcut" id="shortcut-field">
@@ -35,7 +36,9 @@
 				<button type="submit" class="quality-btn" data-shortcut="2">2 · Quase</button>
 				<button type="submit" class="quality-btn" data-shortcut="3">3 · Lembrei</button>
 			</div>
+			<p class="muted">Não lembrei: volta quase já. Quase: nem avança nem reseta, volta no mesmo ritmo de antes. Lembrei: demora mais a cada vez, até graduar (100% dominado, sai da roda).</p>
 		</form>
+		<p class="muted">Ajuste manual, sem contar como resposta (não muda a caixa nem o histórico):</p>
 		<div class="button-row">
 			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline">
 				<input type="hidden" name="delta" value="-1">

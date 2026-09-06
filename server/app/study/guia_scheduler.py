@@ -30,7 +30,13 @@ from ..models import GuiaExercicio, GuiaExercicioTentativa, Lesson
 
 LEITNER_GAPS = [1, 2, 4, 7, 12]  # gap (em nº de outras respostas) por caixa 0..4; caixa 5 = graduado
 CAIXA_GRADUADO = 5
-LIMIAR_ACERTO_CAIXA = 0.7
+LIMIAR_ACERTO_SOBE = 0.7   # "Lembrei" -- sobe de caixa
+LIMIAR_ACERTO_RESETA = 0.3  # abaixo disso ("Não lembrei") -- reseta pra caixa 0
+# Entre os dois limiares ("Quase") -- fica na MESMA caixa, nem avança nem
+# reseta, só recalcula posicao_alvo com o gap atual (reaparece no mesmo
+# ritmo de antes). Sem essa faixa neutra, "Quase" e "Não lembrei" caíam no
+# mesmo "senão" e produziam exatamente o mesmo resultado -- bug real,
+# reportado pelo usuário ("os botões não parecem fazer diferença").
 
 MESA_MINIMA = 5
 MESA_MAXIMA = 30
@@ -51,10 +57,12 @@ class LeitnerResult:
 
 
 def apply_leitner(*, caixa: int, grau_acerto: float, posicao_atual: int) -> LeitnerResult:
-    if grau_acerto >= LIMIAR_ACERTO_CAIXA:
+    if grau_acerto >= LIMIAR_ACERTO_SOBE:
         nova_caixa = min(CAIXA_GRADUADO, caixa + 1)
-    else:
+    elif grau_acerto <= LIMIAR_ACERTO_RESETA:
         nova_caixa = 0
+    else:
+        nova_caixa = caixa  # "Quase" -- neutro, nem sobe nem reseta
 
     if nova_caixa >= CAIXA_GRADUADO:
         return LeitnerResult(caixa=CAIXA_GRADUADO, posicao_alvo=None, dominado=True)
@@ -85,20 +93,40 @@ def _adjust_mesa_tamanho(lesson: Lesson, rolling_acc: float | None) -> None:
         lesson.guia_progresso_mesa_tamanho = max(MESA_MINIMA, lesson.guia_progresso_mesa_tamanho - 1)
 
 
-def ensure_mesa_filled(session: Session, lesson: Lesson) -> None:
-    """Puxa exercícios do backlog (aceitos, nunca admitidos, não
-    graduados) pra preencher vagas abertas na mesa -- nunca mais que
-    `mesa_tamanho` simultâneos."""
-    count_ativos = len(
+def _ativos(session: Session, lesson_id: int) -> list[GuiaExercicio]:
+    return list(
         session.scalars(
             select(GuiaExercicio).where(
-                GuiaExercicio.lesson_id == lesson.id,
+                GuiaExercicio.lesson_id == lesson_id,
                 GuiaExercicio.status == "aceito",
                 GuiaExercicio.na_mesa.is_(True),
                 GuiaExercicio.dominado_em.is_(None),
             )
-        ).all()
+        )
     )
+
+
+def ensure_mesa_filled(session: Session, lesson: Lesson) -> None:
+    """Puxa exercícios do backlog (aceitos, nunca admitidos, não
+    graduados) pra preencher vagas abertas na mesa -- nunca mais que
+    `mesa_tamanho` simultâneos. Quando `mesa_tamanho` encolheu abaixo do
+    que já está ativo, expulsa o excedente de volta pro backlog (mantendo
+    caixa/histórico -- só sai da roda ativa, não perde progresso) --
+    sem isso, uma mesa que cresceu grande nunca voltava a ficar pequena,
+    e o usuário nunca via repetição (bug real: 10 ativos com
+    mesa_tamanho já encolhido pra 5)."""
+    ativos = _ativos(session, lesson.id)
+    if len(ativos) > lesson.guia_progresso_mesa_tamanho:
+        excedente = len(ativos) - lesson.guia_progresso_mesa_tamanho
+        # expulsa os mais "distantes" (maior posicao_alvo) primeiro --
+        # mantém ativos justamente os que estavam mais perto de vencer.
+        ativos.sort(key=lambda e: (e.posicao_alvo if e.posicao_alvo is not None else 0), reverse=True)
+        for exercicio in ativos[:excedente]:
+            exercicio.na_mesa = False
+            exercicio.posicao_alvo = None
+        session.flush()
+
+    count_ativos = len(_ativos(session, lesson.id))
     while count_ativos < lesson.guia_progresso_mesa_tamanho:
         backlog_item = session.scalars(
             select(GuiaExercicio)
@@ -188,6 +216,26 @@ def manual_adjust(session: Session, exercicio: GuiaExercicio, delta: int) -> Non
     shift = max(1, gap // 2)
     exercicio.posicao_alvo = max(lesson.guia_progresso_posicao_atual, exercicio.posicao_alvo + delta * shift)
     session.commit()
+
+
+def pool_status(session: Session, lesson: Lesson) -> dict:
+    """Números da mesa pra mostrar na tela -- sem isso o usuário não tem
+    como saber quantos exercícios estão "em jogo" agora nem por que
+    parecem não se repetir (pedido explícito depois do usuário notar que
+    a mesa cresceu sem ele perceber)."""
+    exercicios = session.scalars(
+        select(GuiaExercicio).where(
+            GuiaExercicio.lesson_id == lesson.id, GuiaExercicio.status == "aceito", GuiaExercicio.orfao_em.is_(None)
+        )
+    ).all()
+    ativos = sum(1 for e in exercicios if e.na_mesa and e.dominado_em is None)
+    dominados = sum(1 for e in exercicios if e.dominado_em is not None)
+    return {
+        "ativos": ativos,
+        "mesa_tamanho": lesson.guia_progresso_mesa_tamanho,
+        "dominados": dominados,
+        "total": len(exercicios),
+    }
 
 
 def mastery_percent(session: Session, lesson_id: int) -> float | None:

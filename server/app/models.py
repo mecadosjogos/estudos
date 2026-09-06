@@ -124,7 +124,11 @@ class Lesson(Base):
     # 1 a cada resposta dada nesta aula; mesa_tamanho é o nº de exercícios
     # ativos simultâneos, que respira sozinho pela taxa de acerto recente.
     guia_progresso_posicao_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    guia_progresso_mesa_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    # Começa no mínimo (study/guia_scheduler.py::MESA_MINIMA) -- decisão do
+    # usuário: melhor abrir com poucos itens repetindo logo e crescer a
+    # partir daí do que já nascer com uma volta longa antes do primeiro
+    # repeat.
+    guia_progresso_mesa_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
 
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
         back_populates="lesson", order_by="AudioSegment.ordem", cascade="all, delete-orphan"

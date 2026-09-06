@@ -24,7 +24,7 @@ from ..ai.guia_exercicios import (
 from ..auth import require_session
 from ..db import get_session
 from ..models import GuiaExercicio, Lesson, Subject
-from ..study.guia_scheduler import manual_adjust, mastery_percent, next_exercicio, submit_attempt
+from ..study.guia_scheduler import manual_adjust, mastery_percent, next_exercicio, pool_status, submit_attempt
 
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -219,6 +219,7 @@ def practice(request: Request, lesson_id: int, session: Session = Depends(get_se
             "exercicio": exercicio,
             "gabarito_lines": _gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
             "mastery_percent": mastery_percent(session, lesson_id),
+            "pool": pool_status(session, lesson),
         },
     )
 
