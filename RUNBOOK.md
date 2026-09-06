@@ -549,10 +549,15 @@ curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/guia/exercicios-colar-
   --data-urlencode "resposta@${WINPATH}"
 ```
 
-**Nunca aceite exercícios automaticamente** — mesma regra de cards: pare
-depois de colar a resposta. Aprovação é manual em
-`/lessons/{id}/guia/exercicios-aprovacao` (aceitar um por um ou "aceitar
-todos").
+**Aprovação é automática aqui, ao contrário de cards/anúncios/assuntos.**
+Decisão do usuário: o guia já é material revisado e aceito, não uma
+alegação nova extraída da fala do professor — um exercício sobre ele não
+precisa de revisão humana antes de entrar na fila. `_ingest_exercicios`
+(`ai/guia_exercicios.py`) marca `status="aceito"` sozinho assim que a
+resposta é ingerida (só nunca reativa algo que o usuário descartou à
+mão). A tela `/lessons/{id}/guia/exercicios-aprovacao` continua existindo
+só como recurso manual — descartar um exercício específico depois, se
+algum sair ruim.
 
 **A prática em si não é IA** — `/lessons/{id}/guia/praticar` é código
 puro (`guia_scheduler.py`): mesa de trabalho adaptativa (só N exercícios

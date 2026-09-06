@@ -16,6 +16,7 @@ seção) -- deriv_key hasheia o texto normalizado da seção + pergunta."""
 import json
 
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import AiCall, GuiaExercicio, Lesson
@@ -145,6 +146,26 @@ def _ingest_exercicios(
         )
 
     reconcile(session, GuiaExercicio, lesson.id, items, has_versao_nova=True)
+
+    # flush antes de consultar: a sessão é autoflush=False (db.py) e
+    # reconcile() só dá session.add() nas linhas novas, sem flush -- sem
+    # isso, o select() logo abaixo não veria as linhas recém-inseridas
+    # (ainda não gravadas no banco) e a auto-aprovação não pegaria nada na
+    # primeira leva (bug real, visto no smoke test: só "curava" na segunda
+    # chamada, quando as linhas já estavam de fato commitadas).
+    session.flush()
+
+    # Auto-aprova, diferente de card/anúncio/assunto (que exigem revisão
+    # humana): o guia não é fonte de verdade jurídica extraída da fala do
+    # professor, é o material que o usuário já revisou e aceitou -- um
+    # exercício sobre ele não alega um fato novo a conferir, só reformula
+    # o que já está aprovado. Decisão do usuário. Só pega quem ainda está
+    # "pendente" (recém-inserido pelo reconcile acima); nunca reativa algo
+    # que o usuário descartou manualmente (`status="descartado"`).
+    for row in session.scalars(
+        select(GuiaExercicio).where(GuiaExercicio.lesson_id == lesson.id, GuiaExercicio.status == "pendente")
+    ):
+        row.status = "aceito"
 
     cost = (
         estimate_cost_usd(model, input_tokens, output_tokens, cache_read_input_tokens)

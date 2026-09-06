@@ -58,20 +58,27 @@ esperar o usuário copiar/colar nada.
    específico.
 2. **Nunca passe texto acentuado como argumento inline de curl** — mesma
    regra de `/processar-aula`: sempre escreva num arquivo primeiro.
-3. **Nunca aceite os exercícios automaticamente.** Pare depois de colar a
-   resposta — não chame `/exercicios/{id}/aceitar` nem
-   `/exercicios-aceitar-todos`. Aprovação é decisão humana, feita depois
-   em `/lessons/{id}/guia/exercicios-aprovacao`.
-4. **Confira encoding** depois do POST (mesmo `repr()` no banco descrito
+3. **Confira encoding** depois do POST (mesmo `repr()` no banco descrito
    no RUNBOOK para `/processar-aula`) se houver texto acentuado.
+
+## Sobre aprovação: diferente de card/anúncio/assunto
+
+**Não pare em "colar a resposta" esperando revisão humana** — decisão do
+usuário: como o guia já é material revisado e aceito (não uma alegação
+nova extraída da fala do professor), o servidor aceita os exercícios
+automaticamente assim que a resposta é ingerida (`_ingest_exercicios` em
+`ai/guia_exercicios.py` marca `status="aceito"` sozinho). Você não
+precisa chamar `/exercicios/{id}/aceitar` nem `/exercicios-aceitar-todos`
+— já está feito quando o POST de `colar-resposta` retorna. Os exercícios
+já entram direto na fila de prática (`/lessons/{id}/guia/praticar`).
 
 ## Ao terminar
 
 Devolva um resumo compacto: quantos exercícios de cada tipo foram
-gerados, e o link para a tela de aprovação. Nunca a transcrição, o guia
-inteiro ou o JSON completo.
+gerados, e o link para a fila de prática (já aceitos, prontos pra
+praticar). Nunca a transcrição, o guia inteiro ou o JSON completo.
 
 ```
-aula 12 "Posse e propriedade" — ok — 3 definição, 2 cloze, 1 lista, 1 hierarquia, 2 discriminação, 1 recordação livre, 1 aplicação de caso
-→ revise em /lessons/12/guia/exercicios-aprovacao
+aula 12 "Posse e propriedade" — ok — 3 definição, 2 cloze, 1 lista, 1 hierarquia, 2 discriminação, 1 recordação livre, 1 aplicação de caso — já aceitos
+→ pratique em /lessons/12/guia/praticar
 ```
