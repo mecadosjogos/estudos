@@ -511,6 +511,63 @@ curl -s -b "$COOKIEJAR" "$SERVER_URL/termos/{id}/feynman/{attempt_id}" | grep -o
 curl -s -b "$COOKIEJAR" "$SERVER_URL/dissertativas" | grep -o "search-results"
 ```
 
+### Dominar o guia (exercícios de memorização, fora da numeração de fases do PLANO.md)
+
+**Única passada de IA do sistema que lê o GUIA (`Lesson.guia_md`), não a
+transcrição.** Isso é uma exceção deliberada à regra "fonte = transcrição
+literal recortada" do resto deste runbook (PLANO.md, Integridade): essa
+regra existe para evitar distorção silenciosa de texto jurídico citável
+(poderá×deverá). Aqui não se aplica — o guia já é o material que o
+usuário revisou e aceitou como referência de estudo daquela aula; o
+objetivo é internalizar o que já está ali, erros inclusos, não extrair
+uma alegação nova pra citar em prova. Ver `server/app/ai/guia_exercicios.py`.
+
+**Sistema totalmente separado de cards/SM-2** (`CardProposal`,
+`/revisao`) — tabelas (`guia_exercicio`, `guia_exercicio_tentativa`),
+fila e algoritmo próprios (`server/app/study/guia_scheduler.py`,
+posicional, não por calendário — ver docstring do módulo). Decisão do
+usuário: o guia não é a fonte original, então o que nasce dele não pode
+se misturar com o que nasce da fala literal do professor.
+
+**Query de pendência:** aulas com `Lesson.guia_titulo IS NOT NULL` (guia
+já existe, fase 6 rodada) e sem nenhum `GuiaExercicio` ainda, ou com
+`Lesson.guia_gerado_em` mais novo que a última `GuiaExercicio.criado_em`
+daquela aula (guia foi reprocessado desde a última leva de exercícios).
+A matéria "LIXO" nunca entra aqui, mesma regra de sempre.
+
+**Passo sob demanda, não automático** — só roda quando o usuário pedir
+("domina o guia da aula X"). **Diferente do resto deste runbook: não
+espere o usuário colar nada.** Ao ser acionado, despache um Agent com
+`model="opus"` que faz o ciclo inteiro sozinho (o padrão de sempre pra
+essa passada, mesmo usado em `/processar-aula`):
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/exercicios-pacote.md" -o pacote.md
+# leia pacote.md, gere o JSON dos 7 tipos de exercício seguindo as instruções nele
+WINPATH=$(cygpath -w resposta.md)
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/guia/exercicios-colar-resposta" \
+  --data-urlencode "resposta@${WINPATH}"
+```
+
+**Nunca aceite exercícios automaticamente** — mesma regra de cards: pare
+depois de colar a resposta. Aprovação é manual em
+`/lessons/{id}/guia/exercicios-aprovacao` (aceitar um por um ou "aceitar
+todos").
+
+**A prática em si não é IA** — `/lessons/{id}/guia/praticar` é código
+puro (`guia_scheduler.py`): mesa de trabalho adaptativa (só N exercícios
+"em jogo" por vez, N sobe/desce pela taxa de acerto recente) + Leitner
+posicional (a caixa de cada exercício decide daqui quantas respostas ele
+volta a aparecer, nunca "daqui N dias"). Loop contínuo — sempre há um
+próximo exercício, nunca "acabou por hoje".
+
+**Validar:**
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/exercicios-aprovacao" | grep -o "pendente"
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/praticar" | grep -o "dominado"
+```
+
 ## Custo
 
 Toda passada manual grava uma linha em `AiCall` com `via="manual"` e

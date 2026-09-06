@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Dominar o guia — colar resposta{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← Voltar</a></p>
+<h1>Dominar o guia: {{ lesson.titulo }}</h1>
+<p class="muted">Cole aqui a resposta com os exercícios de memorização (pode vir com conversa em volta do bloco <code>```json</code> — o parser é tolerante). Caminho normal: pedir no chat para dominar esta aula, que já faz isso sozinho — esta tela é só para o caso manual excepcional.</p>
+
+{% if request.query_params.get("erro") %}
+<div class="card error">{{ request.query_params.get("erro") }}</div>
+{% endif %}
+
+<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios-colar-resposta">
+	<textarea name="resposta" rows="16" style="width:100%; font-family: monospace;" required></textarea>
+	<p><button type="submit">Processar resposta</button></p>
+</form>
+{% endblock %}

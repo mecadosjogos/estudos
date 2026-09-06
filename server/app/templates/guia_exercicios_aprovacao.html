@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Dominar o guia — aprovação{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← Voltar</a></p>
+<h1>Aprovar exercícios: {{ lesson.titulo }}</h1>
+
+{% if request.query_params.get("aceitos") %}
+<div class="card">{{ request.query_params.get("aceitos") }} exercício(s) aceito(s).</div>
+{% endif %}
+
+{% if pending %}
+<p><strong>{{ pending|length }}</strong> pendente(s).</p>
+<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios-aceitar-todos">
+	<button type="submit">Aceitar todos</button>
+</form>
+
+<ul class="search-results">
+	{% for ex in pending %}
+	<li>
+		<span class="badge">{{ ex.tipo }}</span>
+		{% if ex.secao_titulo %}<span class="badge">{{ ex.secao_titulo }}</span>{% endif %}
+		<strong>{{ ex.pergunta }}</strong>
+		<div class="button-row">
+			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ ex.id }}/aceitar" style="display:inline">
+				<button type="submit">Aceitar</button>
+			</form>
+			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ ex.id }}/descartar" style="display:inline">
+				<button type="submit">Descartar</button>
+			</form>
+		</div>
+	</li>
+	{% endfor %}
+</ul>
+{% else %}
+<p class="muted">Nada pendente. <a href="/lessons/{{ lesson.id }}/guia/praticar">Ir para a prática →</a></p>
+{% endif %}
+{% endblock %}

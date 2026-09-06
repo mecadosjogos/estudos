@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Dominar o guia{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← Voltar</a></p>
+<h1>Dominar o guia: {{ lesson.titulo }}</h1>
+{% if mastery_percent is not none %}
+<p class="muted">{{ (mastery_percent * 100) | round(0, "floor") | int }}% dominado</p>
+{% endif %}
+
+{% if exercicio %}
+<div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}">
+	<span class="badge">{{ exercicio.tipo }}</span>
+	{% if exercicio.secao_titulo %}<span class="badge">{{ exercicio.secao_titulo }}</span>{% endif %}
+	<h2>{{ exercicio.pergunta }}</h2>
+
+	<div id="recall-step">
+		<p class="muted">Tente lembrar antes de ver o gabarito — escreva o que vier à cabeça (ou deixe em branco).</p>
+		<textarea id="resposta-texto" rows="4" style="width:100%"></textarea>
+		<p><button type="button" id="revelar-btn">Revelar gabarito</button></p>
+	</div>
+
+	<div id="gabarito-step" hidden>
+		<p><strong>Gabarito:</strong></p>
+		<ul>
+			{% for linha in gabarito_lines %}
+			<li>{{ linha }}</li>
+			{% endfor %}
+		</ul>
+		<p class="muted">Como foi?</p>
+		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form">
+			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
+			<input type="hidden" name="shortcut" id="shortcut-field">
+			<div class="button-row">
+				<button type="submit" class="quality-btn" data-shortcut="1">1 · Não lembrei</button>
+				<button type="submit" class="quality-btn" data-shortcut="2">2 · Quase</button>
+				<button type="submit" class="quality-btn" data-shortcut="3">3 · Lembrei</button>
+			</div>
+		</form>
+		<div class="button-row">
+			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline">
+				<input type="hidden" name="delta" value="-1">
+				<button type="submit">↓ quero ver de novo mais cedo</button>
+			</form>
+			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline">
+				<input type="hidden" name="delta" value="1">
+				<button type="submit">↑ já sei, espaçar mais</button>
+			</form>
+		</div>
+	</div>
+</div>
+
+<script>
+	const recallStep = document.getElementById("recall-step");
+	const gabaritoStep = document.getElementById("gabarito-step");
+	const respostaTexto = document.getElementById("resposta-texto");
+	const respostaTextoField = document.getElementById("resposta-texto-field");
+	const shortcutField = document.getElementById("shortcut-field");
+	const answerForm = document.getElementById("answer-form");
+	let revealed = false;
+
+	document.getElementById("revelar-btn").addEventListener("click", () => {
+		respostaTextoField.value = respostaTexto.value;
+		recallStep.hidden = true;
+		gabaritoStep.hidden = false;
+		revealed = true;
+	});
+
+	document.querySelectorAll(".quality-btn").forEach((btn) => {
+		btn.addEventListener("click", (ev) => {
+			ev.preventDefault();
+			shortcutField.value = btn.dataset.shortcut;
+			answerForm.submit();
+		});
+	});
+
+	document.addEventListener("keydown", (ev) => {
+		if (!revealed) return;
+		if (["1", "2", "3"].includes(ev.key)) {
+			shortcutField.value = ev.key;
+			answerForm.submit();
+		}
+	});
+</script>
+{% else %}
+<div class="card">
+	{% if mastery_percent is not none and mastery_percent >= 1.0 %}
+	<p>🎉 100% dominado — todos os exercícios desta aula graduaram. Nada pendente pra praticar agora.</p>
+	{% else %}
+	<p>Nada pra praticar ainda — aprove exercícios pendentes em <a href="/lessons/{{ lesson.id }}/guia/exercicios-aprovacao">aprovação</a>, ou peça para dominar esta aula primeiro.</p>
+	{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -119,6 +119,13 @@ class Lesson(Base):
     # por seção.
     guia_audio_gerado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Estado do algoritmo de "Dominar o guia" (ver study/guia_scheduler.py
+    # e GuiaExercicio) -- posicional, não calendário: posicao_atual avança
+    # 1 a cada resposta dada nesta aula; mesa_tamanho é o nº de exercícios
+    # ativos simultâneos, que respira sozinho pela taxa de acerto recente.
+    guia_progresso_posicao_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    guia_progresso_mesa_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
         back_populates="lesson", order_by="AudioSegment.ordem", cascade="all, delete-orphan"
     )
@@ -154,6 +161,9 @@ class Lesson(Base):
     )
     guia_topicos: Mapped[list["GuiaTopico"]] = relationship(
         back_populates="lesson", order_by="GuiaTopico.ordem", cascade="all, delete-orphan"
+    )
+    guia_exercicios: Mapped[list["GuiaExercicio"]] = relationship(
+        back_populates="lesson", cascade="all, delete-orphan"
     )
 
 
@@ -477,6 +487,88 @@ class GuiaTopico(Base):
     versao_nova_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+GUIA_EXERCICIO_TIPOS = (
+    "definicao",
+    "cloze",
+    "lista_ordenada",
+    "hierarquia",
+    "discriminacao",
+    "recordacao_livre",
+    "aplicacao_caso",
+)
+
+
+class GuiaExercicio(Base):
+    """Exercício de memorização derivado do GUIA de uma aula, não da
+    transcrição (PLANO.md, "Dominar o guia") -- sistema deliberadamente
+    separado de CardProposal/SM-2: o guia já é paráfrase aceita para
+    estudo, não a fonte de verdade jurídica, e misturar as duas filas
+    confundiria "o que o professor disse literalmente" com "o que já foi
+    reorganizado e aceito". `deriv_key` é sobre o TEXTO NORMALIZADO da
+    seção/trecho de origem do guia -- nunca um FK para `GuiaSecao.id`, que
+    não tem identidade estável entre reprocessamentos (é apagada e
+    recriada por inteiro).
+
+    Agendamento é posicional, não por calendário (ver
+    `study/guia_scheduler.py`): `caixa` é o nível Leitner (0-5, 5 =
+    dominado); `posicao_alvo` é a posição, no contador de respostas da
+    própria aula (`Lesson.guia_progresso_posicao_atual`), em que volta a
+    ficar due; `na_mesa` marca se está entre as vagas ativas da "mesa de
+    trabalho" adaptativa daquela aula agora."""
+
+    __tablename__ = "guia_exercicio"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lesson.id"), nullable=False)
+    lesson: Mapped["Lesson"] = relationship(back_populates="guia_exercicios")
+
+    deriv_key: Mapped[str] = mapped_column(String, nullable=False)
+    tipo: Mapped[str] = mapped_column(String, nullable=False)
+    secao_titulo: Mapped[str | None] = mapped_column(String, nullable=True)
+    pergunta: Mapped[str] = mapped_column(Text, nullable=False)
+    # Conteúdo polimórfico por tipo -- shape varia (ver ai/schemas.py::GuiaExercicioOut),
+    # um JSON só em vez de sete famílias de colunas majoritariamente nulas.
+    gabarito_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pendente")
+
+    editado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    orfao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    versao_nova_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Agendamento -- só valem quando status="aceito".
+    caixa: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    na_mesa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    posicao_alvo: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dominado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    tentativas: Mapped[list["GuiaExercicioTentativa"]] = relationship(
+        back_populates="exercicio", order_by="GuiaExercicioTentativa.respondido_em", cascade="all, delete-orphan"
+    )
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class GuiaExercicioTentativa(Base):
+    """Log de uma resposta a um GuiaExercicio -- equivalente a ReviewLog,
+    mas com grau de acerto contínuo (0.0-1.0) em vez de qualidade 0-5
+    binária, porque cloze/lista/recordação livre têm acerto parcial real
+    (ex.: acertei 3 de 5 lacunas), não só certo/errado."""
+
+    __tablename__ = "guia_exercicio_tentativa"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exercicio_id: Mapped[int] = mapped_column(ForeignKey("guia_exercicio.id"), nullable=False)
+    exercicio: Mapped["GuiaExercicio"] = relationship(back_populates="tentativas")
+
+    resposta_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
+    grau_acerto: Mapped[float] = mapped_column(Float, nullable=False)
+    confianca: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    respondido_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class ArticleMention(Base):

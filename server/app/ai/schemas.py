@@ -136,3 +136,37 @@ class DissertativaCorrectionOut(BaseModel):
     pontos_cobertos: list[str] = Field(default_factory=list)
     pontos_faltantes: list[str] = Field(default_factory=list)
     comentario: str = ""
+
+
+GUIA_EXERCICIO_TIPOS = (
+    "definicao",
+    "cloze",
+    "lista_ordenada",
+    "hierarquia",
+    "discriminacao",
+    "recordacao_livre",
+    "aplicacao_caso",
+)
+
+
+class GuiaExercicioOut(BaseModel):
+    """"Dominar o guia" -- exercício de memorização derivado do guia de
+    UMA aula (não da transcrição). `gabarito` muda de forma por tipo:
+
+    - definicao: {"resposta": "..."}
+    - cloze: {"texto_com_lacunas": "...", "respostas": ["...", ...]}
+    - lista_ordenada: {"itens_em_ordem": ["...", ...]}
+    - hierarquia: {"arvore_alvo": {"rotulo": "...", "filhos": [...]}}
+    - discriminacao: {"termo_a": "...", "termo_b": "...", "eixo": "..."}
+    - recordacao_livre: {"pontos_esperados": ["...", ...]}
+    - aplicacao_caso: {"caso": "...", "conceito_correto": "..."}
+    """
+
+    tipo: str = Field(description="Um de: " + ", ".join(GUIA_EXERCICIO_TIPOS))
+    secao_titulo: str | None = None
+    pergunta: str
+    gabarito: dict
+
+
+class GuiaExerciciosOutput(BaseModel):
+    exercicios: list[GuiaExercicioOut]
