@@ -105,9 +105,11 @@
 </div>
 {% endif %}
 
-{% if removidos %}
 <details class="card">
 	<summary><strong>Questões removidas ({{ removidos | length }})</strong></summary>
+	{% if not removidos %}
+	<p class="muted">Nenhuma questão removida nesta aula. O botão "✕ remover questão" tira uma questão da sua fila (só da sua); ela aparece aqui, com gabarito e um "desfazer" pra voltar.</p>
+	{% else %}
 	<p class="muted">Fora da sua fila — não contam no % dominado nem na mesa. Continuam removidas mesmo depois de "limpar progresso"; só voltam pelo "desfazer" aqui. O progresso que elas tinham foi guardado: se voltarem, voltam na caixa em que estavam.</p>
 	{% for item in removidos %}
 	<div class="card">
@@ -125,8 +127,8 @@
 		</form>
 	</div>
 	{% endfor %}
+	{% endif %}
 </details>
-{% endif %}
 
 <details class="card">
 	<summary><strong>Como funcionam os botões</strong></summary>
