@@ -25,11 +25,14 @@ from ..auth import require_session
 from ..db import get_session
 from ..models import GuiaExercicio, Lesson, Subject, User
 from ..study.guia_scheduler import (
+    listar_removidos,
     manual_adjust,
     mastery_percent,
     next_exercicio,
     pool_status,
+    remover_exercicio,
     reset_progresso,
+    restaurar_exercicio,
     set_mesa_tamanho,
     submit_attempt,
 )
@@ -235,6 +238,13 @@ def practice(
             "gabarito_lines": _gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
             "mastery_percent": mastery_percent(session, lesson_id, user.id),
             "pool": pool_status(session, lesson, user.id),
+            "removidos": [
+                {
+                    "exercicio": removido,
+                    "gabarito_lines": _gabarito_lines(removido.tipo, json.loads(removido.gabarito_json)),
+                }
+                for removido in listar_removidos(session, lesson_id, user.id)
+            ],
         },
     )
 
@@ -284,6 +294,32 @@ def adjust_exercicio(
 ):
     exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
     manual_adjust(session, exercicio, user.id, delta)
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/guia/exercicios/{exercicio_id}/remover")
+def remover_exercicio_route(
+    lesson_id: int,
+    exercicio_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_session),
+):
+    """Tira a questão da fila DESTE usuário -- não descarta pra todo mundo
+    (isso é `/exercicios/{id}/descartar`, na tela de aprovação)."""
+    exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
+    remover_exercicio(session, exercicio, user.id)
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/guia/exercicios/{exercicio_id}/restaurar")
+def restaurar_exercicio_route(
+    lesson_id: int,
+    exercicio_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_session),
+):
+    exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
+    restaurar_exercicio(session, exercicio, user.id)
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 

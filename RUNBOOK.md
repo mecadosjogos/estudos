@@ -566,6 +566,18 @@ posicional (a caixa de cada exercício decide daqui quantas respostas ele
 volta a aparecer, nunca "daqui N dias"). Loop contínuo — sempre há um
 próximo exercício, nunca "acabou por hoje".
 
+**Remover questão é por usuário e sobrevive ao "limpar progresso".**
+O botão "✕ remover questão" em `/praticar` grava uma linha em
+`guia_exercicio_removido` (uma por usuário+exercício) -- tabela própria
+justamente porque `reset_progresso` apaga as tabelas de progresso, e o
+usuário pediu que remover seja definitivo até ele mesmo desfazer. A
+questão sai da mesa, do backlog e dos dois contadores (% dominado e
+total), some da fila só dessa pessoa, e volta pelo "↩ desfazer" no bloco
+"Questões removidas" no fim da página (o progresso dela é preservado --
+volta na caixa em que estava). Não confundir com
+`GuiaExercicio.status="descartado"` na tela de aprovação, que tira a
+questão de todo mundo.
+
 **Validar:**
 
 ```bash

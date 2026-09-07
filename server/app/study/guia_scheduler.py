@@ -39,7 +39,14 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
-from ..models import GuiaExercicio, GuiaExercicioProgresso, GuiaExercicioTentativa, GuiaLessonProgresso, Lesson
+from ..models import (
+    GuiaExercicio,
+    GuiaExercicioProgresso,
+    GuiaExercicioRemovido,
+    GuiaExercicioTentativa,
+    GuiaLessonProgresso,
+    Lesson,
+)
 
 LEITNER_GAPS = [1, 2, 4, 7, 12]  # gap (em nº de outras respostas) por caixa 0..4; caixa 5 = graduado
 CAIXA_GRADUADO = 5
@@ -89,6 +96,69 @@ def _get_or_create_exercicio_progresso(session: Session, exercicio_id: int, user
         session.add(progresso)
         session.flush()
     return progresso
+
+
+def _removidos_subq(user_id: int):
+    """Subquery dos exercícios que ESTE usuário removeu da própria fila.
+    Entra em TODA consulta da prática (mesa, backlog, próximo, contadores,
+    % dominado) -- uma questão removida não pode voltar por uma porta
+    lateral nem contar no denominador do progresso. Removida por usuário:
+    não some pra mais ninguém."""
+    return select(GuiaExercicioRemovido.exercicio_id).where(GuiaExercicioRemovido.user_id == user_id)
+
+
+def remover_exercicio(session: Session, exercicio: GuiaExercicio, user_id: int) -> None:
+    """Botão "remover questão" em /praticar -- tira este exercício da fila
+    DESTE usuário, pra sempre (sobrevive ao "limpar progresso", ver
+    GuiaExercicioRemovido), até ele clicar "desfazer" na lista de
+    removidas. O progresso acumulado nela é preservado, não apagado: se
+    voltar, volta na caixa em que estava."""
+    ja = session.scalar(
+        select(GuiaExercicioRemovido).where(
+            GuiaExercicioRemovido.user_id == user_id, GuiaExercicioRemovido.exercicio_id == exercicio.id
+        )
+    )
+    if ja is None:
+        session.add(GuiaExercicioRemovido(user_id=user_id, exercicio_id=exercicio.id))
+    progresso = session.scalar(
+        select(GuiaExercicioProgresso).where(
+            GuiaExercicioProgresso.user_id == user_id, GuiaExercicioProgresso.exercicio_id == exercicio.id
+        )
+    )
+    if progresso is not None:
+        # sai da mesa mas mantém caixa/streak -- a vaga aberta é
+        # preenchida pelo backlog logo abaixo.
+        progresso.na_mesa = False
+        progresso.posicao_alvo = None
+    session.flush()
+    ensure_mesa_filled(session, exercicio.lesson, user_id)
+    session.commit()
+
+
+def restaurar_exercicio(session: Session, exercicio: GuiaExercicio, user_id: int) -> None:
+    """"Desfazer" na lista de questões removidas -- devolve o exercício ao
+    backlog deste usuário; a mesa o readmite quando houver vaga."""
+    session.execute(
+        delete(GuiaExercicioRemovido).where(
+            GuiaExercicioRemovido.user_id == user_id, GuiaExercicioRemovido.exercicio_id == exercicio.id
+        )
+    )
+    session.flush()
+    ensure_mesa_filled(session, exercicio.lesson, user_id)
+    session.commit()
+
+
+def listar_removidos(session: Session, lesson_id: int, user_id: int) -> list[GuiaExercicio]:
+    """Questões que este usuário removeu nesta aula, mais recentes
+    primeiro -- alimenta o bloco "Questões removidas" em /praticar."""
+    return list(
+        session.scalars(
+            select(GuiaExercicio)
+            .join(GuiaExercicioRemovido, GuiaExercicioRemovido.exercicio_id == GuiaExercicio.id)
+            .where(GuiaExercicio.lesson_id == lesson_id, GuiaExercicioRemovido.user_id == user_id)
+            .order_by(GuiaExercicioRemovido.removido_em.desc(), GuiaExercicio.id.desc())
+        )
+    )
 
 
 @dataclass
@@ -146,6 +216,7 @@ def _ativos(session: Session, lesson_id: int, user_id: int) -> list[GuiaExercici
             .where(
                 GuiaExercicio.lesson_id == lesson_id,
                 GuiaExercicio.status == "aceito",
+                GuiaExercicio.id.not_in(_removidos_subq(user_id)),
                 GuiaExercicioProgresso.user_id == user_id,
                 GuiaExercicioProgresso.na_mesa.is_(True),
                 GuiaExercicioProgresso.dominado_em.is_(None),
@@ -193,6 +264,7 @@ def ensure_mesa_filled(session: Session, lesson: Lesson, user_id: int) -> None:
                 GuiaExercicio.lesson_id == lesson.id,
                 GuiaExercicio.status == "aceito",
                 GuiaExercicio.orfao_em.is_(None),
+                GuiaExercicio.id.not_in(_removidos_subq(user_id)),
                 or_(
                     GuiaExercicioProgresso.id.is_(None),
                     and_(
@@ -241,6 +313,7 @@ def next_exercicio(session: Session, lesson: Lesson, user_id: int) -> GuiaExerci
         .where(
             GuiaExercicio.lesson_id == lesson.id,
             GuiaExercicio.status == "aceito",
+            GuiaExercicio.id.not_in(_removidos_subq(user_id)),
             GuiaExercicioProgresso.na_mesa.is_(True),
             GuiaExercicioProgresso.dominado_em.is_(None),
         )
@@ -322,7 +395,13 @@ def reset_progresso(session: Session, lesson: Lesson, user_id: int) -> None:
     mesa e histórico de tentativas -- devolvendo ao estado "nunca
     praticada". Botão "Limpar progresso" em /praticar, com confirmação
     explícita (perde tudo, sem como desfazer). Não afeta o progresso de
-    outros usuários nem o conteúdo/aprovação dos exercícios."""
+    outros usuários nem o conteúdo/aprovação dos exercícios.
+
+    NÃO mexe em `GuiaExercicioRemovido`: questão removida continua
+    removida depois de limpar o progresso (pedido explícito do usuário --
+    limpar progresso é recomeçar o estudo, não ressuscitar questão que a
+    pessoa já julgou ruim). Só o "desfazer" da lista de removidas traz de
+    volta."""
     exercicio_ids = [
         row[0] for row in session.execute(select(GuiaExercicio.id).where(GuiaExercicio.lesson_id == lesson.id)).all()
     ]
@@ -362,7 +441,12 @@ def pool_status(session: Session, lesson: Lesson, user_id: int) -> dict:
                 GuiaExercicioProgresso.user_id == user_id,
             ),
         )
-        .where(GuiaExercicio.lesson_id == lesson.id, GuiaExercicio.status == "aceito", GuiaExercicio.orfao_em.is_(None))
+        .where(
+            GuiaExercicio.lesson_id == lesson.id,
+            GuiaExercicio.status == "aceito",
+            GuiaExercicio.orfao_em.is_(None),
+            GuiaExercicio.id.not_in(_removidos_subq(user_id)),
+        )
     ).all()
     ativos = sum(1 for _, p in rows if p is not None and p.na_mesa and p.dominado_em is None)
     dominados = sum(1 for _, p in rows if p is not None and p.dominado_em is not None)
@@ -388,6 +472,7 @@ def mastery_percent(session: Session, lesson_id: int, user_id: int) -> float | N
             GuiaExercicio.lesson_id == lesson_id,
             GuiaExercicio.status == "aceito",
             GuiaExercicio.orfao_em.is_(None),
+            GuiaExercicio.id.not_in(_removidos_subq(user_id)),
         )
     ).all()
     if not rows:

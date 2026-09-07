@@ -589,6 +589,34 @@ class GuiaExercicioProgresso(Base):
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class GuiaExercicioRemovido(Base):
+    """Exercício que ESTE usuário tirou da própria fila de prática ("remover
+    questão" em /praticar). Tabela própria, e não uma coluna em
+    `GuiaExercicioProgresso`, por um motivo específico: `reset_progresso`
+    ("limpar progresso") APAGA as linhas de progresso, e o usuário pediu
+    explicitamente que a remoção sobreviva a isso -- limpar o progresso
+    recomeça o estudo do zero, não ressuscita questão que a pessoa já
+    julgou ruim. Só o botão "desfazer" na lista de removidas traz de
+    volta.
+
+    Diferente de `GuiaExercicio.status="descartado"` (aprovação), que é
+    compartilhado entre todos os usuários: aqui é a decisão de uma pessoa
+    sobre a própria fila, e não tira a questão de ninguém mais."""
+
+    __tablename__ = "guia_exercicio_removido"
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "exercicio_id", name="uq_guia_exercicio_removido_user_exercicio"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    exercicio_id: Mapped[int] = mapped_column(ForeignKey("guia_exercicio.id"), nullable=False)
+    exercicio: Mapped["GuiaExercicio"] = relationship()
+
+    removido_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class GuiaExercicioTentativa(Base):
     """Log de uma resposta a um GuiaExercicio -- equivalente a ReviewLog,
     mas com grau de acerto contínuo (0.0-1.0) em vez de qualidade 0-5
