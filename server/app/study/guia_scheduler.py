@@ -8,13 +8,21 @@ Dois mecanismos combinados, não redundantes:
    `caixa` (0-5) e uma `posicao_alvo`, medida em número de OUTRAS
    respostas no meio (o contador `Lesson.guia_progresso_posicao_atual`),
    nunca em dias. Acerto sobe caixa (5 = graduado, sai da mesa pra
-   sempre); erro zera pra caixa 0.
+   sempre); erro zera pra caixa 0. "Lembrei" emendado no MESMO exercício
+   (`GuiaExercicio.streak_atual`) pula mais de uma caixa de uma vez --
+   pedido explícito do usuário: bater "lembrei" repetido tem que valer
+   mais que um único acerto isolado, não só reagendar pro mesmo intervalo.
 2. **Mesa de trabalho adaptativa** (agregado): só `Lesson.guia_progresso_mesa_tamanho`
    exercícios ficam `na_mesa=True` (ativos) por vez -- um novo só entra
-   do backlog quando outro sai por ter graduado. O tamanho da mesa
-   respira pela taxa de acerto móvel das últimas ~20 respostas daquela
-   aula: vai bem, abre vaga; vai mal, fecha vaga (nunca expulsa quem já
-   está na mesa, só trava novas admissões).
+   do backlog quando outro sai por ter graduado (ou quando o tamanho da
+   mesa cresce). O tamanho da mesa respira por sequência (`Lesson.guia_progresso_streak_atual`),
+   não por média: "lembrei" emendado abre vaga a mais a cada vez (efeito
+   multiplicador do streak, até um teto), "não lembrei" emendado fecha
+   vaga mais rápido pelo mesmo motivo; "quase" é neutro e zera a
+   sequência. Substituiu uma versão anterior por média móvel de acerto
+   que ficava presa no meio (nem 0.85 nem <0.5) sempre que a taxa de
+   acerto era só "razoável" -- a mesa nunca crescia mesmo com exercícios
+   de sobra no backlog.
 
 `next_exercicio` nunca "esgota" de verdade: sempre devolve o item de
 menor `posicao_alvo` entre os ativos -- é o loop contínuo pedido, sem
@@ -40,9 +48,10 @@ LIMIAR_ACERTO_RESETA = 0.3  # abaixo disso ("Não lembrei") -- reseta pra caixa 
 
 MESA_MINIMA = 5
 MESA_MAXIMA = 30
-ROLLING_WINDOW = 20
-ACERTO_ALTO = 0.85
-ACERTO_BAIXO = 0.5
+# Teto do efeito multiplicador do streak no tamanho da mesa -- sem ele um
+# streak muito longo numa sessão de estudo levaria a mesa direto pro
+# MESA_MAXIMA de um salto só, pulando o "respirar aos poucos" pretendido.
+MESA_STREAK_CAP = 5
 
 
 def _now():
@@ -54,43 +63,46 @@ class LeitnerResult:
     caixa: int
     posicao_alvo: int | None
     dominado: bool
+    streak: int
 
 
-def apply_leitner(*, caixa: int, grau_acerto: float, posicao_atual: int) -> LeitnerResult:
+def apply_leitner(*, caixa: int, streak: int, grau_acerto: float, posicao_atual: int) -> LeitnerResult:
     if grau_acerto >= LIMIAR_ACERTO_SOBE:
-        nova_caixa = min(CAIXA_GRADUADO, caixa + 1)
+        # "Lembrei" emendado (streak >= 1 antes desta resposta) pula mais
+        # de uma caixa de uma vez -- efeito multiplicador pedido pelo
+        # usuário: 2º "lembrei" seguido pula 2, 3º pula 3, etc.
+        nova_streak = streak + 1 if streak >= 0 else 1
+        nova_caixa = min(CAIXA_GRADUADO, caixa + nova_streak)
     elif grau_acerto <= LIMIAR_ACERTO_RESETA:
+        nova_streak = 0
         nova_caixa = 0
     else:
-        nova_caixa = caixa  # "Quase" -- neutro, nem sobe nem reseta
+        nova_streak = 0  # "Quase" -- neutro, nem sobe nem reseta, e zera a sequência
+        nova_caixa = caixa
 
     if nova_caixa >= CAIXA_GRADUADO:
-        return LeitnerResult(caixa=CAIXA_GRADUADO, posicao_alvo=None, dominado=True)
+        return LeitnerResult(caixa=CAIXA_GRADUADO, posicao_alvo=None, dominado=True, streak=nova_streak)
 
     gap = LEITNER_GAPS[nova_caixa]
-    return LeitnerResult(caixa=nova_caixa, posicao_alvo=posicao_atual + gap, dominado=False)
+    return LeitnerResult(caixa=nova_caixa, posicao_alvo=posicao_atual + gap, dominado=False, streak=nova_streak)
 
 
-def _rolling_accuracy(session: Session, lesson_id: int, window: int = ROLLING_WINDOW) -> float | None:
-    tentativas = session.scalars(
-        select(GuiaExercicioTentativa)
-        .join(GuiaExercicio, GuiaExercicioTentativa.exercicio_id == GuiaExercicio.id)
-        .where(GuiaExercicio.lesson_id == lesson_id)
-        .order_by(GuiaExercicioTentativa.respondido_em.desc())
-        .limit(window)
-    ).all()
-    if not tentativas:
-        return None
-    return sum(t.grau_acerto for t in tentativas) / len(tentativas)
-
-
-def _adjust_mesa_tamanho(lesson: Lesson, rolling_acc: float | None) -> None:
-    if rolling_acc is None:
-        return
-    if rolling_acc >= ACERTO_ALTO:
-        lesson.guia_progresso_mesa_tamanho = min(MESA_MAXIMA, lesson.guia_progresso_mesa_tamanho + 1)
-    elif rolling_acc < ACERTO_BAIXO:
-        lesson.guia_progresso_mesa_tamanho = max(MESA_MINIMA, lesson.guia_progresso_mesa_tamanho - 1)
+def _adjust_mesa_tamanho(lesson: Lesson, grau_acerto: float) -> None:
+    """Streak de respostas seguidas na mesma direção, medido na aula
+    inteira (`Lesson.guia_progresso_streak_atual`), não por exercício --
+    é o tamanho da mesa que respira, não um item específico."""
+    streak = lesson.guia_progresso_streak_atual
+    if grau_acerto >= LIMIAR_ACERTO_SOBE:
+        streak = streak + 1 if streak >= 0 else 1
+        delta = min(streak, MESA_STREAK_CAP)
+        lesson.guia_progresso_mesa_tamanho = min(MESA_MAXIMA, lesson.guia_progresso_mesa_tamanho + delta)
+    elif grau_acerto <= LIMIAR_ACERTO_RESETA:
+        streak = streak - 1 if streak <= 0 else -1
+        delta = min(abs(streak), MESA_STREAK_CAP)
+        lesson.guia_progresso_mesa_tamanho = max(MESA_MINIMA, lesson.guia_progresso_mesa_tamanho - delta)
+    else:
+        streak = 0  # "Quase" -- neutro, zera a sequência, mesa não muda
+    lesson.guia_progresso_streak_atual = streak
 
 
 def _ativos(session: Session, lesson_id: int) -> list[GuiaExercicio]:
@@ -189,17 +201,22 @@ def submit_attempt(
     session.add(tentativa)
 
     lesson.guia_progresso_posicao_atual += 1
-    result = apply_leitner(caixa=exercicio.caixa, grau_acerto=grau_acerto, posicao_atual=lesson.guia_progresso_posicao_atual)
+    result = apply_leitner(
+        caixa=exercicio.caixa,
+        streak=exercicio.streak_atual,
+        grau_acerto=grau_acerto,
+        posicao_atual=lesson.guia_progresso_posicao_atual,
+    )
     exercicio.caixa = result.caixa
+    exercicio.streak_atual = result.streak
     exercicio.posicao_alvo = result.posicao_alvo
     exercicio.last_reviewed_at = _now()
     if result.dominado:
         exercicio.dominado_em = _now()
         exercicio.na_mesa = False
 
+    _adjust_mesa_tamanho(lesson, grau_acerto)
     session.flush()
-    rolling_acc = _rolling_accuracy(session, lesson.id)
-    _adjust_mesa_tamanho(lesson, rolling_acc)
     ensure_mesa_filled(session, lesson)
 
     session.commit()
@@ -216,6 +233,16 @@ def manual_adjust(session: Session, exercicio: GuiaExercicio, delta: int) -> Non
     shift = max(1, gap // 2)
     exercicio.posicao_alvo = max(lesson.guia_progresso_posicao_atual, exercicio.posicao_alvo + delta * shift)
     session.commit()
+
+
+def set_mesa_tamanho(session: Session, lesson: Lesson, tamanho: int) -> None:
+    """Override manual do tamanho da mesa (botões 5/10/15 em /praticar) --
+    o ajuste automático em `_adjust_mesa_tamanho` só respira 1 de cada vez
+    e fica preso entre os limiares (0.5 a 0.85 de acerto não move nada),
+    então sem uma saída manual o usuário fica travado num tamanho pequeno
+    mesmo tendo mais exercícios aceitos esperando no backlog."""
+    lesson.guia_progresso_mesa_tamanho = max(MESA_MINIMA, min(MESA_MAXIMA, tamanho))
+    ensure_mesa_filled(session, lesson)
 
 
 def pool_status(session: Session, lesson: Lesson) -> dict:

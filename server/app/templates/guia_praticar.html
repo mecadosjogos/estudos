@@ -7,6 +7,11 @@
 <p class="muted">{{ (mastery_percent * 100) | round(0, "floor") | int }}% dominado</p>
 {% endif %}
 <p class="muted">Mesa: <strong>{{ pool.ativos }}</strong> ativo(s) agora (tamanho alvo {{ pool.mesa_tamanho }}) · {{ pool.dominados }} dominado(s) de {{ pool.total }} no total</p>
+<form method="post" action="/lessons/{{ lesson.id }}/guia/mesa-tamanho" class="button-row">
+	<label for="mesa-tamanho-input" class="muted">Tamanho da mesa (também respira sozinha conforme você acerta/erra):</label>
+	<input type="number" id="mesa-tamanho-input" name="tamanho" value="{{ pool.mesa_tamanho }}" min="5" max="30" style="width:5em">
+	<button type="submit">Definir</button>
+</form>
 
 {% if exercicio %}
 <div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}">
@@ -100,7 +105,7 @@
 		<dt>2 · Quase</dt>
 		<dd>Neutro: não sobe nem reseta a caixa — volta a aparecer no mesmo ritmo de antes.</dd>
 		<dt>3 · Lembrei</dt>
-		<dd>Sobe uma caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas), até graduar e sair da roda ativa (conta pro % dominado).</dd>
+		<dd>Sobe caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas). "Lembrei" emendado no mesmo exercício pula mais de uma caixa de uma vez (2º seguido pula 2, 3º pula 3...), até graduar e sair da roda ativa (conta pro % dominado). Emendar "lembrei" também abre mais de uma vaga na mesa de uma vez; emendar "não lembrei" fecha vaga mais rápido pelo mesmo motivo — "quase" zera essa sequência.</dd>
 		<dt>↓ quero ver de novo mais cedo</dt>
 		<dd>Ajuste manual: aproxima a próxima aparição sem contar como resposta — não muda a caixa nem o histórico.</dd>
 		<dt>↑ já sei, espaçar mais</dt>

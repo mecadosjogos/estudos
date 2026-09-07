@@ -129,6 +129,12 @@ class Lesson(Base):
     # partir daí do que já nascer com uma volta longa antes do primeiro
     # repeat.
     guia_progresso_mesa_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    # Sequência de respostas seguidas na MESMA direção (>0 = "lembrei"
+    # emendados, <0 = "não lembrei" emendados) -- dá efeito multiplicador
+    # ao ajuste do tamanho da mesa (study/guia_scheduler.py): quanto mais
+    # emendado o acerto/erro, maior o salto, em vez de sempre +-1 fixo.
+    # "Quase" zera a sequência (fica neutro, não conta pra nenhum lado).
+    guia_progresso_streak_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
         back_populates="lesson", order_by="AudioSegment.ordem", cascade="all, delete-orphan"
@@ -544,6 +550,11 @@ class GuiaExercicio(Base):
 
     # Agendamento -- só valem quando status="aceito".
     caixa: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Sequência de "lembrei" emendados NESTE exercício -- efeito
+    # multiplicador no salto de caixa (study/guia_scheduler.py::apply_leitner):
+    # 2º "lembrei" seguido pula 2 caixas de uma vez, 3º pula 3, etc. Zera em
+    # "não lembrei" (junto com a caixa) ou "quase" (neutro).
+    streak_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     na_mesa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     posicao_alvo: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dominado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

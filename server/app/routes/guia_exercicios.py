@@ -24,7 +24,14 @@ from ..ai.guia_exercicios import (
 from ..auth import require_session
 from ..db import get_session
 from ..models import GuiaExercicio, Lesson, Subject
-from ..study.guia_scheduler import manual_adjust, mastery_percent, next_exercicio, pool_status, submit_attempt
+from ..study.guia_scheduler import (
+    manual_adjust,
+    mastery_percent,
+    next_exercicio,
+    pool_status,
+    set_mesa_tamanho,
+    submit_attempt,
+)
 
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -238,6 +245,14 @@ def answer_exercicio(
     submit_attempt(
         session, exercicio, resposta_texto=resposta_texto.strip() or None, grau_acerto=GRAU_ACERTO_POR_ATALHO[shortcut]
     )
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/guia/mesa-tamanho")
+def set_mesa_tamanho_route(lesson_id: int, tamanho: int = Form(...), session: Session = Depends(get_session)):
+    lesson = _get_lesson_or_404(session, lesson_id)
+    set_mesa_tamanho(session, lesson, tamanho)
+    session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 
