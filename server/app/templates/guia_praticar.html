@@ -109,4 +109,20 @@
 		<dd>O oposto: afasta a próxima aparição sem precisar responder certo de novo.</dd>
 	</dl>
 </details>
+
+<details class="card">
+	<summary><strong>Limpar progresso</strong></summary>
+	<p class="muted">Apaga caixa, streak, mesa e todo o histórico de respostas <strong>só do seu usuário</strong> nesta aula — os exercícios continuam aprovados, mas voltam a valer como se você nunca tivesse praticado. Não afeta o progresso de outros usuários.</p>
+	<form method="post" action="/lessons/{{ lesson.id }}/guia/limpar-progresso" id="limpar-progresso-form">
+		<button type="submit">Limpar meu progresso nesta aula</button>
+	</form>
+</details>
+
+<script>
+	document.getElementById("limpar-progresso-form").addEventListener("submit", (ev) => {
+		if (!confirm('Atenção: isso apaga TODO o seu progresso nesta aula (caixa, mesa, streak e histórico de respostas) e começa do zero. Não tem como desfazer. Continuar?')) {
+			ev.preventDefault();
+		}
+	});
+</script>
 {% endblock %}

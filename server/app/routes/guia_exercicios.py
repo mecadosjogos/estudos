@@ -23,12 +23,13 @@ from ..ai.guia_exercicios import (
 )
 from ..auth import require_session
 from ..db import get_session
-from ..models import GuiaExercicio, Lesson, Subject
+from ..models import GuiaExercicio, Lesson, Subject, User
 from ..study.guia_scheduler import (
     manual_adjust,
     mastery_percent,
     next_exercicio,
     pool_status,
+    reset_progresso,
     set_mesa_tamanho,
     submit_attempt,
 )
@@ -102,7 +103,12 @@ def _gabarito_lines(tipo: str, gabarito: dict) -> list[str]:
 
 
 @router.get("/guia")
-def choose_lesson(request: Request, subject_id: int | None = None, session: Session = Depends(get_session)):
+def choose_lesson(
+    request: Request,
+    subject_id: int | None = None,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_session),
+):
     subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
 
     query = select(Lesson).where(Lesson.guia_titulo.is_not(None))
@@ -111,7 +117,7 @@ def choose_lesson(request: Request, subject_id: int | None = None, session: Sess
     lessons = session.scalars(query.order_by(Lesson.data.desc())).all()
 
     lessons_context = [
-        {"lesson": lesson, "mastery_percent": mastery_percent(session, lesson.id)} for lesson in lessons
+        {"lesson": lesson, "mastery_percent": mastery_percent(session, lesson.id, user.id)} for lesson in lessons
     ]
     return templates.TemplateResponse(
         request,
@@ -215,9 +221,11 @@ def accept_all_exercicios(lesson_id: int, session: Session = Depends(get_session
 
 
 @router.get("/lessons/{lesson_id}/guia/praticar")
-def practice(request: Request, lesson_id: int, session: Session = Depends(get_session)):
+def practice(
+    request: Request, lesson_id: int, session: Session = Depends(get_session), user: User = Depends(require_session)
+):
     lesson = _get_lesson_or_404(session, lesson_id)
-    exercicio = next_exercicio(session, lesson)
+    exercicio = next_exercicio(session, lesson, user.id)
     return templates.TemplateResponse(
         request,
         "guia_praticar.html",
@@ -225,8 +233,8 @@ def practice(request: Request, lesson_id: int, session: Session = Depends(get_se
             "lesson": lesson,
             "exercicio": exercicio,
             "gabarito_lines": _gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
-            "mastery_percent": mastery_percent(session, lesson_id),
-            "pool": pool_status(session, lesson),
+            "mastery_percent": mastery_percent(session, lesson_id, user.id),
+            "pool": pool_status(session, lesson, user.id),
         },
     )
 
@@ -238,28 +246,51 @@ def answer_exercicio(
     resposta_texto: str = Form(""),
     shortcut: int = Form(...),
     session: Session = Depends(get_session),
+    user: User = Depends(require_session),
 ):
     exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
     if shortcut not in GRAU_ACERTO_POR_ATALHO:
         raise HTTPException(status_code=400, detail="atalho inválido — use 1 ou 2")
     submit_attempt(
-        session, exercicio, resposta_texto=resposta_texto.strip() or None, grau_acerto=GRAU_ACERTO_POR_ATALHO[shortcut]
+        session,
+        exercicio,
+        user.id,
+        resposta_texto=resposta_texto.strip() or None,
+        grau_acerto=GRAU_ACERTO_POR_ATALHO[shortcut],
     )
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 
 @router.post("/lessons/{lesson_id}/guia/mesa-tamanho")
-def set_mesa_tamanho_route(lesson_id: int, tamanho: int = Form(...), session: Session = Depends(get_session)):
+def set_mesa_tamanho_route(
+    lesson_id: int,
+    tamanho: int = Form(...),
+    session: Session = Depends(get_session),
+    user: User = Depends(require_session),
+):
     lesson = _get_lesson_or_404(session, lesson_id)
-    set_mesa_tamanho(session, lesson, tamanho)
+    set_mesa_tamanho(session, lesson, user.id, tamanho)
     session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 
 @router.post("/lessons/{lesson_id}/guia/exercicios/{exercicio_id}/ajustar")
 def adjust_exercicio(
-    lesson_id: int, exercicio_id: int, delta: int = Form(...), session: Session = Depends(get_session)
+    lesson_id: int,
+    exercicio_id: int,
+    delta: int = Form(...),
+    session: Session = Depends(get_session),
+    user: User = Depends(require_session),
 ):
     exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
-    manual_adjust(session, exercicio, delta)
+    manual_adjust(session, exercicio, user.id, delta)
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/guia/limpar-progresso")
+def reset_progresso_route(
+    lesson_id: int, session: Session = Depends(get_session), user: User = Depends(require_session)
+):
+    lesson = _get_lesson_or_404(session, lesson_id)
+    reset_progresso(session, lesson, user.id)
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)

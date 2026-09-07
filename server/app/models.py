@@ -119,23 +119,6 @@ class Lesson(Base):
     # por seção.
     guia_audio_gerado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Estado do algoritmo de "Dominar o guia" (ver study/guia_scheduler.py
-    # e GuiaExercicio) -- posicional, não calendário: posicao_atual avança
-    # 1 a cada resposta dada nesta aula; mesa_tamanho é o nº de exercícios
-    # ativos simultâneos, que respira sozinho pela taxa de acerto recente.
-    guia_progresso_posicao_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Começa no mínimo (study/guia_scheduler.py::MESA_MINIMA) -- decisão do
-    # usuário: melhor abrir com poucos itens repetindo logo e crescer a
-    # partir daí do que já nascer com uma volta longa antes do primeiro
-    # repeat.
-    guia_progresso_mesa_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    # Sequência de respostas seguidas na MESMA direção (>0 = "lembrei"
-    # emendados, <0 = "não lembrei" emendados) -- dá efeito multiplicador
-    # ao ajuste do tamanho da mesa (study/guia_scheduler.py): quanto mais
-    # emendado o acerto/erro, maior o salto, em vez de sempre +-1 fixo.
-    # "Quase" zera a sequência (fica neutro, não conta pra nenhum lado).
-    guia_progresso_streak_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-
     audio_segments: Mapped[list["AudioSegment"]] = relationship(
         back_populates="lesson", order_by="AudioSegment.ordem", cascade="all, delete-orphan"
     )
@@ -521,12 +504,13 @@ class GuiaExercicio(Base):
     não tem identidade estável entre reprocessamentos (é apagada e
     recriada por inteiro).
 
-    Agendamento é posicional, não por calendário (ver
-    `study/guia_scheduler.py`): `caixa` é o nível Leitner (0-5, 5 =
-    dominado); `posicao_alvo` é a posição, no contador de respostas da
-    própria aula (`Lesson.guia_progresso_posicao_atual`), em que volta a
-    ficar due; `na_mesa` marca se está entre as vagas ativas da "mesa de
-    trabalho" adaptativa daquela aula agora."""
+    O agendamento em si (caixa, mesa, posição) NÃO mora mais aqui -- vive
+    em `GuiaExercicioProgresso`, uma linha por (usuário, exercício), pra
+    cada usuário ter sua própria mesa/progresso sem misturar com o de
+    outra pessoa estudando a mesma aula (pedido explícito do usuário,
+    depois que o sistema virou multiusuário na fase 19). Este registro
+    guarda só o CONTEÚDO e o estado de aprovação, compartilhados entre
+    todo mundo."""
 
     __tablename__ = "guia_exercicio"
 
@@ -548,18 +532,9 @@ class GuiaExercicio(Base):
     orfao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     versao_nova_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Agendamento -- só valem quando status="aceito".
-    caixa: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Sequência de "lembrei" emendados NESTE exercício -- efeito
-    # multiplicador no salto de caixa (study/guia_scheduler.py::apply_leitner):
-    # 2º "lembrei" seguido pula 2 caixas de uma vez, 3º pula 3, etc. Zera em
-    # "não lembrei" (junto com a caixa) ou "quase" (neutro).
-    streak_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    na_mesa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    posicao_alvo: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    dominado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
+    progressos: Mapped[list["GuiaExercicioProgresso"]] = relationship(
+        back_populates="exercicio", cascade="all, delete-orphan"
+    )
     tentativas: Mapped[list["GuiaExercicioTentativa"]] = relationship(
         back_populates="exercicio", order_by="GuiaExercicioTentativa.respondido_em", cascade="all, delete-orphan"
     )
@@ -567,17 +542,66 @@ class GuiaExercicio(Base):
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class GuiaLessonProgresso(Base):
+    """Progresso de "Dominar o guia" de UM usuário numa aula --
+    equivalente, por usuário, ao que antes eram os campos
+    `Lesson.guia_progresso_*` (posicional, não calendário: ver
+    study/guia_scheduler.py). Uma linha por (user_id, lesson_id), criada
+    sob demanda na primeira prática dessa pessoa nessa aula."""
+
+    __tablename__ = "guia_lesson_progresso"
+    __table_args__ = (UniqueConstraint("user_id", "lesson_id", name="uq_guia_lesson_progresso_user_lesson"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lesson.id"), nullable=False)
+
+    posicao_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    mesa_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    streak_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class GuiaExercicioProgresso(Base):
+    """Agendamento de UM usuário pra UM GuiaExercicio -- caixa Leitner
+    (0-5, 5 = dominado), streak (efeito multiplicador -- ver
+    study/guia_scheduler.py::apply_leitner), se está na mesa agora
+    (`na_mesa`) e `posicao_alvo` (posição, no contador de respostas
+    daquele usuário nessa aula -- `GuiaLessonProgresso.posicao_atual`, em
+    que volta a ficar due). Uma linha por (user_id, exercicio_id), criada
+    sob demanda na primeira vez que o exercício entra na mesa dessa
+    pessoa."""
+
+    __tablename__ = "guia_exercicio_progresso"
+    __table_args__ = (
+        UniqueConstraint("user_id", "exercicio_id", name="uq_guia_exercicio_progresso_user_exercicio"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    exercicio_id: Mapped[int] = mapped_column(ForeignKey("guia_exercicio.id"), nullable=False)
+    exercicio: Mapped["GuiaExercicio"] = relationship(back_populates="progressos")
+
+    caixa: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    streak_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    na_mesa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    posicao_alvo: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dominado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class GuiaExercicioTentativa(Base):
     """Log de uma resposta a um GuiaExercicio -- equivalente a ReviewLog,
     mas com grau de acerto contínuo (0.0-1.0) em vez de qualidade 0-5
     binária, porque cloze/lista/recordação livre têm acerto parcial real
-    (ex.: acertei 3 de 5 lacunas), não só certo/errado."""
+    (ex.: acertei 3 de 5 lacunas), não só certo/errado. `user_id` porque o
+    histórico de respostas também é por pessoa, não compartilhado."""
 
     __tablename__ = "guia_exercicio_tentativa"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exercicio_id: Mapped[int] = mapped_column(ForeignKey("guia_exercicio.id"), nullable=False)
     exercicio: Mapped["GuiaExercicio"] = relationship(back_populates="tentativas")
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
 
     resposta_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
     grau_acerto: Mapped[float] = mapped_column(Float, nullable=False)
