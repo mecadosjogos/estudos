@@ -19,6 +19,7 @@ from ..library.html_to_md import html_to_markdown
 from ..models import (
     Assunto,
     AudioSegment,
+    GuiaExercicio,
     GuiaSecao,
     GuiaTopico,
     Lesson,
@@ -49,6 +50,21 @@ def _pode_editar_audio(lesson: Lesson, latest_job: TranscriptionJob | None) -> b
     if latest_job is not None and latest_job.status == "claimed":
         return False
     return True
+
+
+def _tem_exercicios_de_guia(session: Session, lesson_id: int) -> bool:
+    """A prática do guia só existe se já houver exercício aceito. Não dá pra
+    usar `lesson.guia_titulo` como sinal: guia gerado antes da estruturação
+    (o que cai em guia_legado.html) tem `guia_md` mas nunca teve título
+    preenchido, e mesmo assim pode ter uma bateria de exercícios."""
+    return (
+        session.scalar(
+            select(GuiaExercicio.id)
+            .where(GuiaExercicio.lesson_id == lesson_id, GuiaExercicio.status == "aceito")
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def _latest_job(session: Session, lesson_id: int) -> TranscriptionJob | None:
@@ -87,6 +103,7 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
             "materials": materials,
             "criar_doc_url": criar_doc_url,
             "pode_editar_audio": _pode_editar_audio(lesson, latest_job),
+            "tem_exercicios_de_guia": _tem_exercicios_de_guia(session, lesson_id),
         },
     )
 
@@ -470,7 +487,15 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     # "sobe" de versão quando reprocessada de verdade.
     if not secoes:
         guia_html = markdown_lib.markdown(lesson.guia_md, extensions=["extra"])
-        return templates.TemplateResponse(request, "guia_legado.html", {"lesson": lesson, "guia_html": guia_html})
+        return templates.TemplateResponse(
+            request,
+            "guia_legado.html",
+            {
+                "lesson": lesson,
+                "guia_html": guia_html,
+                "tem_exercicios_de_guia": _tem_exercicios_de_guia(session, lesson_id),
+            },
+        )
 
     topicos_rows = session.scalars(
         select(GuiaTopico)
@@ -574,6 +599,7 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "audio_falhou": audio_falhou,
             "audio_atualizando": audio_atualizando,
             "audio_erro": ultimo_job_audio.error if audio_falhou else None,
+            "tem_exercicios_de_guia": _tem_exercicios_de_guia(session, lesson_id),
         },
     )
 

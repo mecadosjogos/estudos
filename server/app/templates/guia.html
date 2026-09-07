@@ -17,6 +17,7 @@
 <div class="button-row" style="margin-bottom: var(--space-4)">
 	<a class="button" href="/lessons/{{ lesson.id }}/guia.md">Baixar guia (.md)</a>
 	<a class="button" href="/lessons/{{ lesson.id }}/guia.pdf">Baixar guia (PDF)</a>
+	{% if tem_exercicios_de_guia %}<a class="button" href="/lessons/{{ lesson.id }}/guia/praticar">Praticar guia (memorização)</a>{% endif %}
 	<a class="button button-ghost" href="/lessons/{{ lesson.id }}">Ver a aula →</a>
 </div>
 

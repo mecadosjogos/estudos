@@ -3,6 +3,10 @@
 {% block content %}
 <p><a href="/lessons/{{ lesson.id }}">← Voltar</a></p>
 <h1>Dominar o guia: {{ lesson.titulo }}</h1>
+<p class="muted">
+	<span class="dot" style="background: {{ lesson.subject.cor or 'var(--border)' }}"></span>
+	<a href="/subjects/{{ lesson.subject_id }}">{{ lesson.subject.sigla }} — {{ lesson.subject.nome }}</a>
+</p>
 {% if mastery_percent is not none %}
 <p class="muted">{{ (mastery_percent * 100) | round(0, "floor") | int }}% dominado</p>
 {% endif %}
