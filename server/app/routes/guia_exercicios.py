@@ -36,7 +36,7 @@ from ..study.guia_scheduler import (
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
-GRAU_ACERTO_POR_ATALHO = {1: 0.0, 2: 0.5, 3: 1.0}  # Não lembrei / Quase / Lembrei
+GRAU_ACERTO_POR_ATALHO = {1: 0.0, 2: 1.0}  # Não lembrei / Lembrei -- "Quase" removido: perdeu sentido com o streak
 
 
 def _url_escape(text: str) -> str:
@@ -241,7 +241,7 @@ def answer_exercicio(
 ):
     exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
     if shortcut not in GRAU_ACERTO_POR_ATALHO:
-        raise HTTPException(status_code=400, detail="atalho inválido — use 1 a 3")
+        raise HTTPException(status_code=400, detail="atalho inválido — use 1 ou 2")
     submit_attempt(
         session, exercicio, resposta_texto=resposta_texto.strip() or None, grau_acerto=GRAU_ACERTO_POR_ATALHO[shortcut]
     )

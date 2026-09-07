@@ -38,8 +38,7 @@
 			<input type="hidden" name="shortcut" id="shortcut-field">
 			<div class="button-row">
 				<button type="submit" class="quality-btn" data-shortcut="1">1 · Não lembrei</button>
-				<button type="submit" class="quality-btn" data-shortcut="2">2 · Quase</button>
-				<button type="submit" class="quality-btn" data-shortcut="3">3 · Lembrei</button>
+				<button type="submit" class="quality-btn" data-shortcut="2">2 · Lembrei</button>
 			</div>
 		</form>
 		<div class="button-row">
@@ -81,7 +80,7 @@
 
 	document.addEventListener("keydown", (ev) => {
 		if (!revealed) return;
-		if (["1", "2", "3"].includes(ev.key)) {
+		if (["1", "2"].includes(ev.key)) {
 			shortcutField.value = ev.key;
 			answerForm.submit();
 		}
@@ -101,11 +100,9 @@
 	<summary><strong>Como funcionam os botões</strong></summary>
 	<dl>
 		<dt>1 · Não lembrei</dt>
-		<dd>Reseta a caixa pra 0 — volta a aparecer quase já.</dd>
-		<dt>2 · Quase</dt>
-		<dd>Neutro: não sobe nem reseta a caixa — volta a aparecer no mesmo ritmo de antes.</dd>
-		<dt>3 · Lembrei</dt>
-		<dd>Sobe caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas). "Lembrei" emendado no mesmo exercício pula mais de uma caixa de uma vez (2º seguido pula 2, 3º pula 3...), até graduar e sair da roda ativa (conta pro % dominado). Emendar "lembrei" também abre mais de uma vaga na mesa de uma vez; emendar "não lembrei" fecha vaga mais rápido pelo mesmo motivo — "quase" zera essa sequência.</dd>
+		<dd>Reseta a caixa pra 0 — volta a aparecer quase já. Emendado no mesmo exercício, fecha vaga na mesa mais rápido a cada vez seguida.</dd>
+		<dt>2 · Lembrei</dt>
+		<dd>Sobe caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas). Emendado no mesmo exercício pula mais de uma caixa de uma vez (2º seguido pula 2, 3º pula 3...), até graduar e sair da roda ativa (conta pro % dominado). Emendado também abre mais de uma vaga na mesa de uma vez.</dd>
 		<dt>↓ quero ver de novo mais cedo</dt>
 		<dd>Ajuste manual: aproxima a próxima aparição sem contar como resposta — não muda a caixa nem o histórico.</dd>
 		<dt>↑ já sei, espaçar mais</dt>
