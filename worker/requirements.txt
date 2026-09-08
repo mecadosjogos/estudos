@@ -2,3 +2,11 @@ faster-whisper
 httpx
 pydantic
 python-dotenv
+
+# ctranslate2 (usado pelo faster-whisper) carrega essas DLLs de CUDA em
+# tempo de execução, mas não as declara como dependência -- sem pin
+# explícito aqui, uma instalação nova fica sem cublas64_12.dll mesmo com
+# faster-whisper "instalado" (run_local.ps1 só põe esses diretórios no
+# PATH, não instala os pacotes).
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
