@@ -23,11 +23,11 @@ Dois mecanismos combinados, não redundantes:
 2. **Mesa de trabalho adaptativa** (agregado): só `GuiaLessonProgresso.mesa_tamanho`
    exercícios ficam `na_mesa=True` (ativos) por vez -- um novo só entra
    do backlog quando outro sai por ter graduado (ou quando o tamanho da
-   mesa cresce). O tamanho da mesa respira por sequência
-   (`GuiaLessonProgresso.streak_atual`), não por média: "lembrei" emendado
-   abre vaga a mais a cada vez (efeito multiplicador do streak, até um
-   teto), "não lembrei" emendado fecha vaga mais rápido pelo mesmo
-   motivo; "quase" é neutro e zera a sequência.
+   mesa cresce). O tamanho da mesa respira de forma assimétrica: cada
+   "lembrei" abre exatamente uma vaga (matéria nova entra devagar), mas
+   "não lembrei" emendado fecha vagas em ritmo multiplicado pela sequência
+   (`GuiaLessonProgresso.streak_atual`, até um teto) -- cresce devagar,
+   alivia rápido; "quase" é neutro e zera a sequência.
 
 `next_exercicio` nunca "esgota" de verdade: sempre devolve o item de
 menor `posicao_alvo` entre os ativos -- é o loop contínuo pedido, sem
@@ -62,9 +62,9 @@ LIMIAR_ACERTO_RESETA = 0.3  # abaixo disso ("Não lembrei") -- reseta pra caixa 
 
 MESA_MINIMA = 5
 MESA_MAXIMA = 30
-# Teto do efeito multiplicador do streak no tamanho da mesa -- sem ele um
-# streak muito longo numa sessão de estudo levaria a mesa direto pro
-# MESA_MAXIMA de um salto só, pulando o "respirar aos poucos" pretendido.
+# Teto do multiplicador do streak ao ENCOLHER a mesa -- sem ele uma
+# sequência longa de erros levaria a mesa direto pro MESA_MINIMA de um
+# salto só. Crescer não usa multiplicador (ver _adjust_mesa_tamanho).
 MESA_STREAK_CAP = 5
 
 
@@ -197,10 +197,21 @@ def _adjust_mesa_tamanho(lesson_progresso: GuiaLessonProgresso, grau_acerto: flo
     streak = lesson_progresso.streak_atual
     if grau_acerto >= LIMIAR_ACERTO_SOBE:
         streak = streak + 1 if streak >= 0 else 1
-        delta = min(streak, MESA_STREAK_CAP)
-        lesson_progresso.mesa_tamanho = min(MESA_MAXIMA, lesson_progresso.mesa_tamanho + delta)
+        # Cresce UMA vaga por acerto, sem multiplicador de streak. Abrir
+        # vaga significa admitir MATÉRIA NOVA do backlog, e uma por vez
+        # basta -- com o multiplicador (min(streak, 5), acumulado a cada
+        # resposta) a mesa ia de 5 pra 25 em seis acertos seguidos e
+        # despejava 20 itens inéditos de uma vez, que é o oposto do
+        # "respirar aos poucos" pretendido. O efeito multiplicador do
+        # streak continua onde ganha sentido: na caixa (`apply_leitner`),
+        # premiando domínio do item, não a velocidade de ingestão.
+        lesson_progresso.mesa_tamanho = min(MESA_MAXIMA, lesson_progresso.mesa_tamanho + 1)
     elif grau_acerto <= LIMIAR_ACERTO_RESETA:
         streak = streak - 1 if streak <= 0 else -1
+        # Encolher SEGUE multiplicado pelo streak, de propósito assimétrico:
+        # errar emendado é sinal de sobrecarga, e aliviar no mesmo ritmo
+        # lento em que cresceu deixaria a pessoa afogada por dezenas de
+        # respostas. Cresce devagar, alivia rápido.
         delta = min(abs(streak), MESA_STREAK_CAP)
         lesson_progresso.mesa_tamanho = max(MESA_MINIMA, lesson_progresso.mesa_tamanho - delta)
     else:
@@ -367,16 +378,28 @@ def submit_attempt(
 
 def manual_adjust(session: Session, exercicio: GuiaExercicio, user_id: int, delta: int) -> None:
     """Botão "reforçar mais" (delta=-1) / "já sei, espaçar mais" (delta=+1)
-    -- desloca `posicao_alvo` sem gravar tentativa nem mudar a caixa."""
+    -- reagenda `posicao_alvo` sem gravar tentativa nem mudar a caixa.
+
+    Ancorado em `posicao_atual` (agora), não no `posicao_alvo` antigo. A
+    versão anterior fazia `max(posicao_atual, posicao_alvo - shift)`, e o
+    delta=-1 era um no-op garantido: o exercício na tela é justamente o de
+    MENOR posicao_alvo (`next_exercicio`), ou seja já vencido, então
+    subtrair sempre caía no piso do `max` -- o "↓ quero ver de novo mais
+    cedo" não fazia nada, enquanto o "↑" funcionava. Ancorar em agora dá
+    efeito visível aos dois e torna o ajuste idempotente (clicar duas
+    vezes não acumula), em vez de somar indefinidamente."""
     lesson_progresso = _get_or_create_lesson_progresso(session, exercicio.lesson_id, user_id)
     exercicio_progresso = _get_or_create_exercicio_progresso(session, exercicio.id, user_id)
     if exercicio_progresso.posicao_alvo is None:
         return
     gap = LEITNER_GAPS[min(exercicio_progresso.caixa, len(LEITNER_GAPS) - 1)]
     shift = max(1, gap // 2)
-    exercicio_progresso.posicao_alvo = max(
-        lesson_progresso.posicao_atual, exercicio_progresso.posicao_alvo + delta * shift
-    )
+    # -1 -> volta na metade do intervalo normal; +1 -> em uma vez e meia.
+    # Sempre >= posicao_atual + 1: o exercício sai da tela e deixa outro
+    # entrar, senão o mesmo card reapareceria imediatamente (o contador só
+    # anda em resposta de verdade, não em ajuste manual).
+    novo_gap = shift if delta < 0 else gap + shift
+    exercicio_progresso.posicao_alvo = lesson_progresso.posicao_atual + novo_gap
     session.commit()
 
 

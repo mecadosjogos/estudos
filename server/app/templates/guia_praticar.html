@@ -24,9 +24,10 @@
 	<h2>{{ exercicio.pergunta }}</h2>
 
 	<div id="recall-step">
-		<p class="muted">Tente lembrar antes de ver o gabarito — escreva o que vier à cabeça (ou deixe em branco).</p>
+		<p class="muted" id="recall-hint">Tente lembrar antes de ver o gabarito — escreva o que vier à cabeça (ou deixe em branco).</p>
+		<p class="muted" id="recall-label" hidden><strong>Sua resposta:</strong></p>
 		<textarea id="resposta-texto" rows="4" style="width:100%"></textarea>
-		<p><button type="button" id="revelar-btn">Revelar gabarito</button></p>
+		<p id="revelar-wrap"><button type="button" id="revelar-btn">Revelar gabarito</button></p>
 	</div>
 
 	<div id="gabarito-step" hidden>
@@ -74,7 +75,14 @@
 
 	document.getElementById("revelar-btn").addEventListener("click", () => {
 		respostaTextoField.value = respostaTexto.value;
-		recallStep.hidden = true;
+		// A resposta escrita fica na tela, em leitura, junto do gabarito --
+		// é exatamente na hora de comparar que ela é útil pra autoavaliação.
+		// Só some se estiver em branco (não há o que comparar).
+		recallStep.hidden = respostaTexto.value.trim() === "";
+		respostaTexto.readOnly = true;
+		document.getElementById("recall-hint").hidden = true;
+		document.getElementById("recall-label").hidden = false;
+		document.getElementById("revelar-wrap").hidden = true;
 		gabaritoStep.hidden = false;
 		revealed = true;
 	});
@@ -134,13 +142,13 @@
 	<summary><strong>Como funcionam os botões</strong></summary>
 	<dl>
 		<dt>1 · Não lembrei</dt>
-		<dd>Reseta a caixa pra 0 — volta a aparecer quase já. Emendado no mesmo exercício, fecha vaga na mesa mais rápido a cada vez seguida.</dd>
+		<dd>Reseta a caixa pra 0 — volta a aparecer quase já. Errado emendado (em qualquer exercício desta aula) fecha vaga na mesa mais rápido a cada vez seguida, pra aliviar a carga.</dd>
 		<dt>2 · Lembrei</dt>
-		<dd>Sobe caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas). Emendado no mesmo exercício pula mais de uma caixa de uma vez (2º seguido pula 2, 3º pula 3...), até graduar e sair da roda ativa (conta pro % dominado). Emendado também abre mais de uma vaga na mesa de uma vez.</dd>
+		<dd>Sobe caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas). Emendado no mesmo exercício pula mais de uma caixa de uma vez (2º seguido pula 2, 3º pula 3...), até graduar e sair da roda ativa (conta pro % dominado). Cada acerto também abre uma vaga na mesa — matéria nova entra de uma em uma.</dd>
 		<dt>↓ quero ver de novo mais cedo</dt>
-		<dd>Ajuste manual: aproxima a próxima aparição sem contar como resposta — não muda a caixa nem o histórico.</dd>
+		<dd>Ajuste manual: reagenda pra metade do intervalo normal da caixa atual, sem contar como resposta — não muda a caixa nem o histórico. O exercício sai da tela e volta logo, depois de alguns outros.</dd>
 		<dt>↑ já sei, espaçar mais</dt>
-		<dd>O oposto: afasta a próxima aparição sem precisar responder certo de novo.</dd>
+		<dd>O oposto: reagenda pra uma vez e meia o intervalo normal, sem precisar responder certo de novo.</dd>
 	</dl>
 </details>
 
