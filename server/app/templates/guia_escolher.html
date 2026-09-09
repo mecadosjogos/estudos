@@ -3,33 +3,34 @@
 {% block content %}
 <p><a href="/estudar">← Estudar</a></p>
 <h1>Dominar o guia</h1>
-<p class="muted">Escolha uma aula pra praticar os exercícios de memorização gerados a partir do guia dela.</p>
+<p class="muted">Abra uma matéria e escolha a aula pra praticar os exercícios de memorização gerados a partir do guia dela.</p>
 
-<div class="button-row">
-	{% if subject_id is none %}<strong>Todas</strong>{% else %}<a class="button button-ghost" href="/guia">Todas</a>{% endif %}
-	{% for subject in subjects %}
-	{% if subject_id == subject.id %}<strong>{{ subject.sigla }}</strong>{% else %}<a class="button button-ghost" href="/guia?subject_id={{ subject.id }}">{{ subject.sigla }}</a>{% endif %}
-	{% endfor %}
-</div>
-
-{% if lessons_context %}
-<ul class="search-results">
-	{% for ctx in lessons_context %}
-	<li>
-		<a href="/lessons/{{ ctx.lesson.id }}/guia/praticar">
-			<span class="badge">{{ ctx.lesson.subject.sigla }}</span>
-			<strong>{{ ctx.lesson.guia_titulo or ctx.lesson.titulo }}</strong>
-			<span class="muted">{{ ctx.lesson.data }}</span>
-			{% if ctx.mastery_percent is not none %}
-			<span class="badge">{{ (ctx.mastery_percent * 100) | round(0, "floor") | int }}% dominado</span>
-			{% else %}
-			<span class="muted">ainda sem exercícios</span>
-			{% endif %}
-		</a>
-	</li>
-	{% endfor %}
-</ul>
-{% else %}
-<p class="muted">Nenhuma aula com guia gerado ainda{% if subject_id is not none %} nesta matéria{% endif %}. Processe uma aula primeiro (<code>/processar-aula</code>).</p>
-{% endif %}
+{% for grupo in grupos %}
+<details class="card">
+	<summary>
+		<span class="dot" style="background: {{ grupo.subject.cor or 'var(--border)' }}"></span>
+		<strong>{{ grupo.subject.nome }}</strong>
+		<span class="muted">{{ grupo.lessons_context | length }} aula(s)</span>
+	</summary>
+	{% if grupo.lessons_context %}
+	<ul class="search-results">
+		{% for ctx in grupo.lessons_context %}
+		<li>
+			<a href="/lessons/{{ ctx.lesson.id }}/guia/praticar">
+				<strong>{{ ctx.lesson.titulo }}</strong>
+				<span class="muted">{{ ctx.lesson.data }}</span>
+				{% if ctx.mastery_percent is not none %}
+				<span class="badge">{{ (ctx.mastery_percent * 100) | round(0, "floor") | int }}% dominado</span>
+				{% else %}
+				<span class="muted">ainda sem exercícios</span>
+				{% endif %}
+			</a>
+		</li>
+		{% endfor %}
+	</ul>
+	{% else %}
+	<p class="muted">Nenhuma aula com guia gerado ainda nesta matéria. Processe uma aula primeiro (<code>/processar-aula</code>).</p>
+	{% endif %}
+</details>
+{% endfor %}
 {% endblock %}

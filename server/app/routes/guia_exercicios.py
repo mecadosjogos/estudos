@@ -108,25 +108,22 @@ def _gabarito_lines(tipo: str, gabarito: dict) -> list[str]:
 @router.get("/guia")
 def choose_lesson(
     request: Request,
-    subject_id: int | None = None,
     session: Session = Depends(get_session),
     user: User = Depends(require_session),
 ):
     subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
+    lessons = session.scalars(
+        select(Lesson).where(Lesson.guia_titulo.is_not(None)).order_by(Lesson.data.desc())
+    ).all()
 
-    query = select(Lesson).where(Lesson.guia_titulo.is_not(None))
-    if subject_id is not None:
-        query = query.where(Lesson.subject_id == subject_id)
-    lessons = session.scalars(query.order_by(Lesson.data.desc())).all()
+    por_materia: dict[int, list[dict]] = {}
+    for lesson in lessons:
+        por_materia.setdefault(lesson.subject_id, []).append(
+            {"lesson": lesson, "mastery_percent": mastery_percent(session, lesson.id, user.id)}
+        )
 
-    lessons_context = [
-        {"lesson": lesson, "mastery_percent": mastery_percent(session, lesson.id, user.id)} for lesson in lessons
-    ]
-    return templates.TemplateResponse(
-        request,
-        "guia_escolher.html",
-        {"subjects": subjects, "subject_id": subject_id, "lessons_context": lessons_context},
-    )
+    grupos = [{"subject": subject, "lessons_context": por_materia.get(subject.id, [])} for subject in subjects]
+    return templates.TemplateResponse(request, "guia_escolher.html", {"grupos": grupos})
 
 
 # --- geração ------------------------------------------------------------------
