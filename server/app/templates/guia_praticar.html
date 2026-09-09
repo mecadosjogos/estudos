@@ -78,6 +78,10 @@
 	const answerForm = document.getElementById("answer-form");
 	let revealed = false;
 
+	// A cada questão nova (recarga de página após lembrei/não lembrei), o
+	// card some do topo se a página já rolou -- traz de volta pra tela.
+	document.getElementById("exercicio-card").scrollIntoView({ block: "start" });
+
 	document.getElementById("revelar-btn").addEventListener("click", () => {
 		respostaTextoField.value = respostaTexto.value;
 		// A resposta escrita fica na tela, em leitura, junto do gabarito --
@@ -90,6 +94,9 @@
 		document.getElementById("revelar-wrap").hidden = true;
 		gabaritoStep.hidden = false;
 		revealed = true;
+		// O gabarito e os botões de resposta aparecem abaixo do que já estava
+		// na tela -- rola pra garantir que fiquem visíveis sem ação manual.
+		gabaritoStep.scrollIntoView({ block: "start", behavior: "smooth" });
 	});
 
 	document.querySelectorAll(".quality-btn").forEach((btn) => {
