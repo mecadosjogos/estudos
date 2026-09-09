@@ -94,9 +94,10 @@
 		document.getElementById("revelar-wrap").hidden = true;
 		gabaritoStep.hidden = false;
 		revealed = true;
-		// O gabarito e os botões de resposta aparecem abaixo do que já estava
-		// na tela -- rola pra garantir que fiquem visíveis sem ação manual.
-		gabaritoStep.scrollIntoView({ block: "start", behavior: "smooth" });
+		// Rolar até o gabarito (que fica mais abaixo) empurrava a pergunta e
+		// a resposta escrita pra fora da tela -- rola até o início do card
+		// pra manter tudo visível.
+		document.getElementById("exercicio-card").scrollIntoView({ block: "start", behavior: "smooth" });
 	});
 
 	document.querySelectorAll(".quality-btn").forEach((btn) => {
