@@ -103,6 +103,9 @@
 	document.querySelectorAll(".quality-btn").forEach((btn) => {
 		btn.addEventListener("click", (ev) => {
 			ev.preventDefault();
+			// Escurece antes de enviar: o botão fica marcado durante a
+			// requisição, mostrando qual opção saiu.
+			btn.classList.add("botao-acionado");
 			shortcutField.value = btn.dataset.shortcut;
 			answerForm.submit();
 		});
@@ -111,8 +114,8 @@
 	document.addEventListener("keydown", (ev) => {
 		if (!revealed) return;
 		if (["1", "2"].includes(ev.key)) {
-			shortcutField.value = ev.key;
-			answerForm.submit();
+			const btn = document.querySelector('.quality-btn[data-shortcut="' + ev.key + '"]');
+			if (btn) btn.click();
 		}
 	});
 </script>
@@ -220,7 +223,14 @@
 			if (naoLembrei || lembrei) {
 				const shortcut = naoLembrei ? "1" : "2";
 				const btn = document.querySelector('.quality-btn[data-shortcut="' + shortcut + '"]');
-				if (btn) btn.click();
+				// Escurece o botão e espera um instante antes de enviar, senão
+				// a página troca antes de dar pra ver qual opção foi acionada.
+				// A classe também barra um segundo reconhecimento da mesma
+				// frase, que enfileiraria outro envio.
+				if (btn && !btn.classList.contains("botao-acionado")) {
+					btn.classList.add("botao-acionado");
+					setTimeout(() => btn.click(), 450);
+				}
 			}
 		}
 	}

@@ -19,6 +19,7 @@
 			<strong>{{ ctx.lesson.titulo }}</strong>
 			<span class="muted">{{ ctx.lesson.data }}</span>
 			<a href="/lessons/{{ ctx.lesson.id }}/guia">guia</a>
+			<span class="muted">/</span>
 			<a href="/lessons/{{ ctx.lesson.id }}/guia/praticar">exercício</a>
 			{% if ctx.mastery_percent is not none %}
 			<span class="badge">{{ (ctx.mastery_percent * 100) | round(0, "floor") | int }}% dominado</span>

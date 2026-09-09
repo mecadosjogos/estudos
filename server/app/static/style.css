@@ -153,6 +153,14 @@ button, .button {
 	color: var(--text-muted);
 }
 
+/* Escurece o botão assim que ele é acionado -- por clique, tecla ou voz.
+   Sem isso não sobra sinal de qual opção foi escolhida: o envio troca a
+   página na hora. brightness escurece a cor que o botão já tem, então
+   funciona igual no tema claro e no escuro. */
+.botao-acionado {
+	filter: brightness(0.75);
+}
+
 .muted {
 	color: var(--text-muted);
 }
