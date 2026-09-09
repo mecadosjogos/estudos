@@ -112,8 +112,11 @@ def choose_lesson(
     user: User = Depends(require_session),
 ):
     subjects = session.scalars(select(Subject).order_by(Subject.nome)).all()
+    # guia_md (e não guia_titulo) é o que a página do guia exige: aulas
+    # processadas antes da estruturação têm só o markdown e caíam de fora
+    # da lista, mesmo com guia pronto -- ver lessons.py::view_guia.
     lessons = session.scalars(
-        select(Lesson).where(Lesson.guia_titulo.is_not(None)).order_by(Lesson.data.desc())
+        select(Lesson).where(Lesson.guia_md.is_not(None)).order_by(Lesson.data.desc())
     ).all()
 
     por_materia: dict[int, list[dict]] = {}

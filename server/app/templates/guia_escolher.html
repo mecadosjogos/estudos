@@ -15,16 +15,16 @@
 	{% if grupo.lessons_context %}
 	<ul class="search-results">
 		{% for ctx in grupo.lessons_context %}
-		<li>
-			<a href="/lessons/{{ ctx.lesson.id }}/guia/praticar">
-				<strong>{{ ctx.lesson.titulo }}</strong>
-				<span class="muted">{{ ctx.lesson.data }}</span>
-				{% if ctx.mastery_percent is not none %}
-				<span class="badge">{{ (ctx.mastery_percent * 100) | round(0, "floor") | int }}% dominado</span>
-				{% else %}
-				<span class="muted">ainda sem exercícios</span>
-				{% endif %}
-			</a>
+		<li class="button-row" style="align-items:center">
+			<strong>{{ ctx.lesson.titulo }}</strong>
+			<span class="muted">{{ ctx.lesson.data }}</span>
+			<a href="/lessons/{{ ctx.lesson.id }}/guia">guia</a>
+			<a href="/lessons/{{ ctx.lesson.id }}/guia/praticar">exercício</a>
+			{% if ctx.mastery_percent is not none %}
+			<span class="badge">{{ (ctx.mastery_percent * 100) | round(0, "floor") | int }}% dominado</span>
+			{% else %}
+			<span class="muted">ainda sem exercícios</span>
+			{% endif %}
 		</li>
 		{% endfor %}
 	</ul>
