@@ -17,6 +17,11 @@
 	<button type="submit">Definir</button>
 </form>
 
+<div class="button-row" id="voice-control" style="align-items:center">
+	<button type="button" id="voice-toggle-btn">🎙️ Ativar comando de voz</button>
+	<span class="muted" id="voice-status"></span>
+</div>
+
 {% if exercicio %}
 <div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}">
 	<span class="badge">{{ exercicio.tipo }}</span>
@@ -153,6 +158,11 @@
 </details>
 
 <details class="card">
+	<summary><strong>Comando de voz</strong></summary>
+	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" para revelar o gabarito, e depois "lembrei" ou "não lembrei" para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder depois de recarregar, é só clicar no botão de novo.</p>
+</details>
+
+<details class="card">
 	<summary><strong>Limpar progresso</strong></summary>
 	<p class="muted">Apaga caixa, streak, mesa e todo o histórico de respostas <strong>só do seu usuário</strong> nesta aula — os exercícios continuam aprovados, mas voltam a valer como se você nunca tivesse praticado. Não afeta o progresso de outros usuários. Questões que você removeu <strong>continuam removidas</strong> — só o "desfazer" na lista acima traz cada uma de volta.</p>
 	<form method="post" action="/lessons/{{ lesson.id }}/guia/limpar-progresso" id="limpar-progresso-form">
@@ -166,5 +176,106 @@
 			ev.preventDefault();
 		}
 	});
+</script>
+
+<script>
+(() => {
+	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+	const toggleBtn = document.getElementById("voice-toggle-btn");
+	const statusEl = document.getElementById("voice-status");
+	if (!toggleBtn) return;
+	if (!SpeechRecognition) {
+		toggleBtn.disabled = true;
+		statusEl.textContent = "Comando de voz não suportado neste navegador — use Chrome ou Edge.";
+		return;
+	}
+
+	const STORAGE_KEY = "guia-praticar-voz-ativa";
+	let recognition = null;
+	let manualStop = false;
+
+	// Aciona o mesmo botão que o clique do mouse acionaria, conforme a etapa
+	// atual da tela (revelar gabarito, ou responder lembrei/não lembrei).
+	function acionar(fraseOriginal) {
+		const frase = fraseOriginal.toLowerCase();
+		const revelarBtn = document.getElementById("revelar-btn");
+		const gabaritoStep = document.getElementById("gabarito-step");
+		const gabaritoVisivel = gabaritoStep && !gabaritoStep.hidden;
+
+		if (!gabaritoVisivel && revelarBtn && frase.includes("revelar")) {
+			revelarBtn.click();
+			return;
+		}
+		if (gabaritoVisivel) {
+			const naoLembrei = frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei");
+			const lembrei = !naoLembrei && (frase.includes("lembrei") || frase.includes("acertei"));
+			if (naoLembrei || lembrei) {
+				const shortcut = naoLembrei ? "1" : "2";
+				const btn = document.querySelector('.quality-btn[data-shortcut="' + shortcut + '"]');
+				if (btn) btn.click();
+			}
+		}
+	}
+
+	function iniciar() {
+		recognition = new SpeechRecognition();
+		recognition.lang = "pt-BR";
+		recognition.continuous = true;
+		recognition.interimResults = false;
+
+		recognition.onresult = (ev) => {
+			const ultimo = ev.results[ev.results.length - 1];
+			const frase = ultimo[0].transcript;
+			statusEl.textContent = 'Ouvido: "' + frase.trim() + '"';
+			acionar(frase);
+		};
+		recognition.onerror = (ev) => {
+			if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+				statusEl.textContent = "Permissão de microfone negada.";
+				manualStop = true;
+				localStorage.removeItem(STORAGE_KEY);
+				toggleBtn.textContent = "🎙️ Ativar comando de voz";
+			}
+		};
+		recognition.onend = () => {
+			// O navegador encerra o reconhecimento sozinho depois de um tempo
+			// de silêncio; reinicia na hora, a menos que o usuário tenha
+			// desligado manualmente.
+			if (!manualStop) {
+				recognition.start();
+			}
+		};
+		recognition.start();
+		toggleBtn.textContent = "🔴 Desativar comando de voz";
+		statusEl.textContent = 'Ouvindo... diga "revelar", "lembrei" ou "não lembrei".';
+	}
+
+	function parar() {
+		manualStop = true;
+		if (recognition) recognition.stop();
+		recognition = null;
+		toggleBtn.textContent = "🎙️ Ativar comando de voz";
+		statusEl.textContent = "";
+	}
+
+	toggleBtn.addEventListener("click", () => {
+		if (recognition) {
+			parar();
+			localStorage.removeItem(STORAGE_KEY);
+		} else {
+			manualStop = false;
+			localStorage.setItem(STORAGE_KEY, "1");
+			iniciar();
+		}
+	});
+
+	// A preferência liga o microfone de novo sozinho a cada recarga de
+	// página (cada resposta recarrega a página) — a permissão do navegador
+	// já concedida evita pedir de novo.
+	if (localStorage.getItem(STORAGE_KEY) === "1") {
+		manualStop = false;
+		iniciar();
+	}
+})();
 </script>
 {% endblock %}
