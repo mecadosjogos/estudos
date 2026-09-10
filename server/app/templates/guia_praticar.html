@@ -270,18 +270,29 @@
 		recognition = new SpeechRecognition();
 		recognition.lang = "pt-BR";
 		recognition.continuous = true;
-		recognition.interimResults = false;
+		// Resultados parciais existem aqui só pelo indicador: são o único
+		// sinal confiável de que o microfone está captando agora (o evento
+		// speechstart não dispara sempre no Chrome). Comando mesmo só sai
+		// do resultado final.
+		recognition.interimResults = true;
 
 		// Um ciclo de fala passa por speechstart (entrou som de voz),
 		// speechend (parou de falar, o motor está transcrevendo) e result
 		// (veio a transcrição) -- é essa sequência que o indicador espelha.
-		recognition.onspeechstart = () => estado("captando", "ouvindo você...");
+		recognition.onspeechstart = () => estado("captando", "ouvindo...");
 		recognition.onspeechend = () => estado("interpretando", "interpretando...");
 		recognition.onnomatch = () => estado("falhou", "não entendi", 2500);
 
 		recognition.onresult = (ev) => {
 			const ultimo = ev.results[ev.results.length - 1];
 			const frase = ultimo[0].transcript.trim();
+			if (!ultimo.isFinal) {
+				// Vai chegando palavra a palavra enquanto se fala: mostra o
+				// texto parcial (cortado, senão empurra os botões da linha).
+				const parcial = frase.length > 40 ? "…" + frase.slice(-40) : frase;
+				estado("captando", "ouvindo: " + parcial);
+				return;
+			}
 			const comando = acionar(frase);
 			if (comando) {
 				estado("ok", "✓ " + comando, 2500);
