@@ -161,6 +161,51 @@ button, .button {
 	filter: brightness(0.75);
 }
 
+/* Estado do microfone, ao lado dos botões que o comando de voz aciona:
+   ocioso, captando fala, interpretando, e o resultado (comando aceito ou
+   frase sem comando). */
+.voz-indicador {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	font-size: 0.9rem;
+	color: var(--text-muted);
+}
+
+.voz-indicador::before {
+	content: "";
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 50%;
+	background: currentColor;
+	flex: none;
+}
+
+.voz-indicador[data-estado="captando"],
+.voz-indicador[data-estado="interpretando"],
+.voz-indicador[data-estado="ok"] {
+	color: var(--accent);
+}
+
+.voz-indicador[data-estado="falhou"] {
+	color: var(--danger);
+}
+
+.voz-indicador[data-estado="captando"]::before,
+.voz-indicador[data-estado="interpretando"]::before {
+	animation: voz-pulso 0.9s ease-in-out infinite;
+}
+
+@keyframes voz-pulso {
+	50% { opacity: 0.2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.voz-indicador::before {
+		animation: none;
+	}
+}
+
 .muted {
 	color: var(--text-muted);
 }

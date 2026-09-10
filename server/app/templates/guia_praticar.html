@@ -32,7 +32,10 @@
 		<p class="muted" id="recall-hint">Tente lembrar antes de ver o gabarito — escreva o que vier à cabeça (ou deixe em branco).</p>
 		<p class="muted" id="recall-label" hidden><strong>Sua resposta:</strong></p>
 		<textarea id="resposta-texto" rows="4" style="width:100%"></textarea>
-		<p id="revelar-wrap"><button type="button" id="revelar-btn">Revelar gabarito</button></p>
+		<p id="revelar-wrap" class="button-row" style="align-items:center">
+			<button type="button" id="revelar-btn">Revelar gabarito</button>
+			<span class="voz-indicador" hidden></span>
+		</p>
 	</div>
 
 	<div id="gabarito-step" hidden>
@@ -46,9 +49,10 @@
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form">
 			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
 			<input type="hidden" name="shortcut" id="shortcut-field">
-			<div class="button-row">
+			<div class="button-row" style="align-items:center">
 				<button type="submit" class="quality-btn" data-shortcut="1">1 · Não lembrei</button>
 				<button type="submit" class="quality-btn" data-shortcut="2">2 · Lembrei</button>
+				<span class="voz-indicador" hidden></span>
 			</div>
 		</form>
 		<div class="button-row">
@@ -78,9 +82,16 @@
 	const answerForm = document.getElementById("answer-form");
 	let revealed = false;
 
+	const exercicioCard = document.getElementById("exercicio-card");
+
 	// A cada questão nova (recarga de página após lembrei/não lembrei), o
 	// card some do topo se a página já rolou -- traz de volta pra tela.
-	document.getElementById("exercicio-card").scrollIntoView({ block: "start" });
+	// O navegador restaura sozinho a rolagem da página anterior, e fazia
+	// isso depois deste script, desfazendo o posicionamento: daí o
+	// "manual" e a repetição no load, quando o documento inteiro já existe.
+	if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+	exercicioCard.scrollIntoView({ block: "start" });
+	window.addEventListener("load", () => exercicioCard.scrollIntoView({ block: "start" }));
 
 	document.getElementById("revelar-btn").addEventListener("click", () => {
 		respostaTextoField.value = respostaTexto.value;
@@ -97,7 +108,7 @@
 		// Rolar até o gabarito (que fica mais abaixo) empurrava a pergunta e
 		// a resposta escrita pra fora da tela -- rola até o início do card
 		// pra manter tudo visível.
-		document.getElementById("exercicio-card").scrollIntoView({ block: "start", behavior: "smooth" });
+		exercicioCard.scrollIntoView({ block: "start", behavior: "smooth" });
 	});
 
 	document.querySelectorAll(".quality-btn").forEach((btn) => {
@@ -202,11 +213,29 @@
 	}
 
 	const STORAGE_KEY = "guia-praticar-voz-ativa";
+	const indicadores = document.querySelectorAll(".voz-indicador");
 	let recognition = null;
 	let manualStop = false;
+	let voltarParaAguardando = null;
+
+	// O indicador fica junto dos botões (e não só no topo da página) porque
+	// é olhando pra eles que se fala -- é ali que precisa dar pra ver se o
+	// microfone está ocioso, captando ou interpretando o que ouviu.
+	function estado(nome, texto, voltarEm) {
+		clearTimeout(voltarParaAguardando);
+		indicadores.forEach((el) => {
+			el.hidden = nome === "off";
+			el.dataset.estado = nome;
+			el.textContent = texto;
+		});
+		if (voltarEm) {
+			voltarParaAguardando = setTimeout(() => estado("aguardando", "aguardando comando"), voltarEm);
+		}
+	}
 
 	// Aciona o mesmo botão que o clique do mouse acionaria, conforme a etapa
-	// atual da tela (revelar gabarito, ou responder lembrei/não lembrei).
+	// atual da tela. Devolve o rótulo do comando reconhecido, ou null quando
+	// a frase não casa com nada -- é o que separa "falhou" de "deu certo".
 	function acionar(fraseOriginal) {
 		const frase = fraseOriginal.toLowerCase();
 		const revelarBtn = document.getElementById("revelar-btn");
@@ -215,7 +244,7 @@
 
 		if (!gabaritoVisivel && revelarBtn && frase.includes("revelar")) {
 			revelarBtn.click();
-			return;
+			return "revelar gabarito";
 		}
 		if (gabaritoVisivel) {
 			const naoLembrei = frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei");
@@ -231,8 +260,10 @@
 					btn.classList.add("botao-acionado");
 					setTimeout(() => btn.click(), 450);
 				}
+				return naoLembrei ? "não lembrei" : "lembrei";
 			}
 		}
+		return null;
 	}
 
 	function iniciar() {
@@ -241,11 +272,22 @@
 		recognition.continuous = true;
 		recognition.interimResults = false;
 
+		// Um ciclo de fala passa por speechstart (entrou som de voz),
+		// speechend (parou de falar, o motor está transcrevendo) e result
+		// (veio a transcrição) -- é essa sequência que o indicador espelha.
+		recognition.onspeechstart = () => estado("captando", "ouvindo você...");
+		recognition.onspeechend = () => estado("interpretando", "interpretando...");
+		recognition.onnomatch = () => estado("falhou", "não entendi", 2500);
+
 		recognition.onresult = (ev) => {
 			const ultimo = ev.results[ev.results.length - 1];
-			const frase = ultimo[0].transcript;
-			statusEl.textContent = 'Ouvido: "' + frase.trim() + '"';
-			acionar(frase);
+			const frase = ultimo[0].transcript.trim();
+			const comando = acionar(frase);
+			if (comando) {
+				estado("ok", "✓ " + comando, 2500);
+			} else {
+				estado("falhou", '"' + frase + '" — nenhum comando', 3000);
+			}
 		};
 		recognition.onerror = (ev) => {
 			if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
@@ -253,6 +295,11 @@
 				manualStop = true;
 				localStorage.removeItem(STORAGE_KEY);
 				toggleBtn.textContent = "🎙️ Ativar comando de voz";
+				estado("off", "");
+			} else if (ev.error !== "no-speech") {
+				// no-speech é rotina (silêncio até o motor desistir e
+				// reiniciar), não vale sinalizar como falha.
+				estado("falhou", "falha no microfone", 3000);
 			}
 		};
 		recognition.onend = () => {
@@ -265,7 +312,8 @@
 		};
 		recognition.start();
 		toggleBtn.textContent = "🔴 Desativar comando de voz";
-		statusEl.textContent = 'Ouvindo... diga "revelar", "lembrei" ou "não lembrei".';
+		statusEl.textContent = 'Diga "revelar", "lembrei" ou "não lembrei".';
+		estado("aguardando", "aguardando comando");
 	}
 
 	function parar() {
@@ -274,6 +322,7 @@
 		recognition = null;
 		toggleBtn.textContent = "🎙️ Ativar comando de voz";
 		statusEl.textContent = "";
+		estado("off", "");
 	}
 
 	toggleBtn.addEventListener("click", () => {
