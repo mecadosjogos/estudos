@@ -217,6 +217,8 @@
 	let recognition = null;
 	let manualStop = false;
 	let voltarParaAguardando = null;
+	let esperandoFinal = null;
+	let ultimaExecutada = null;
 
 	// O indicador fica junto dos botões (e não só no topo da página) porque
 	// é olhando pra eles que se fala -- é ali que precisa dar pra ver se o
@@ -233,37 +235,57 @@
 		}
 	}
 
-	// Aciona o mesmo botão que o clique do mouse acionaria, conforme a etapa
-	// atual da tela. Devolve o rótulo do comando reconhecido, ou null quando
-	// a frase não casa com nada -- é o que separa "falhou" de "deu certo".
-	function acionar(fraseOriginal) {
+	// Só reconhece, não age: separado de `executar` porque a frase precisa
+	// ser avaliada já no resultado parcial, pra decidir se vale esperar o
+	// final. Devolve o comando, ou null quando nada casa.
+	function identificar(fraseOriginal) {
 		const frase = fraseOriginal.toLowerCase();
-		const revelarBtn = document.getElementById("revelar-btn");
 		const gabaritoStep = document.getElementById("gabarito-step");
 		const gabaritoVisivel = gabaritoStep && !gabaritoStep.hidden;
 
-		if (!gabaritoVisivel && revelarBtn && frase.includes("revelar")) {
-			revelarBtn.click();
+		if (!gabaritoVisivel) {
+			// "revelar", "revelar gabarito" e só "gabarito" -- o motor corta
+			// palavra curta com frequência, então vale aceitar as duas metades.
+			if (frase.includes("revelar") || frase.includes("gabarito")) return "revelar";
+			return null;
+		}
+		if (frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei")) return "1";
+		if (frase.includes("lembrei") || frase.includes("acertei")) return "2";
+		return null;
+	}
+
+	// Ponto único de execução, alimentado tanto pelo resultado final quanto
+	// pelo parcial que o final não veio confirmar. Guarda a última frase
+	// executada pra não repetir o comando quando o final chega atrasado,
+	// depois do parcial já ter agido.
+	function processar(frase) {
+		if (frase === ultimaExecutada) return;
+		const comando = identificar(frase);
+		if (comando) {
+			ultimaExecutada = frase;
+			estado("ok", "✓ " + executar(comando), 2500);
+		} else {
+			estado("falhou", '"' + frase + '" — nenhum comando, fale de novo', 4000);
+		}
+	}
+
+	// Aciona o mesmo botão que o clique do mouse acionaria. Devolve o rótulo
+	// mostrado no indicador.
+	function executar(comando) {
+		if (comando === "revelar") {
+			document.getElementById("revelar-btn").click();
 			return "revelar gabarito";
 		}
-		if (gabaritoVisivel) {
-			const naoLembrei = frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei");
-			const lembrei = !naoLembrei && (frase.includes("lembrei") || frase.includes("acertei"));
-			if (naoLembrei || lembrei) {
-				const shortcut = naoLembrei ? "1" : "2";
-				const btn = document.querySelector('.quality-btn[data-shortcut="' + shortcut + '"]');
-				// Escurece o botão e espera um instante antes de enviar, senão
-				// a página troca antes de dar pra ver qual opção foi acionada.
-				// A classe também barra um segundo reconhecimento da mesma
-				// frase, que enfileiraria outro envio.
-				if (btn && !btn.classList.contains("botao-acionado")) {
-					btn.classList.add("botao-acionado");
-					setTimeout(() => btn.click(), 450);
-				}
-				return naoLembrei ? "não lembrei" : "lembrei";
-			}
+		const btn = document.querySelector('.quality-btn[data-shortcut="' + comando + '"]');
+		// Escurece o botão e espera um instante antes de enviar, senão a
+		// página troca antes de dar pra ver qual opção foi acionada. A classe
+		// também barra um segundo reconhecimento da mesma frase, que
+		// enfileiraria outro envio.
+		if (btn && !btn.classList.contains("botao-acionado")) {
+			btn.classList.add("botao-acionado");
+			setTimeout(() => btn.click(), 450);
 		}
-		return null;
+		return comando === "1" ? "não lembrei" : "lembrei";
 	}
 
 	function iniciar() {
@@ -286,19 +308,23 @@
 		recognition.onresult = (ev) => {
 			const ultimo = ev.results[ev.results.length - 1];
 			const frase = ultimo[0].transcript.trim();
+			clearTimeout(esperandoFinal);
+
 			if (!ultimo.isFinal) {
 				// Vai chegando palavra a palavra enquanto se fala: mostra o
 				// texto parcial (cortado, senão empurra os botões da linha).
 				const parcial = frase.length > 40 ? "…" + frase.slice(-40) : frase;
 				estado("captando", "ouvindo: " + parcial);
+				// O resultado final nem sempre chega -- a sessão do Chrome
+				// expira antes e o comando ficava só na tela, sem disparar.
+				// Se o parcial já casa, age nele depois de um instante,
+				// tempo de o final chegar e cancelar esta espera.
+				if (identificar(frase)) {
+					esperandoFinal = setTimeout(() => processar(frase), 1200);
+				}
 				return;
 			}
-			const comando = acionar(frase);
-			if (comando) {
-				estado("ok", "✓ " + comando, 2500);
-			} else {
-				estado("falhou", '"' + frase + '" — nenhum comando', 3000);
-			}
+			processar(frase);
 		};
 		recognition.onerror = (ev) => {
 			if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
@@ -315,11 +341,20 @@
 		};
 		recognition.onend = () => {
 			// O navegador encerra o reconhecimento sozinho depois de um tempo
-			// de silêncio; reinicia na hora, a menos que o usuário tenha
-			// desligado manualmente.
-			if (!manualStop) {
-				recognition.start();
-			}
+			// de silêncio; reinicia, a menos que o usuário tenha desligado
+			// manualmente. O start vai adiado e protegido porque chamado na
+			// hora, dentro do próprio onend, ele às vezes estoura
+			// InvalidStateError -- e aí o microfone morria calado, com o
+			// botão ainda dizendo "desativar".
+			if (manualStop) return;
+			setTimeout(() => {
+				if (manualStop || !recognition) return;
+				try {
+					recognition.start();
+				} catch (erro) {
+					estado("falhou", "microfone parou — clique em desativar e ativar", 0);
+				}
+			}, 150);
 		};
 		recognition.start();
 		toggleBtn.textContent = "🔴 Desativar comando de voz";
