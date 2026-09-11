@@ -675,8 +675,14 @@ textarea {
 	scroll-margin-top: calc(var(--nav-height) + var(--space-2));
 }
 
-.guia-ouvir-secao {
+.guia-ouvir-secao,
+.guia-editar-secao {
 	font-size: 0.75em;
+}
+
+.guia-secao-editor {
+	margin-bottom: var(--space-2);
+	line-height: 1.5;
 }
 
 .guia-secao-titulo.guia-secao-atual {

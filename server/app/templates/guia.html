@@ -84,14 +84,16 @@
 {% endif %}
 
 {% for secao in secoes %}
-<h2 id="secao-{{ secao.numero }}"
-	{% if secao.audio_start_s is not none %}class="guia-secao-titulo" data-audio-start="{{ secao.audio_start_s }}" data-audio-end="{{ secao.audio_end_s }}" data-audio-titulo="{{ secao.titulo }}"{% endif %}>
+<h2 id="secao-{{ secao.numero }}" class="guia-secao-titulo"
+	{% if secao.audio_start_s is not none %}data-audio-start="{{ secao.audio_start_s }}" data-audio-end="{{ secao.audio_end_s }}" data-audio-titulo="{{ secao.titulo }}"{% endif %}>
 	{{ secao.numero }}. {{ secao.titulo }}
 	{% if secao.audio_start_s is not none %}<button type="button" class="button-ghost guia-ouvir-secao">▸ ouvir esta seção</button>{% endif %}
+	{% if eh_admin %}<button type="button" class="button-ghost guia-editar-secao" data-secao-id="{{ secao.id }}">editar</button>{% endif %}
 </h2>
-<div class="card markdown-body guia-secao">
+<div class="card markdown-body guia-secao" id="guia-secao-{{ secao.id }}">
 	{{ secao.html | safe }}
 </div>
+{% if eh_admin %}<textarea class="guia-secao-fonte" data-secao-id="{{ secao.id }}" hidden>{{ secao.corpo }}</textarea>{% endif %}
 {% endfor %}
 
 {% if trechos_incompletos %}
@@ -99,6 +101,80 @@
 <ul>
 	{% for trecho in trechos_incompletos %}<li>{{ trecho }}</li>{% endfor %}
 </ul>
+{% endif %}
+
+{% if eh_admin %}
+<script>
+	(function () {
+		// Edita o markdown cru da seção, não o HTML renderizado -- é o
+		// markdown que volta pro banco e remonta o guia_md.
+		const lessonId = {{ lesson.id }};
+		document.querySelectorAll(".guia-editar-secao").forEach((btn) => {
+			const secaoId = btn.dataset.secaoId;
+			const card = document.getElementById("guia-secao-" + secaoId);
+			const fonte = document.querySelector('.guia-secao-fonte[data-secao-id="' + secaoId + '"]');
+
+			btn.addEventListener("click", () => {
+				if (card.hidden) return; // já em edição
+
+				const textarea = document.createElement("textarea");
+				textarea.className = "guia-secao-editor";
+				textarea.value = fonte.value;
+				textarea.rows = Math.min(40, Math.max(8, fonte.value.split("\n").length + 2));
+
+				const salvar = document.createElement("button");
+				salvar.type = "button";
+				salvar.textContent = "Salvar";
+				const cancelar = document.createElement("button");
+				cancelar.type = "button";
+				cancelar.className = "button-ghost";
+				cancelar.textContent = "Cancelar";
+				const aviso = document.createElement("span");
+				aviso.className = "muted";
+
+				const actions = document.createElement("div");
+				actions.className = "button-row";
+				actions.append(salvar, cancelar, aviso);
+
+				card.hidden = true;
+				btn.hidden = true;
+				card.after(textarea, actions);
+				textarea.focus();
+
+				function fechar() {
+					textarea.remove();
+					actions.remove();
+					card.hidden = false;
+					btn.hidden = false;
+				}
+
+				cancelar.addEventListener("click", fechar);
+
+				salvar.addEventListener("click", async () => {
+					salvar.disabled = true;
+					aviso.textContent = "salvando...";
+					try {
+						const body = new FormData();
+						body.append("corpo", textarea.value);
+						const resp = await fetch("/lessons/" + lessonId + "/guia/secoes/" + secaoId, {
+							method: "POST",
+							body: body,
+						});
+						if (!resp.ok) throw new Error("HTTP " + resp.status);
+						const data = await resp.json();
+						card.innerHTML = data.html;
+						fonte.value = textarea.value.trim();
+						fechar();
+					} catch (e) {
+						// Sem fechar: fechar aqui perderia o texto digitado.
+						aviso.textContent = "não salvou (" + e.message + ") — o texto continua aí";
+						salvar.disabled = false;
+					}
+				});
+			});
+		});
+	})();
+</script>
 {% endif %}
 
 {% if audio_pronto %}

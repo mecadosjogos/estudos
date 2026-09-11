@@ -536,3 +536,126 @@ def test_reprocessing_makes_existing_audio_stale_and_requeues(app_env):
     assert len(jobs) == 2
     assert {j.status for j in jobs} == {"done", "pending"}
     assert client.post(f"/lessons/{lesson_id}/colar-guia", data={"resposta": "# x"}).status_code == 404
+
+
+def _secao_ids(lesson_id):
+    from app.db import holder
+    from app.models import GuiaSecao
+
+    with holder.SessionLocal() as session:
+        return [
+            s.id
+            for s in session.query(GuiaSecao)
+            .filter_by(lesson_id=lesson_id)
+            .order_by(GuiaSecao.ordem)
+            .all()
+        ]
+
+
+def test_edit_guia_secao_updates_corpo_and_rebuilds_guia_md(app_env):
+    """Correção pontual de conteúdo sem reprocessar a aula. O cache guia_md
+    precisa acompanhar: /guia.md, PDF, corpus e pacote de prova leem ele, não
+    GuiaSecao."""
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["embaixada e consulado"])
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(
+            titulo="Aula",
+            secoes=[
+                {"titulo": "Território", "corpo": "Não é território brasileiro a área de embaixada."},
+                {"titulo": "Outra", "corpo": "Intocada."},
+            ],
+        )},
+    )
+    secao_id = _secao_ids(lesson_id)[0]
+
+    response = client.post(
+        f"/lessons/{lesson_id}/guia/secoes/{secao_id}",
+        data={"corpo": "Não é território brasileiro a área de embaixada **no exterior**."},
+    )
+    assert response.status_code == 200
+    assert "<strong>no exterior</strong>" in response.json()["html"]
+
+    with holder.SessionLocal() as session:
+        from app.models import GuiaSecao, Lesson
+
+        assert "no exterior" in session.get(GuiaSecao, secao_id).corpo
+        lesson = session.get(Lesson, lesson_id)
+        assert "no exterior" in lesson.guia_md
+        # Cache remontado por inteiro: as outras seções continuam lá.
+        assert "Intocada." in lesson.guia_md
+        assert "## 1. Território" in lesson.guia_md
+        assert "## 2. Outra" in lesson.guia_md
+
+    assert "no exterior" in client.get(f"/lessons/{lesson_id}/guia.md").text
+    pagina = client.get(f"/lessons/{lesson_id}/guia").text
+    assert "no exterior" in pagina
+    assert "guia-editar-secao" in pagina
+
+
+def test_edit_guia_secao_rejected_for_non_admin(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _make_transcribed_lesson(session, ["texto"])
+
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": _pasted_response(titulo="Aula", secoes=[{"titulo": "Posse", "corpo": "Original."}])},
+    )
+    secao_id = _secao_ids(lesson_id)[0]
+
+    from app.main import app
+    from app.models import User
+    from app.security import hash_password
+
+    with holder.SessionLocal() as session:
+        session.add(User(
+            username="membro", senha_hash=hash_password("senha123"), papel="usuario", status="aprovado",
+        ))
+        session.commit()
+
+    comum = TestClient(app)
+    comum.post("/login", data={"username": "membro", "senha": "senha123"})
+
+    # Lê o guia normalmente, mas não escreve nele.
+    assert comum.get(f"/lessons/{lesson_id}/guia").status_code == 200
+    assert "guia-editar-secao" not in comum.get(f"/lessons/{lesson_id}/guia").text
+    assert comum.post(f"/lessons/{lesson_id}/guia/secoes/{secao_id}", data={"corpo": "Adulterado."}).status_code == 403
+
+    with holder.SessionLocal() as session:
+        from app.models import GuiaSecao
+
+        assert session.get(GuiaSecao, secao_id).corpo == "Original."
+
+
+def test_edit_guia_secao_rejects_empty_and_foreign_secao(app_env):
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        outra_lesson_id = _make_transcribed_lesson(session, ["outra"], titulo="Outra aula")
+        lesson_id = _make_transcribed_lesson(session, ["texto"])
+
+    for lid in (outra_lesson_id, lesson_id):
+        client.post(
+            f"/lessons/{lid}/colar-resposta",
+            data={"resposta": _pasted_response(titulo="Aula", secoes=[{"titulo": "Posse", "corpo": "Original."}])},
+        )
+    secao_id = _secao_ids(lesson_id)[0]
+
+    assert client.post(f"/lessons/{lesson_id}/guia/secoes/{secao_id}", data={"corpo": "   "}).status_code == 400
+    # A outra aula tem guia próprio -- o 404 é pela seção não ser dela, não
+    # por faltar guia.
+    assert client.post(f"/lessons/{outra_lesson_id}/guia/secoes/{secao_id}", data={"corpo": "x"}).status_code == 404
+
+    with holder.SessionLocal() as session:
+        from app.models import GuiaSecao
+
+        assert session.get(GuiaSecao, secao_id).corpo == "Original."

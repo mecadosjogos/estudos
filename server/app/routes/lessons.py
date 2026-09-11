@@ -532,8 +532,10 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
 
     secoes_view = [
         {
+            "id": s.id,
             "numero": i,
             "titulo": s.titulo,
+            "corpo": s.corpo,
             "html": markdown_lib.markdown(s.corpo, extensions=["extra"]),
             "audio_start_s": s.audio_start_s,
             "audio_end_s": s.audio_end_s,
@@ -658,6 +660,78 @@ def set_guia_topico_secao_alvo(
     topico.editado_em = datetime.now(timezone.utc)
     session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia#topico-{topico.id}", status_code=303)
+
+
+def _rebuild_guia_md(session: Session, lesson: Lesson) -> None:
+    """Remonta o cache `guia_md` a partir das linhas estruturadas. Sem isso
+    uma correção de seção ficaria só na tela: /guia.md, o PDF,
+    export/corpus.py e export/exam_export.py leem o cache, não GuiaSecao."""
+    from ..ai.guia_markdown import build_guia_markdown
+    from ..ai.guia_parser import GuiaArvoreNoOut, GuiaSecaoOut, GuiaTopicoOut
+
+    secoes = session.scalars(
+        select(GuiaSecao).where(GuiaSecao.lesson_id == lesson.id).order_by(GuiaSecao.ordem)
+    ).all()
+    topicos = session.scalars(
+        select(GuiaTopico)
+        .where(GuiaTopico.lesson_id == lesson.id, GuiaTopico.orfao_em.is_(None))
+        .order_by(GuiaTopico.ordem)
+    ).all()
+
+    lesson.guia_md = build_guia_markdown(
+        titulo=lesson.guia_titulo or lesson.titulo,
+        arvore=[
+            GuiaArvoreNoOut.model_validate(no)
+            for no in json.loads(lesson.guia_arvore_json or "[]")
+        ],
+        topicos=[GuiaTopicoOut(titulo=t.titulo) for t in topicos],
+        secoes=[GuiaSecaoOut(titulo=s.titulo, corpo=s.corpo) for s in secoes],
+        trechos_incompletos=json.loads(lesson.guia_trechos_incompletos_json or "[]"),
+    )
+
+
+@router.post("/{lesson_id}/guia/secoes/{secao_id}")
+def edit_guia_secao(
+    lesson_id: int,
+    secao_id: int,
+    corpo: str = Form(...),
+    session: Session = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Correção manual do corpo de uma seção do guia. A IA erra detalhe de
+    conteúdo que só se percebe lendo, e reprocessar a aula inteira pra
+    consertar uma frase reescreveria resumo, cards e mapa à toa.
+
+    Só o corpo, não o título: GuiaTopico aponta pra seção pelo título
+    normalizado (`secao_alvo_slug`), então renomear aqui quebraria os links
+    do sumário em silêncio.
+
+    Restrito a admin, como `renarrar_guia` -- o resto de /guia qualquer
+    sessão vê, mas escrever no material não.
+
+    Não sobrevive a reprocessamento: GuiaSecao é apagada e recriada por
+    inteiro (models.py::GuiaSecao). É edição pontual de aula já fechada,
+    não uma camada de conteúdo própria.
+    """
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None or lesson.guia_md is None:
+        raise HTTPException(status_code=404, detail="guia de aula não gerado ainda")
+
+    secao = session.get(GuiaSecao, secao_id)
+    if secao is None or secao.lesson_id != lesson_id:
+        raise HTTPException(status_code=404, detail="seção não encontrada")
+
+    corpo = corpo.strip()
+    if not corpo:
+        raise HTTPException(status_code=400, detail="o corpo da seção não pode ficar vazio")
+
+    secao.corpo = corpo
+    _rebuild_guia_md(session, lesson)
+    session.commit()
+
+    import markdown as markdown_lib
+
+    return {"ok": True, "html": markdown_lib.markdown(secao.corpo, extensions=["extra"])}
 
 
 @router.get("/{lesson_id}/mapa")
