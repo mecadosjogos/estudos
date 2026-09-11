@@ -9,9 +9,13 @@ from .guia_parser import GuiaArvoreNoOut, GuiaSecaoOut, GuiaTopicoOut
 
 
 def _render_arvore(nodes: list[GuiaArvoreNoOut], nivel: int = 0) -> list[str]:
+    # 4 espaços por nível, não 2: o python-markdown (que renderiza este mesmo
+    # guia_md no PDF e no guia legado) só aninha lista a partir de 4 -- com 2
+    # ele achata a árvore inteira em irmãos. O parser de volta compara
+    # indentação relativa por pilha, então não se importa com a largura.
     lines = []
     for node in nodes:
-        lines.append("  " * nivel + f"- {node.rotulo}")
+        lines.append("    " * nivel + f"- {node.rotulo}")
         lines.extend(_render_arvore(node.filhos, nivel + 1))
     return lines
 

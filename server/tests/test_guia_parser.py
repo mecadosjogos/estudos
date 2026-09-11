@@ -173,3 +173,30 @@ def test_string_vazia_nao_lanca():
     assert parsed.topicos == []
     assert parsed.arvore == []
     assert parsed.trechos_incompletos == []
+
+
+def test_arvore_remontada_aninha_no_python_markdown_e_volta_igual():
+    """Achado real: com 2 espaços por nível o python-markdown -- que renderiza
+    o guia_md no PDF e no guia legado -- achatava a árvore inteira em irmãos.
+    O parser compara indentação relativa, então a volta continua igual."""
+    import markdown as markdown_lib
+
+    from app.ai.guia_markdown import build_guia_markdown
+
+    md = build_guia_markdown(
+        titulo="Aula",
+        arvore=parse_guia_markdown(
+            "# Aula\n\n## Árvore de conhecimento\n\n- Pai\n  - Filho\n    - Neto\n"
+        ).arvore,
+        topicos=[],
+        secoes=[],
+        trechos_incompletos=[],
+    )
+
+    # Três níveis de verdade no HTML, não três irmãos.
+    assert markdown_lib.markdown(md, extensions=["extra"]).count("<ul>") == 3
+
+    arvore = parse_guia_markdown(md).arvore
+    assert [n.rotulo for n in arvore] == ["Pai"]
+    assert [n.rotulo for n in arvore[0].filhos] == ["Filho"]
+    assert [n.rotulo for n in arvore[0].filhos[0].filhos] == ["Neto"]
