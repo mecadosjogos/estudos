@@ -65,12 +65,12 @@ class Lesson(Base):
     # timestamp, não tem "▸ ouvir o original" pra ancorar.
     material_aula_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Link do Google Doc de onde `material_aula_texto` foi buscado (opcional
-    # -- o campo acima também aceita colar texto direto). "Buscar conteúdo"
-    # reexporta e sobrescreve material_aula_texto a partir daqui, mesmo
-    # cliente/conversão do sync de materiais (ai/library/gdocs.py +
-    # html_to_md.py), só sem virar `Material`/`MaterialUse` -- é conteúdo
-    # de uma aula só, não um material reutilizável entre aulas.
+    # Link do Google Doc usado por "Buscar conteúdo" pra buscar e converter
+    # `material_aula_texto` uma vez (mesmo cliente/conversão do sync de
+    # materiais -- ai/library/gdocs.py + html_to_md.py), sem virar
+    # `Material`/`MaterialUse` -- é conteúdo de uma aula só, não um material
+    # reutilizável entre aulas. Decisão do usuário: o link não fica salvo
+    # depois de buscar, só o texto -- campo sempre nulo após o fetch.
     material_aula_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Posição salva do player (fase 5) — retoma de onde parou.

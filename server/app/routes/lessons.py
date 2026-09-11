@@ -231,7 +231,7 @@ def fetch_material_aula_from_link(
             status_code=303,
         )
 
-    lesson.material_aula_url = url.strip()
+    lesson.material_aula_url = None
     lesson.material_aula_texto = texto.strip() or None
     session.commit()
     return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
