@@ -17,40 +17,6 @@
 	<button type="submit">Definir</button>
 </form>
 
-{% if tipos %}
-<details class="card" {% if pool.filtrado %}open{% endif %}>
-	<summary><strong>Filtrar por tipo de exercício</strong>{% if pool.filtrado %} — filtro ativo{% endif %}</summary>
-	<p class="muted">Marque os tipos que você quer praticar agora. Os desmarcados saem da mesa na hora (o progresso deles fica guardado) e voltam quando você marcar de novo. Com <strong>nada marcado</strong>, valem todos os tipos. O "% dominado" no topo continua contando a aula inteira, não só o que está filtrado.</p>
-	<form method="post" action="/lessons/{{ lesson.id }}/guia/tipos-filtro" id="tipos-filtro-form">
-		<ul style="list-style:none; padding-left:0">
-			{% for item in tipos %}
-			<li>
-				<label>
-					<input type="checkbox" name="tipos" value="{{ item.tipo }}" {% if item.ativo %}checked{% endif %}>
-					{{ rotulos_tipo.get(item.tipo, item.tipo) }}
-					<span class="muted">— {{ item.total }} questõe(s), {{ item.dominados }} dominada(s)</span>
-				</label>
-			</li>
-			{% endfor %}
-		</ul>
-		<div class="button-row">
-			<button type="submit">Aplicar filtro</button>
-			<button type="button" id="tipos-marcar-todos" class="button-ghost">Marcar todos</button>
-			<button type="button" id="tipos-limpar" class="button-ghost">Desmarcar todos (= todos os tipos)</button>
-		</div>
-	</form>
-</details>
-<script>
-	(() => {
-		const form = document.getElementById("tipos-filtro-form");
-		const caixas = form.querySelectorAll('input[name="tipos"]');
-		const marcar = (valor) => caixas.forEach((caixa) => { caixa.checked = valor; });
-		document.getElementById("tipos-marcar-todos").addEventListener("click", () => marcar(true));
-		document.getElementById("tipos-limpar").addEventListener("click", () => marcar(false));
-	})();
-</script>
-{% endif %}
-
 <div class="button-row" id="voice-control" style="align-items:center">
 	<button type="button" id="voice-toggle-btn">🎙️ Ativar comando de voz</button>
 	<span class="muted" id="voice-status"></span>
@@ -167,15 +133,49 @@
 {% else %}
 <div class="card">
 	{% if pool.filtrado and pool.total == 0 %}
-	<p>Nenhuma questão dos tipos marcados no filtro. Ajuste o filtro acima (ou desmarque tudo para voltar a ver todos os tipos).</p>
+	<p>Nenhuma questão dos tipos marcados no filtro. Ajuste em "Filtrar por tipo de exercício", abaixo (ou desmarque tudo para voltar a ver todos os tipos).</p>
 	{% elif pool.filtrado and pool.dominados == pool.total %}
-	<p>🎉 Tudo dominado dentro do filtro atual ({{ pool.dominados }} de {{ pool.total }}). Marque outros tipos no filtro acima para continuar.</p>
+	<p>🎉 Tudo dominado dentro do filtro atual ({{ pool.dominados }} de {{ pool.total }}). Marque outros tipos em "Filtrar por tipo de exercício", abaixo, para continuar.</p>
 	{% elif mastery_percent is not none and mastery_percent >= 1.0 %}
 	<p>🎉 100% dominado — todos os exercícios desta aula graduaram. Nada pendente pra praticar agora.</p>
 	{% else %}
 	<p>Nada pra praticar ainda — aprove exercícios pendentes em <a href="/lessons/{{ lesson.id }}/guia/exercicios-aprovacao">aprovação</a>, ou peça para dominar esta aula primeiro.</p>
 	{% endif %}
 </div>
+{% endif %}
+
+{% if tipos %}
+<details class="card" {% if pool.filtrado %}open{% endif %}>
+	<summary><strong>Filtrar por tipo de exercício</strong>{% if pool.filtrado %} — filtro ativo{% endif %}</summary>
+	<p class="muted">Marque os tipos que você quer praticar agora. Os desmarcados saem da mesa na hora (o progresso deles fica guardado) e voltam quando você marcar de novo. Com <strong>nada marcado</strong>, valem todos os tipos. O "% dominado" no topo continua contando a aula inteira, não só o que está filtrado.</p>
+	<form method="post" action="/lessons/{{ lesson.id }}/guia/tipos-filtro" id="tipos-filtro-form">
+		<ul style="list-style:none; padding-left:0">
+			{% for item in tipos %}
+			<li>
+				<label>
+					<input type="checkbox" name="tipos" value="{{ item.tipo }}" {% if item.ativo %}checked{% endif %}>
+					{{ rotulos_tipo.get(item.tipo, item.tipo) }}
+					<span class="muted">— {{ item.total }} questõe(s), {{ item.dominados }} dominada(s)</span>
+				</label>
+			</li>
+			{% endfor %}
+		</ul>
+		<div class="button-row">
+			<button type="submit">Aplicar filtro</button>
+			<button type="button" id="tipos-marcar-todos" class="button-ghost">Marcar todos</button>
+			<button type="button" id="tipos-limpar" class="button-ghost">Desmarcar todos (= todos os tipos)</button>
+		</div>
+	</form>
+</details>
+<script>
+	(() => {
+		const form = document.getElementById("tipos-filtro-form");
+		const caixas = form.querySelectorAll('input[name="tipos"]');
+		const marcar = (valor) => caixas.forEach((caixa) => { caixa.checked = valor; });
+		document.getElementById("tipos-marcar-todos").addEventListener("click", () => marcar(true));
+		document.getElementById("tipos-limpar").addEventListener("click", () => marcar(false));
+	})();
+</script>
 {% endif %}
 
 <details class="card">
