@@ -72,11 +72,13 @@ def download_guia_pdf(lesson_id: int, session: Session = Depends(get_session)):
     if lesson is None or lesson.guia_md is None:
         raise HTTPException(status_code=404, detail="guia de aula não gerado ainda")
 
-    partes = []
+    # Taxonomia depois do guia, não antes: quem abre o PDF quer começar a
+    # ler a aula, e abrir com uma árvore de doutrina geral empurra o texto
+    # pra segunda página.
+    partes = [markdown_lib.markdown(lesson.guia_md, extensions=["extra"])]
     if lesson.mapa_mermaid:
         arvore = build_taxonomy_tree(session, [lesson.mapa_mermaid])
-        partes.append(f"<h2>Mapa de taxonomia (doutrina geral)</h2>{_taxonomy_html(arvore)}<hr>")
-    partes.append(markdown_lib.markdown(lesson.guia_md, extensions=["extra"]))
+        partes.append(f"<hr><h2>Mapa de taxonomia (doutrina geral)</h2>{_taxonomy_html(arvore)}")
 
     pdf_bytes = render_html_to_pdf("".join(partes))
     pdf_bytes = add_header_footer(pdf_bytes, f"{_CABECALHO_LINHA1}\n{lesson.subject.nome}")

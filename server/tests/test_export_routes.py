@@ -196,3 +196,30 @@ def test_download_corpus_zip_contains_expected_files(app_env):
 
     transcricao_name = next(n for n in names if n.endswith("/transcricao.md"))
     assert "posse exige corpus" in zf.read(transcricao_name).decode("utf-8")
+
+
+def test_download_guia_pdf_puts_taxonomy_after_the_guide(app_env):
+    """O PDF abre pelo guia; o mapa de taxonomia (doutrina geral) fecha.
+    Antes vinha primeiro e empurrava o texto da aula pra segunda página."""
+    client = _authed_client()
+    from app.db import holder
+
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_with_transcript_id(session)
+
+    payload = json.loads(_pasted_response().split("```json\n", 1)[1].rsplit("\n```", 1)[0])
+    payload["mapa_mermaid"] = "graph TD\n  A[Posse] --> B[Propriedade]"
+    client.post(
+        f"/lessons/{lesson_id}/colar-resposta",
+        data={"resposta": "```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```"},
+    )
+
+    response = client.get(f"/lessons/{lesson_id}/guia.pdf")
+    assert response.status_code == 200
+
+    import fitz
+
+    doc = fitz.open(stream=response.content, filetype="pdf")
+    texto = "".join(page.get_text() for page in doc)
+    assert "Mapa de taxonomia" in texto
+    assert texto.index("Guia de teste export.") < texto.index("Mapa de taxonomia")
