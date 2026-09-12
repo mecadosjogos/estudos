@@ -559,6 +559,12 @@ class GuiaLessonProgresso(Base):
     posicao_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     mesa_tamanho: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     streak_atual: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Tipos de exercício que ESTE usuário desligou na tela de prática (JSON
+    # com uma lista de nomes de tipo). Guarda os DESLIGADOS, não os ligados,
+    # de propósito: assim o padrão (NULL/vazio) é "tudo ligado" e um tipo
+    # novo, criado depois, já entra na fila sem precisar de migração de
+    # dados nem de o usuário marcar nada.
+    tipos_desativados: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class GuiaExercicioProgresso(Base):

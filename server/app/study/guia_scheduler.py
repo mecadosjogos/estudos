@@ -33,12 +33,14 @@ Dois mecanismos combinados, não redundantes:
 menor `posicao_alvo` entre os ativos -- é o loop contínuo pedido, sem
 esperar calendário."""
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
+from ..ai.schemas import GUIA_EXERCICIO_TIPOS
 from ..models import (
     GuiaExercicio,
     GuiaExercicioProgresso,
@@ -105,6 +107,85 @@ def _removidos_subq(user_id: int):
     lateral nem contar no denominador do progresso. Removida por usuário:
     não some pra mais ninguém."""
     return select(GuiaExercicioRemovido.exercicio_id).where(GuiaExercicioRemovido.user_id == user_id)
+
+
+def tipos_ativos(session: Session, lesson_id: int, user_id: int) -> set[str]:
+    """Tipos de exercício que ESTE usuário quer ver nesta aula. Sem filtro
+    salvo (o padrão), são todos -- inclusive um tipo criado depois, já que
+    o que fica guardado é a lista de DESLIGADOS (ver
+    GuiaLessonProgresso.tipos_desativados)."""
+    progresso = _get_or_create_lesson_progresso(session, lesson_id, user_id)
+    return set(GUIA_EXERCICIO_TIPOS) - _desativados(progresso)
+
+
+def _desativados(progresso: GuiaLessonProgresso) -> set[str]:
+    if not progresso.tipos_desativados:
+        return set()
+    try:
+        return set(json.loads(progresso.tipos_desativados))
+    except (ValueError, TypeError):
+        return set()
+
+
+def _filtro_tipo_clause(progresso: GuiaLessonProgresso):
+    """Cláusula a somar em TODA consulta da prática (mesa, backlog, próximo,
+    contadores) -- um tipo desligado não pode voltar por uma porta lateral,
+    do mesmo jeito que uma questão removida (ver `_removidos_subq`)."""
+    desativados = _desativados(progresso)
+    if not desativados:
+        return None
+    return GuiaExercicio.tipo.not_in(desativados)
+
+
+def set_tipos_filtro(session: Session, lesson: Lesson, user_id: int, ativos: list[str]) -> None:
+    """Filtro de tipos da tela de prática: recebe os tipos LIGADOS (as
+    caixas marcadas) e guarda o complemento. Lista vazia = nenhum tipo
+    marcado é tratado como "sem filtro": deixar o usuário zerar a fila
+    inteira por engano só produziria uma tela vazia sem explicação."""
+    validos = [tipo for tipo in ativos if tipo in GUIA_EXERCICIO_TIPOS]
+    progresso = _get_or_create_lesson_progresso(session, lesson.id, user_id)
+    desativados = [] if not validos else [tipo for tipo in GUIA_EXERCICIO_TIPOS if tipo not in validos]
+    progresso.tipos_desativados = json.dumps(desativados, ensure_ascii=False) if desativados else None
+    session.flush()
+    # A mesa pode estar cheia de tipo recém-desligado: `ensure_mesa_filled`
+    # expulsa o que não passa mais no filtro e puxa substituto do backlog.
+    ensure_mesa_filled(session, lesson, user_id)
+    session.commit()
+
+
+def contagem_por_tipo(session: Session, lesson_id: int, user_id: int) -> list[dict]:
+    """Uma linha por tipo que existe nesta aula: quantos exercícios tem,
+    quantos já dominados e se o tipo está ligado -- alimenta as caixas de
+    seleção do filtro em /praticar (marcar às cegas, sem saber que há 61
+    definições e 6 hierarquias, não ajuda a escolher)."""
+    progresso = _get_or_create_lesson_progresso(session, lesson_id, user_id)
+    desativados = _desativados(progresso)
+    rows = session.execute(
+        select(GuiaExercicio, GuiaExercicioProgresso)
+        .outerjoin(
+            GuiaExercicioProgresso,
+            and_(
+                GuiaExercicioProgresso.exercicio_id == GuiaExercicio.id,
+                GuiaExercicioProgresso.user_id == user_id,
+            ),
+        )
+        .where(
+            GuiaExercicio.lesson_id == lesson_id,
+            GuiaExercicio.status == "aceito",
+            GuiaExercicio.orfao_em.is_(None),
+            GuiaExercicio.id.not_in(_removidos_subq(user_id)),
+        )
+    ).all()
+    contagem: dict[str, dict] = {}
+    for exercicio, exercicio_progresso in rows:
+        item = contagem.setdefault(exercicio.tipo, {"tipo": exercicio.tipo, "total": 0, "dominados": 0})
+        item["total"] += 1
+        if exercicio_progresso is not None and exercicio_progresso.dominado_em is not None:
+            item["dominados"] += 1
+    ordem = {tipo: i for i, tipo in enumerate(GUIA_EXERCICIO_TIPOS)}
+    for item in contagem.values():
+        item["ativo"] = item["tipo"] not in desativados
+    return sorted(contagem.values(), key=lambda item: ordem.get(item["tipo"], 99))
 
 
 def remover_exercicio(session: Session, exercicio: GuiaExercicio, user_id: int) -> None:
@@ -219,21 +300,28 @@ def _adjust_mesa_tamanho(lesson_progresso: GuiaLessonProgresso, grau_acerto: flo
     lesson_progresso.streak_atual = streak
 
 
-def _ativos(session: Session, lesson_id: int, user_id: int) -> list[GuiaExercicioProgresso]:
-    return list(
-        session.scalars(
-            select(GuiaExercicioProgresso)
-            .join(GuiaExercicio, GuiaExercicioProgresso.exercicio_id == GuiaExercicio.id)
-            .where(
-                GuiaExercicio.lesson_id == lesson_id,
-                GuiaExercicio.status == "aceito",
-                GuiaExercicio.id.not_in(_removidos_subq(user_id)),
-                GuiaExercicioProgresso.user_id == user_id,
-                GuiaExercicioProgresso.na_mesa.is_(True),
-                GuiaExercicioProgresso.dominado_em.is_(None),
-            )
+def _ativos(
+    session: Session, lesson_id: int, user_id: int, *, filtro_tipo=None
+) -> list[GuiaExercicioProgresso]:
+    """Itens na mesa agora. `filtro_tipo` (cláusula de `_filtro_tipo_clause`)
+    entra quando se quer só o que o filtro de tipos deixa passar -- sem ele,
+    devolve tudo que está na mesa, inclusive o que acabou de ser desligado
+    (é assim que `ensure_mesa_filled` acha o que precisa expulsar)."""
+    stmt = (
+        select(GuiaExercicioProgresso)
+        .join(GuiaExercicio, GuiaExercicioProgresso.exercicio_id == GuiaExercicio.id)
+        .where(
+            GuiaExercicio.lesson_id == lesson_id,
+            GuiaExercicio.status == "aceito",
+            GuiaExercicio.id.not_in(_removidos_subq(user_id)),
+            GuiaExercicioProgresso.user_id == user_id,
+            GuiaExercicioProgresso.na_mesa.is_(True),
+            GuiaExercicioProgresso.dominado_em.is_(None),
         )
     )
+    if filtro_tipo is not None:
+        stmt = stmt.where(filtro_tipo)
+    return list(session.scalars(stmt))
 
 
 def ensure_mesa_filled(session: Session, lesson: Lesson, user_id: int) -> None:
@@ -246,8 +334,18 @@ def ensure_mesa_filled(session: Session, lesson: Lesson, user_id: int) -> None:
     grande nunca voltava a ficar pequena, e o usuário nunca via repetição
     (bug real: 10 ativos com mesa_tamanho já encolhido pra 5)."""
     lesson_progresso = _get_or_create_lesson_progresso(session, lesson.id, user_id)
+    filtro_tipo = _filtro_tipo_clause(lesson_progresso)
 
-    ativos = _ativos(session, lesson.id, user_id)
+    # Tipo desligado no filtro sai da mesa antes de qualquer outra conta --
+    # senão ele continuaria ocupando vaga (invisível, porque `next_exercicio`
+    # também filtra) e a mesa ficaria menor do que o tamanho pedido.
+    if filtro_tipo is not None:
+        for progresso in _ativos(session, lesson.id, user_id, filtro_tipo=~filtro_tipo):
+            progresso.na_mesa = False
+            progresso.posicao_alvo = None
+        session.flush()
+
+    ativos = _ativos(session, lesson.id, user_id, filtro_tipo=filtro_tipo)
     if len(ativos) > lesson_progresso.mesa_tamanho:
         excedente = len(ativos) - lesson_progresso.mesa_tamanho
         # expulsa os mais "distantes" (maior posicao_alvo) primeiro --
@@ -258,7 +356,7 @@ def ensure_mesa_filled(session: Session, lesson: Lesson, user_id: int) -> None:
             progresso.posicao_alvo = None
         session.flush()
 
-    count_ativos = len(_ativos(session, lesson.id, user_id))
+    count_ativos = len(_ativos(session, lesson.id, user_id, filtro_tipo=filtro_tipo))
     while count_ativos < lesson_progresso.mesa_tamanho:
         # backlog: aceito, não órfão, e (nunca teve progresso deste
         # usuário) OU (progresso existe mas não está na mesa nem graduado).
@@ -283,6 +381,7 @@ def ensure_mesa_filled(session: Session, lesson: Lesson, user_id: int) -> None:
                         GuiaExercicioProgresso.dominado_em.is_(None),
                     ),
                 ),
+                *([filtro_tipo] if filtro_tipo is not None else []),
             )
             .order_by(GuiaExercicio.criado_em)
             .limit(1)
@@ -312,7 +411,9 @@ def ensure_mesa_filled(session: Session, lesson: Lesson, user_id: int) -> None:
 
 def next_exercicio(session: Session, lesson: Lesson, user_id: int) -> GuiaExercicio | None:
     ensure_mesa_filled(session, lesson, user_id)
-    row = session.execute(
+    lesson_progresso = _get_or_create_lesson_progresso(session, lesson.id, user_id)
+    filtro_tipo = _filtro_tipo_clause(lesson_progresso)
+    stmt = (
         select(GuiaExercicio)
         .join(
             GuiaExercicioProgresso,
@@ -329,7 +430,10 @@ def next_exercicio(session: Session, lesson: Lesson, user_id: int) -> GuiaExerci
             GuiaExercicioProgresso.dominado_em.is_(None),
         )
         .order_by(GuiaExercicioProgresso.posicao_alvo, GuiaExercicio.id)
-    ).first()
+    )
+    if filtro_tipo is not None:
+        stmt = stmt.where(filtro_tipo)
+    row = session.execute(stmt).first()
     return row[0] if row else None
 
 
@@ -455,7 +559,8 @@ def pool_status(session: Session, lesson: Lesson, user_id: int) -> dict:
     parecem não se repetir (pedido explícito depois do usuário notar que
     a mesa cresceu sem ele perceber)."""
     lesson_progresso = _get_or_create_lesson_progresso(session, lesson.id, user_id)
-    rows = session.execute(
+    filtro_tipo = _filtro_tipo_clause(lesson_progresso)
+    stmt = (
         select(GuiaExercicio, GuiaExercicioProgresso)
         .outerjoin(
             GuiaExercicioProgresso,
@@ -470,7 +575,12 @@ def pool_status(session: Session, lesson: Lesson, user_id: int) -> dict:
             GuiaExercicio.orfao_em.is_(None),
             GuiaExercicio.id.not_in(_removidos_subq(user_id)),
         )
-    ).all()
+    )
+    # Os números da mesa seguem o filtro (é a fila de agora que eles
+    # descrevem); o "% dominado" da página, não -- ver `mastery_percent`.
+    if filtro_tipo is not None:
+        stmt = stmt.where(filtro_tipo)
+    rows = session.execute(stmt).all()
     ativos = sum(1 for _, p in rows if p is not None and p.na_mesa and p.dominado_em is None)
     dominados = sum(1 for _, p in rows if p is not None and p.dominado_em is not None)
     return {
@@ -478,10 +588,15 @@ def pool_status(session: Session, lesson: Lesson, user_id: int) -> dict:
         "mesa_tamanho": lesson_progresso.mesa_tamanho,
         "dominados": dominados,
         "total": len(rows),
+        "filtrado": filtro_tipo is not None,
     }
 
 
 def mastery_percent(session: Session, lesson_id: int, user_id: int) -> float | None:
+    """Progresso na aula INTEIRA, de propósito fora do filtro de tipos: é o
+    mesmo número mostrado na lista de aulas (/guia), e faria pouco sentido
+    ele subir de 40% pra 90% só porque o usuário desmarcou um tipo na tela
+    de prática."""
     rows = session.execute(
         select(GuiaExercicio, GuiaExercicioProgresso)
         .outerjoin(

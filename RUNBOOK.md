@@ -578,6 +578,22 @@ volta na caixa em que estava). Não confundir com
 `GuiaExercicio.status="descartado"` na tela de aprovação, que tira a
 questão de todo mundo.
 
+**Filtro por tipo de exercício, também por usuário.** O bloco "Filtrar
+por tipo de exercício" em `/praticar` liga/desliga cada um dos 7 tipos
+(definição, cloze, lista ordenada, hierarquia, discriminação, recordação
+livre, aplicação de caso) e grava em
+`guia_lesson_progresso.tipos_desativados` (JSON, uma linha por
+usuário+aula). Guarda os **desligados**, não os ligados, de propósito:
+o padrão nulo significa "todos ligados", e um tipo novo criado depois já
+entra na fila sem migração de dados. Nada marcado = sem filtro (não
+existe fila vazia por engano). Desligar um tipo **expulsa da mesa na
+hora** o que era daquele tipo — mantendo caixa e histórico, igual ao
+excedente quando a mesa encolhe — e puxa substituto do backlog, senão a
+vaga ficaria ocupada por algo invisível. Os números da mesa (ativos,
+dominados, total) seguem o filtro; o **"% dominado" não** — é o mesmo
+número mostrado na lista de aulas em `/guia`, e subir de 40% pra 90% só
+porque um tipo foi desmarcado seria mentira.
+
 **Validar:**
 
 ```bash

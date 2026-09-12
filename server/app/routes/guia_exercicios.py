@@ -25,6 +25,7 @@ from ..auth import require_session
 from ..db import get_session
 from ..models import GuiaExercicio, Lesson, Subject, User
 from ..study.guia_scheduler import (
+    contagem_por_tipo,
     listar_removidos,
     manual_adjust,
     mastery_percent,
@@ -34,11 +35,22 @@ from ..study.guia_scheduler import (
     reset_progresso,
     restaurar_exercicio,
     set_mesa_tamanho,
+    set_tipos_filtro,
     submit_attempt,
 )
 
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+
+ROTULOS_TIPO = {
+    "definicao": "Definição",
+    "cloze": "Lacuna (cloze)",
+    "lista_ordenada": "Lista ordenada",
+    "hierarquia": "Hierarquia",
+    "discriminacao": "Discriminação",
+    "recordacao_livre": "Recordação livre",
+    "aplicacao_caso": "Aplicação de caso",
+}
 
 GRAU_ACERTO_POR_ATALHO = {1: 0.0, 2: 1.0}  # Não lembrei / Lembrei -- "Quase" removido: perdeu sentido com o streak
 
@@ -238,6 +250,8 @@ def practice(
             "gabarito_lines": _gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
             "mastery_percent": mastery_percent(session, lesson_id, user.id),
             "pool": pool_status(session, lesson, user.id),
+            "tipos": contagem_por_tipo(session, lesson_id, user.id),
+            "rotulos_tipo": ROTULOS_TIPO,
             "removidos": [
                 {
                     "exercicio": removido,
@@ -281,6 +295,21 @@ def set_mesa_tamanho_route(
     lesson = _get_lesson_or_404(session, lesson_id)
     set_mesa_tamanho(session, lesson, user.id, tamanho)
     session.commit()
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/guia/tipos-filtro")
+def set_tipos_filtro_route(
+    lesson_id: int,
+    tipos: list[str] = Form(default=[]),
+    session: Session = Depends(get_session),
+    user: User = Depends(require_session),
+):
+    """Filtro de tipos da tela de prática -- chegam só as caixas MARCADAS
+    (checkbox desmarcado não é enviado pelo navegador), e o scheduler
+    guarda o complemento."""
+    lesson = _get_lesson_or_404(session, lesson_id)
+    set_tipos_filtro(session, lesson, user.id, tipos)
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 
