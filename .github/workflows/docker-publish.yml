@@ -47,3 +47,33 @@ jobs:
           script: |
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
               containrrr/watchtower --run-once estudos-server-1
+
+      # A migração NÃO roda no start do container (uvicorn sobe direto, ver
+      # server/Dockerfile) -- e rodá-la à mão por SSH depois de cada deploy
+      # já deixou a produção quebrada uma vez: o código novo consultava uma
+      # coluna que o banco ainda não tinha, e só quem tem a chave da VPS
+      # podia consertar. Aqui o deploy migra a si mesmo, com a mesma chave
+      # que já recria o container, e falha ruidosamente se a migração falhar.
+      - name: Migrar o banco na VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            # O Watchtower devolve o controle assim que recria o container,
+            # que ainda pode estar subindo -- sem esta espera o `exec` abaixo
+            # às vezes pega o container no meio do start.
+            for tentativa in $(seq 1 30); do
+              if docker exec estudos-server-1 python -c "pass" >/dev/null 2>&1; then
+                break
+              fi
+              sleep 2
+            done
+            # Backup antes de migrar (API de backup do sqlite3, segura com o
+            # servidor no ar -- app/backup.py), com a retenção de sempre.
+            docker exec estudos-server-1 python -c \
+              "from app.backup import create_backup; print('backup:', create_backup())"
+            docker exec estudos-server-1 python -m alembic upgrade head
+            docker exec estudos-server-1 python -m alembic current

@@ -42,11 +42,11 @@ Funciona só se a VPS já tiver a rede `root_default` com um Traefik ouvindo nel
 
 Todo push em `master` dispara [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml): builda a imagem, publica em `ghcr.io/mecadosjogos/estudos:latest`, e roda um Watchtower "one-shot" via SSH na VPS que só atualiza o container `estudos-server-1` (mesmo padrão dos outros projetos na mesma VPS). Não precisa clicar em nada no hPanel depois do primeiro deploy.
 
-Migração de banco continua manual — se o push mudou o schema, entre por SSH e rode `docker compose exec server python -m alembic upgrade head` depois que o Watchtower atualizar o container.
+**A migração de banco faz parte do deploy** — logo depois do Watchtower, o mesmo workflow espera o container novo aceitar `exec`, tira um backup (API de backup do sqlite3, segura com o servidor no ar) e roda `alembic upgrade head`, falhando ruidosamente se a migração falhar. Não é preciso entrar por SSH depois de um push que mudou o schema. Isso existe porque o contrário já quebrou a produção: o código novo subiu consultando uma coluna que o banco ainda não tinha, e só quem tinha a chave da VPS podia consertar.
 
 Secrets do repositório usados pelo workflow (`Settings → Secrets and variables → Actions`): `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` — a chave é dedicada a este deploy, sem relação com as credenciais dos outros projetos na mesma VPS.
 
-**Rodar isso manualmente (ex.: sessão de Claude Code aplicando migração após um push).** Acesso local à mesma chave/VPS via `VPS_SSH_HOST`/`VPS_SSH_USER`/`VPS_SSH_KEY_PATH` no `.env` (nunca commitar o valor real — repositório é público; `.env` é gitignorado). Com essas três variáveis:
+**Rodar isso manualmente (ex.: investigar a VPS, ou migrar sem esperar um deploy).** Acesso local à mesma chave/VPS via `VPS_SSH_HOST`/`VPS_SSH_USER`/`VPS_SSH_KEY_PATH` no `.env` (nunca commitar o valor real — repositório é público; `.env` é gitignorado). Com essas três variáveis:
 
 ```bash
 # confirma que o container já subiu com a imagem nova antes de migrar
