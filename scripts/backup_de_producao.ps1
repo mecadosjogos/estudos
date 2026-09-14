@@ -1,5 +1,5 @@
 # Baixa o backup mais recente (banco sem a tabela user + mp3 de cada aula)
-# da VPS de produção e grava em data-backup/, pronto pra revisar e commitar.
+# da VPS de produção e grava em data-backup/ (pasta local, fora do git) pro Docker de teste.
 #
 # Uso: .\scripts\backup_de_producao.ps1
 #      .\scripts\backup_de_producao.ps1 --server-url http://127.0.0.1:8000   (testar local primeiro)

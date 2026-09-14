@@ -28,8 +28,10 @@ worker/tmp/
 # pessoal, nunca versionado nem enviado pra VPS; fica só nesta máquina.
 tts-service/vozes/
 
-# Backups
+# Backups (data-backup/ é o backup de produção pra carregar no Docker local --
+# dado, nunca versionado neste repositório)
 backups/
+data-backup/
 
 # Logs do processamento automático de aulas (processar-aulas.bat)
 logs/

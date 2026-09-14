@@ -1,8 +1,8 @@
 """Baixa um backup do banco (sem a tabela `user`) e o mp3 de cada aula da
-VPS de produção, e grava dentro de data-backup/ neste repositório -- pra
-que commit+push já sirva de versionamento de backup (decisão do usuário:
-o conteúdo é "só conhecimento de curso", tudo bem ser público; a tabela
-`user`, que carrega hash de senha, é removida antes de gravar).
+VPS de produção, e grava em data-backup/ -- pasta local, ignorada pelo git,
+de onde o ambiente Docker de teste é carregado. Nunca vai pro repositório:
+aqui fica só o projeto, sem dados (a tabela `user`, que carrega hash de
+senha, é removida antes de gravar).
 
 Login por usuário+senha (não ACCESS_TOKEN -- esse é só a credencial de
 máquina do worker/Atalho iOS, rotas diferentes). Uso:
@@ -93,7 +93,7 @@ def _download_audio(client: httpx.Client, server_url: str) -> None:
     _log(f"áudio total: {total_bytes / 1024 / 1024:.1f} MB")
 
     # Aulas que perderam o mp3 (ex.: reprocessadas, id mudou) não devem
-    # deixar arquivo órfão no repositório.
+    # deixar arquivo órfão no backup.
     valid_names = {f"lesson-{l['id']}.mp3" for l in to_fetch}
     for existing in audio_dir.glob("lesson-*.mp3"):
         if existing.name not in valid_names:
@@ -104,7 +104,7 @@ def _download_audio(client: httpx.Client, server_url: str) -> None:
 def main() -> None:
     load_dotenv(REPO_ROOT / ".env")
 
-    parser = argparse.ArgumentParser(description="Backup da VPS pro repositório")
+    parser = argparse.ArgumentParser(description="Backup da VPS pra data-backup/ local")
     parser.add_argument("--server-url", default=None, help="default: produção")
     args = parser.parse_args()
 
@@ -117,10 +117,7 @@ def main() -> None:
         _strip_user_table(db_path)
         _download_audio(client, server_url)
 
-    _log("pronto. Revise e publique quando quiser:")
-    _log("  git add data-backup")
-    _log('  git commit -m "Atualiza backup de dados"')
-    _log("  git push")
+    _log(f"pronto: {BACKUP_DIR} (fora do git -- só pro Docker local, não commitar)")
 
 
 if __name__ == "__main__":

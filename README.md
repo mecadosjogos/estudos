@@ -82,9 +82,9 @@ Três processos, cada um instalável separado — não é preciso baixar tudo s�
 
 **Narração (TTS local) — mesma máquina com GPU da transcrição.** `tts-service/instalar.ps1` é standalone (API genérica, "texto entra, mp3 sai", não fala com nenhum deploy) — botão **"Instalar narração"** baixa só esse pacote, sem `SERVER_URL`/`ACCESS_TOKEN` nenhum embutido (não tem o que embutir). Instale na mesma máquina que já roda a transcrição: é o worker em modo contínuo (`worker\run_local.ps1`) quem drena a fila de narração sozinho assim que o serviço responde em `127.0.0.1:8100`. Depois de instalado (`tts-service\instalar.bat`), suba com `tts-service\iniciar.bat`.
 
-## Backup versionado no repositório
+## Backup de produção pro Docker local
 
-`scripts/backup_de_producao.ps1` (ou `python scripts/backup_from_vps.py` direto) loga na VPS como admin, baixa um backup fresco do banco — **sem a tabela `user`**, que carrega hash de senha — e o mp3 de cada aula, e grava tudo em `data-backup/` neste repositório. O script **não commita nem dá push sozinho**: só escreve os arquivos e imprime o comando pra você revisar e publicar quando quiser. Credenciais via `BACKUP_ADMIN_USERNAME`/`BACKUP_ADMIN_PASSWORD` no `.env` (ou perguntadas na hora, se ausentes).
+`scripts/backup_de_producao.ps1` (ou `python scripts/backup_from_vps.py` direto) loga na VPS como admin, baixa um backup fresco do banco — **sem a tabela `user`**, que carrega hash de senha — e o mp3 de cada aula, e grava tudo em `data-backup/`, pasta local de onde o ambiente Docker de teste é carregado. **`data-backup/` está no `.gitignore` e nunca vai pro repositório** — aqui fica só o projeto, sem dados. Credenciais via `BACKUP_ADMIN_USERNAME`/`BACKUP_ADMIN_PASSWORD` no `.env` (ou perguntadas na hora, se ausentes).
 
 ## Desenvolvimento local
 
