@@ -11,6 +11,7 @@ faster-whisper
 anthropic
 markdown
 markdownify
+beautifulsoup4
 google-api-python-client
 google-auth
 pypdf
