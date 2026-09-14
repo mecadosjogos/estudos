@@ -141,6 +141,44 @@ def extract_doc_id(url: str) -> str | None:
     return match.group(1) if match else None
 
 
+def fetch_public_doc_html(url: str, timeout: float = 30) -> str:
+    """Exporta como HTML um Google Doc compartilhado "qualquer pessoa com o
+    link" — sem service account, só o endpoint público `/export`. Se o link
+    aponta uma aba (`?tab=t.xxx`), exporta só ela; sem aba, o Google devolve
+    o doc inteiro. Doc privado não dá 200 com HTML (redireciona pro login),
+    e aí levanta erro dizendo pra abrir o compartilhamento."""
+    import re
+    from urllib.error import HTTPError
+    from urllib.parse import quote
+    from urllib.request import Request, urlopen
+
+    doc_id = extract_doc_id(url)
+    if doc_id is None:
+        raise ValueError("link não parece um Google Doc")
+
+    export_url = f"https://docs.google.com/document/d/{doc_id}/export?format=html"
+    tab = re.search(r"[?&#]tab=([a-zA-Z0-9._-]+)", url)
+    if tab:
+        export_url += f"&tab={quote(tab.group(1))}"
+
+    request = Request(export_url, headers={"User-Agent": "Mozilla/5.0 (Estudos)"})
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            final_url = response.geturl()
+            content_type = response.headers.get("Content-Type", "")
+            body = response.read()
+    except HTTPError as exc:
+        if exc.code in (401, 403, 404):
+            raise RuntimeError(
+                "doc não está público — compartilhe como \"qualquer pessoa com o link\" (leitor)"
+            ) from exc
+        raise RuntimeError(f"Google respondeu HTTP {exc.code}") from exc
+
+    if "accounts.google.com" in final_url or "text/html" not in content_type:
+        raise RuntimeError("doc não está público — compartilhe como \"qualquer pessoa com o link\" (leitor)")
+    return body.decode("utf-8", errors="replace")
+
+
 def get_drive_client() -> GoogleDriveClient:
     from .. import config
 

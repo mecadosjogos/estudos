@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from .. import config, db
 from ..auth import require_admin, require_session
 from ..db import get_session
-from ..library.gdocs import build_create_doc_url, extract_doc_id, get_drive_client
+from ..library.gdocs import build_create_doc_url, extract_doc_id, fetch_public_doc_html, get_drive_client
 from ..library.html_to_md import html_to_markdown
 from ..models import (
     Assunto,
@@ -204,8 +204,9 @@ def fetch_material_aula_from_link(
     """Busca o conteúdo de um Google Doc colado e sobrescreve
     `material_aula_texto` -- alternativa a colar o texto direto, útil
     porque copiar/colar na mão perde a indentação de listas aninhadas (o
-    clipboard "texto puro" do navegador não carrega isso; exportar via API
-    e converter com html_to_markdown, sim). Mesmo cliente/conversão do
+    clipboard "texto puro" do navegador não carrega isso; exportar em HTML
+    e converter com html_to_markdown, sim). Usa o export público do doc
+    (link aberto pra leitura), sem API. Mesmo cliente/conversão do
     sync de materiais (library/gdocs.py), sem virar Material/MaterialUse --
     é conteúdo de uma aula só."""
     lesson = session.get(Lesson, lesson_id)
@@ -220,8 +221,17 @@ def fetch_material_aula_from_link(
         )
 
     try:
-        client = get_drive_client()
-        html = client.export_html(doc_id)
+        # Export público primeiro (doc "qualquer pessoa com o link" -- não
+        # precisa de service account e respeita a aba do link); só cai no
+        # cliente do Drive se houver credencial configurada.
+        try:
+            html = fetch_public_doc_html(url)
+        except Exception:
+            from .. import config
+
+            if not config.GOOGLE_SERVICE_ACCOUNT_JSON:
+                raise
+            html = get_drive_client().export_html(doc_id)
         texto = html_to_markdown(html)
     except Exception as exc:
         from urllib.parse import quote
