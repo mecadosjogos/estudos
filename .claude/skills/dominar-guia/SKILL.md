@@ -43,7 +43,16 @@ esperar o usuário copiar/colar nada.
    o schema embutidos nele (os 7 tipos: definicao, cloze, lista_ordenada,
    hierarquia, discriminacao, recordacao_livre, aplicacao_caso — cubra
    vários tipos, distribuídos pelos conceitos centrais do guia, não só o
-   primeiro parágrafo).
+   primeiro parágrafo). Os outros tipos seguem como sempre; a única regra
+   extra é a de definições, abaixo.
+   **Cobertura obrigatória de definições:** antes de escrever o JSON,
+   percorra o guia inteiro e liste toda definição que ele traz ("X é
+   aquele/aquela que...", "chama-se X", "também chamadas de...", "X
+   consiste em..."). Cada uma precisa do seu próprio exercício
+   `definicao` — além (não em vez) dos outros tipos que o mesmo conceito
+   já ganharia. Motivo: o usuário filtra `/praticar` só por "Definição" e
+   espera ver todas as definições do guia ali. Confira a lista contra o
+   JSON e complete o que faltar antes do POST.
 3. Escreva a resposta num arquivo (nunca argumento inline — acento
    corrompe silenciosamente, mesmo bug documentado em `/processar-aula`).
 4. `curl -X POST $SERVER_URL/lessons/{id}/guia/exercicios-colar-resposta`
@@ -75,10 +84,12 @@ já entram direto na fila de prática (`/lessons/{id}/guia/praticar`).
 ## Ao terminar
 
 Devolva um resumo compacto: quantos exercícios de cada tipo foram
-gerados, e o link para a fila de prática (já aceitos, prontos pra
+gerados, quantas definições foram achadas no guia (tem que bater com os
+exercícios de definição — se não bater, diga quais ficaram de fora e
+por quê), e o link para a fila de prática (já aceitos, prontos pra
 praticar). Nunca a transcrição, o guia inteiro ou o JSON completo.
 
 ```
-aula 12 "Posse e propriedade" — ok — 3 definição, 2 cloze, 1 lista, 1 hierarquia, 2 discriminação, 1 recordação livre, 1 aplicação de caso — já aceitos
+aula 12 "Posse e propriedade" — ok — 3 definições no guia → 3 definição, 2 cloze, 1 lista, 1 hierarquia, 2 discriminação, 1 recordação livre, 1 aplicação de caso — já aceitos
 → pratique em /lessons/12/guia/praticar
 ```

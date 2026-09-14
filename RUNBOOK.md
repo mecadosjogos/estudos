@@ -549,6 +549,17 @@ curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/guia/exercicios-colar-
   --data-urlencode "resposta@${WINPATH}"
 ```
 
+**Toda definição do guia vira um exercício `definicao`.** Os outros tipos
+seguem a escolha livre de sempre, mas definição tem cobertura
+obrigatória: cada trecho em que o guia diz o que algo é ("X é aquele
+que...", "chama-se X", "também chamadas de...") ganha o seu exercício
+`definicao`, somado — não em vez — aos outros tipos do mesmo conceito.
+Decisão do usuário: o filtro "Definição" em `/praticar` tem que mostrar
+todas as definições da aula. A regra está no prompt
+(`INSTRUCTIONS` em `ai/guia_exercicios.py`), e o agente confere a lista
+de definições do guia contra o JSON antes do POST. Vale só para guias
+dominados daqui pra frente — os já gerados não são reprocessados.
+
 **Aprovação é automática aqui, ao contrário de cards/anúncios/assuntos.**
 Decisão do usuário: o guia já é material revisado e aceito, não uma
 alegação nova extraída da fala do professor — um exercício sobre ele não

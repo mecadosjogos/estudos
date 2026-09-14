@@ -66,6 +66,19 @@ tipos, não só um:
   ou um caso prático, monte uma pergunta de "qual conceito se aplica
   aqui". `gabarito`: {{"caso": "...", "conceito_correto": "..."}}.
 
+COBERTURA OBRIGATÓRIA DE DEFINIÇÕES: TODA definição presente no guia tem
+que ter o seu próprio exercício **definicao** -- sem exceção, em qualquer
+seção. Conta como definição todo trecho em que o guia diz o que algo é:
+"X é aquele/aquela que...", "X é o/a...", "chama-se X", "o que se chama de
+X", "X, também chamadas de Y", "X consiste em...", "entende-se por X". Isso
+SE SOMA aos outros tipos, não os substitui: o mesmo conceito pode (e
+continua devendo, quando fizer sentido) aparecer também em cloze,
+discriminação, recordação livre etc. -- o que não pode é uma definição do
+guia ficar sem o exercício definicao correspondente, porque o usuário
+filtra só por "Definição" e espera ver todas ali. Antes de devolver,
+percorra o guia de ponta a ponta, liste as definições e confira que cada
+uma tem o seu exercício definicao.
+
 `secao_titulo` deve ser o título da seção do guia de onde o exercício
 veio (use o texto exato do cabeçalho "## ...").
 
