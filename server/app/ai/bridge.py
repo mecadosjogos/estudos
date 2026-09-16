@@ -73,31 +73,61 @@ transcrição trouxe errado ou ambíguo, quando o mesmo ponto aparece escrito
 aqui. Diferente da transcrição, este material NÃO tem timestamp — nunca
 vira bloco de `aula_editada` nem card com start_s/end_s inventado (essas
 duas coisas continuam presas só ao que foi realmente falado). No `guia_md`,
-porém, você pode citá-lo ou incorporá-lo diretamente — até literalmente, se
-for prioritário — sempre prefixado com "**Material da aula:**" pra quem lê
-saber que aquele trecho não foi falado, veio escrito.
+o material é INTEGRADO, não repetido: o professor costuma escrever na
+lousa o resumo do que falou, então copiar o material ao lado da
+explicação só gera ruído. Pra cada trecho do material:
+(3) se já está dito no guia (mesmo que com outras palavras), não repita —
+no máximo aproveite dele a grafia exata de um termo, uma referência legal
+completa ou uma formulação mais precisa, ajustando o texto do guia;
+(4) se ACRESCENTA algo que a fala não trouxe (uma referência legal, um
+requisito, um item de lista, uma observação, um exemplo), extraia só essa
+parte e ponha no lugar do guia onde o assunto é tratado, como conteúdo
+normal — no parágrafo, na lista, na tabela ou no bloco "Lei:"
+correspondente — sem rótulo "Material da aula" e sem bloco próprio;
+(5) não crie parágrafo ou seção só pra reproduzir o material.
 
 DISPOSITIVOS LEGAIS (artigo, inciso, alínea, parágrafo, súmula, lei): numa
 aula de Direito, a lei estudada é o esqueleto da matéria — nunca pode se
 perder em nenhuma saída (guia, blocos, cards, `artigos`). Regras:
 - Todo dispositivo mencionado na fala ou no material da aula aparece, sem
   exceção.
-- Sempre na forma completa e padronizada — artigo, inciso em romano,
-  alínea entre aspas, parágrafo com §, diploma: `art. 7º, I, "a", CP`,
-  `art. 7º, § 2º, CP`, `art. 235 do CP`. O professor costuma falar só o
+- Forma completa e padronizada (padrão do JusBrasil) — artigo, inciso em
+  romano, a palavra "alínea" antes da letra entre aspas, parágrafo com §,
+  diploma: `art. 7º, I, alínea "a", CP`, `art. 7º, § 2º, alínea "b", CP`,
+  `art. 7º, § 3º, CP`, `art. 235 do CP`. O professor costuma falar só o
   pedaço ("a alínea a do inciso I", "o parágrafo 3º"), porque o artigo
   está subentendido pelo assunto da aula: complete a referência com o
   artigo/diploma que a PRÓPRIA aula estabeleceu (dito na fala ou escrito
   no material da aula — ex.: o material diz "art. 7º, I, CP" e o
-  professor fala "alínea a do inciso I" → `art. 7º, I, "a", CP`). Isso é
-  resolver a referência com a fonte, não inventar. Se nem a fala nem o
-  material identificam o artigo, registre só o que foi dito, sem
+  professor fala "alínea a do inciso I" → `art. 7º, I, alínea "a", CP`).
+  Isso é resolver a referência com a fonte, não inventar. Se nem a fala
+  nem o material identificam o artigo, registre só o que foi dito, sem
   completar de memória.
+- SEM REPETIÇÃO VISUAL: a forma completa é pra referência que aparece
+  sozinha (título, bloco "Lei:", menção no meio do texto, campo
+  `artigos`). Quando várias alíneas/incisos/parágrafos do mesmo
+  dispositivo aparecem juntos, escreva o dispositivo-pai UMA vez e os
+  filhos só com a parte que muda — repetir "art. 7º, I, alínea ..., CP"
+  em cada linha é poluição visual:
+  - Lista: o pai como item (ou linha logo acima) e os filhos aninhados
+    dentro dele:
+        - **art. 7º, I, CP**
+            - alínea a) — vida ou liberdade do Presidente da República
+            - alínea b) — patrimônio ou fé pública
+  - Tabela: o dispositivo-pai fica no título/parágrafo logo acima da
+    tabela, a coluna se chama "Alínea" (ou "Inciso", "Parágrafo") e cada
+    linha traz só a letra/número: `a)`, `b)`, `c)`, `d)` (ou `I`, `II`;
+    `§ 2º`, `§ 3º`).
+  - Sub-títulos de alínea dentro de uma seção cujo título já tem o
+    dispositivo-pai (ex.: seção "Art. 7º, I, CP — hipóteses
+    incondicionadas"): os sub-títulos podem ser "Alínea a) — vida ou
+    liberdade do Presidente da República"; o bloco "Lei:" de cada um
+    continua com a forma completa.
 - O texto da lei só entra quando o professor o leu ou o material da aula
   o traz — e aí literalmente, nunca reproduzido do seu conhecimento do
   código.
-- Campo `artigos`: um item por dispositivo, com `texto_citado` já na
-  forma completa acima (`art. 7º, I, "a", CP — crime contra a vida ou a
+- Campo `artigos`: um item por dispositivo, com `texto_citado` sempre na
+  forma completa (`art. 7º, I, alínea "a", CP — crime contra a vida ou a
   liberdade do Presidente da República`), incluindo cada alínea/inciso/
   parágrafo analisado separadamente, não só o artigo "guarda-chuva".
 
@@ -143,13 +173,31 @@ artigo tal") — é fala dele, não pode se perder na reorganização.
 Estrutura do `guia_md`, nesta ordem:
 1. Título da aula (se identificável, senão "Aula sem título identificado").
 2. "## Árvore de conhecimento" — lista aninhada em Markdown (marcadores
-   "-", indentada por nível) só com a hierarquia de classificações que o
-   professor efetivamente construiu na fala (ex.: "a lei penal se divide
-   em incriminadora ou não incriminadora; a não incriminadora se divide em
-   explicativa ou permissiva" vira três níveis aninhados). Nunca complete
-   com uma classificação "padrão" da doutrina que não foi mencionada nesta
-   aula — um ramo não subdividido pelo professor fica como folha. Uma ou
-   duas palavras por nó, não frases.
+   "-", 4 espaços por nível): o MAPA do guia. Olhar só pra ela tem que dar
+   a mesma ideia clara da matéria que o corpo dá — mesma organização,
+   mesma ordem, mesmos nomes. Escreva o corpo primeiro (mentalmente) e
+   derive a árvore dele, não o contrário:
+   - A hierarquia é a do conteúdo do corpo: cada "##" de matéria e os
+     sub-títulos que são tema/espécie/hipótese/dispositivo viram nós, no
+     mesmo nível relativo e na mesma ordem. Ficam de fora os sub-títulos
+     que não são estrutura da matéria — exemplos, perguntas de aluno,
+     digressões, "encerramento", revisões de passagem.
+   - Nó autoexplicativo: "nome — complemento curto", sem markdown (nada de
+     **, aspas só as da alínea). Nó de dispositivo leva a referência
+     E o assunto dela, como no título do corpo — nunca "Alínea a" ou
+     "Inciso II" sem assunto. Como na regra "SEM REPETIÇÃO VISUAL", o
+     dispositivo-pai vai completo uma vez e os filhos só com a parte que
+     muda. Ex.: `Incondicionadas — art. 7º, I, CP` com filhos
+     `alínea a) — vida ou liberdade do Presidente (defesa)`.
+     Quando o professor liga o item a uma espécie de outra classificação da
+     aula (o princípio que rege a hipótese, a condição que se aplica),
+     ponha entre parênteses no fim do nó. Até umas doze palavras por nó.
+   - Ramo que o professor dividiu vira nós aninhados; ramo que ele não
+     dividiu fica folha. Nunca complete com uma classificação "padrão" da
+     doutrina que não foi mencionada nesta aula (ex.: "a lei penal se
+     divide em incriminadora ou não incriminadora; a não incriminadora se
+     divide em explicativa ou permissiva" vira três níveis aninhados; se
+     ele não dividiu, não divida).
 3. "## Sumário dos tópicos abordados" — lista dos tópicos.
 4. Corpo organizado por seções ("## <título da seção>").
 
@@ -177,10 +225,10 @@ Estrutura do `guia_md`, nesta ordem:
    ÁRVORE DE CONHECIMENTO (e pro conteúdo): não apresente como divisão
    feita pelo professor algo que ele não dividiu — mas isso não limita o
    uso de títulos pra organizar a leitura.
-   A árvore de conhecimento orienta a divisão (um nó dela costuma ser um
-   bom título de seção ou sub-título), mas não é sumário a reproduzir
-   campo a campo: pode haver títulos pra transições, exemplos e
-   observações, e conteúdo que a árvore não cobre.
+   Corpo e árvore de conhecimento andam juntos: os títulos de matéria do
+   corpo e os nós da árvore têm os mesmos nomes, na mesma ordem e na
+   mesma hierarquia; o corpo só acrescenta títulos que não entram na
+   árvore (exemplos, perguntas de aluno, transições, digressões).
    Só o "##" de seção é numerado pelo código — os sub-títulos dentro do
    corpo, em qualquer nível, ficam como você escrever, sem numeração.
 
@@ -200,15 +248,49 @@ Estrutura do `guia_md`, nesta ordem:
      nacionalidade" com "Nacionalidade ativa"/"Nacionalidade passiva"
      recuados dentro dele, e "Princípio da competência universal" de volta
      no nível de fora.
-   - Tabela Markdown quando o professor compara/contrapõe coisas por
-     critérios (condicionada × incondicionada, espécie × princípio adotado,
-     hipótese × exemplo) — cada célula com as palavras dele.
+   - Tabela Markdown só quando ela deixa a comparação mais rápida de
+     entender do que uma lista — cada célula com as palavras do professor.
+     Os dois formatos que funcionam:
+     (i) ENUMERAÇÃO com os mesmos atributos por item: cada linha é um item
+         que o professor percorreu (as alíneas de um inciso, as partes de
+         uma alínea, as variações de um exemplo) e cada coluna é um
+         atributo que ele deu pra TODOS eles (hipótese, princípio que
+         rege; "o país X pode julgar?", "o Brasil pode julgar?");
+     (ii) CONTRASTE ponto a ponto: duas ou três coisas que o professor
+         contrapôs em vários pontos concretos (direito penal × processo
+         penal; o que acontece na incondicionada × na condicionada quando
+         o agente foi absolvido / condenado / cumpriu a pena).
+     Antes de manter uma tabela, teste LINHA POR LINHA (e coluna por
+     coluna); se falhar, tire a linha — e se sobrarem só uma ou duas
+     linhas, troque a tabela por lista ou frase:
+     - A linha DIFERENCIA os itens? Se o valor é igual em todas as colunas
+       (ex.: "onde ocorreu o crime: fora do território" nas duas
+       espécies), é característica comum — vai numa frase antes da
+       tabela, ou sai se o texto já disse.
+     - A linha se aplica a TODOS os itens? Se só um lado tem conteúdo e o
+       outro fica "—" porque o critério não existe pra ele (ex.:
+       "condições aplicáveis" numa comparação incondicionada ×
+       condicionada), não é critério de comparação — vai como texto/lista
+       dentro do item a que pertence. (Célula vazia só vale quando o
+       próprio professor deixou aquele ponto sem resposta pra um dos
+       lados.)
+     - A linha diz algo que outra linha, o título ou o parágrafo logo
+       acima já disse? Duas linhas quase iguais ("condições" e "condições
+       aplicáveis") ou uma linha que só repete o título são ruído — junte
+       ou tire.
+     - A coluna/linha foi um critério que o professor usou, ou você criou
+       pra preencher a grade? Não invente eixo de comparação.
+     Contraste simples entre duas coisas numa única diferença
+     ("incondicionada: o Brasil não se submete a nenhuma condição;
+     condicionada: se submete a algumas") fica melhor como lista de dois
+     itens do que como tabela.
    - LEI EM DESTAQUE (ver "DISPOSITIVOS LEGAIS" acima): o dispositivo
      estudado ancora a organização. Quando uma seção ou sub-título trata
      de um dispositivo, a referência completa vai NO TÍTULO (ex.: "###
-     Art. 7º, I, "a", CP — vida ou liberdade do Presidente da
-     República"). Cada dispositivo recebe um bloco "Lei:" (rótulo abaixo)
-     com a referência completa em negrito e, se o professor leu ou o
+     Art. 7º, I, alínea "a", CP — vida ou liberdade do Presidente da
+     República"; ou "### Alínea a) — ..." quando o título da seção acima
+     já traz "Art. 7º, I, CP"). Cada dispositivo recebe um bloco "Lei:"
+     (rótulo abaixo) com a referência completa em negrito e, se o professor leu ou o
      material traz o texto, esse texto entre aspas; em seguida vem a
      explicação do professor sobre ele. Toda menção a dispositivo no meio
      do texto fica em negrito e na forma completa.
@@ -218,8 +300,8 @@ Estrutura do `guia_md`, nesta ordem:
      marcar um bloco como `destaque-prova` — não redetecte isso do zero,
      reaproveite a mesma leitura pra manter o guia consistente com a aula
      editada sobre o que é central.
-   - Rótulos visuais (abaixo) pra separar definição, exemplo, atenção,
-     pergunta de aluno e material da aula da explicação corrida.
+   - Rótulos visuais (abaixo) pra separar lei, definição, exemplo,
+     atenção e pergunta de aluno da explicação corrida.
 
    RÓTULOS VISUAIS: o app desenha cada parágrafo que COMEÇA com um destes
    rótulos como um bloco colorido próprio (a explicação corrida, sem
@@ -233,7 +315,7 @@ Estrutura do `guia_md`, nesta ordem:
      Exceção: numa lista de itens paralelos em que cada item é "termo — o
      que ele é" (espécies de uma classificação), mantenha a lista com
      "**termo** — definição"; a lista já mostra a estrutura.
-   - "Lei:" — o dispositivo legal em análise: `Lei: **art. 7º, I, "a",
+   - "Lei:" — o dispositivo legal em análise: `Lei: **art. 7º, I, alínea "a",
      CP** — "contra a vida ou a liberdade do Presidente da República"`
      (texto só se foi lido em aula ou está no material; senão, só a
      referência e o assunto dela nas palavras do professor/material).
@@ -242,8 +324,8 @@ Estrutura do `guia_md`, nesta ordem:
      (mesmo critério do tipo de bloco `atencao`).
    - "Pergunta de aluno:" — pergunta de aluno e a resposta do professor
      (ver regra geral acima).
-   - "Material da aula:" — trecho do material da lousa, como já descrito.
-   O rótulo vai no início do parágrafo, fora de lista, com o parágrafo
+   Não existe rótulo "Material da aula:" — o material entra integrado ao
+   texto (ver "MATERIAL DADO EM AULA" acima). O rótulo vai no início do parágrafo, fora de lista, com o parágrafo
    separado dos vizinhos por linha em branco — é assim que o app
    reconhece o bloco. Se o exemplo/definição continua numa lista, termine
    o parágrafo com ":" e ponha a lista logo abaixo: ela entra no mesmo
@@ -262,9 +344,16 @@ Estrutura do `guia_md`, nesta ordem:
    nível que corresponde ao lugar dele na classificação? (c) toda
    definição, exemplo, pegadinha e pergunta de aluno está com o seu
    rótulo? (d) tem comparação ou enumeração escondida em prosa que ficaria
-   mais clara como lista ou tabela? (e) todo artigo/inciso/alínea/
-   parágrafo da fala e do material está no guia, na forma completa, com
-   bloco "Lei:" e no título da parte que trata dele?
+   mais clara como lista ou tabela? E o contrário: cada tabela passa no
+   teste linha por linha (diferencia, se aplica a todos, não repete, é
+   critério do professor)? (e) todo artigo/inciso/alínea/
+   parágrafo da fala e do material está no guia, com bloco "Lei:" e no
+   título da parte que trata dele — forma completa quando aparece sozinho,
+   e sem repetir o dispositivo-pai em cada linha de lista/tabela? (f) algum trecho só
+   repete o material da aula ao lado do que o guia já explica? apague; o
+   que o material acrescenta está integrado no lugar certo? (g) a árvore
+   de conhecimento tem a mesma organização, ordem e nomes dos títulos de
+   matéria do corpo, com os dispositivos e o assunto de cada um?
    Última seção do corpo, sempre que a aula citar algum dispositivo:
    "## Dispositivos legais da aula" — lista de todos eles na forma
    completa, agrupados por artigo (incisos/alíneas/parágrafos aninhados

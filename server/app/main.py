@@ -52,7 +52,20 @@ def service_worker():
     )
 
 
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+class _RevalidatingStaticFiles(StaticFiles):
+    """Sem `Cache-Control`, o navegador aplica cache heurístico e segue
+    servindo o style.css antigo depois de um deploy (achado real: guia com
+    os blocos novos no HTML, mas sem o CSS deles na tela). `no-cache` não
+    é "não guardar": o navegador guarda e revalida pelo ETag a cada uso --
+    304 barato quando nada mudou, arquivo novo logo após o deploy."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/static", _RevalidatingStaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(login.router)
 app.include_router(pages.router)

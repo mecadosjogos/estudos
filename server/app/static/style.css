@@ -683,6 +683,14 @@ textarea {
 	margin-bottom: var(--space-1);
 }
 
+.guia-arvore-complemento {
+	color: var(--text-muted);
+}
+
+.guia-arvore strong {
+	font-weight: 600;
+}
+
 .guia-no-sem-assunto {
 	text-decoration: underline dotted;
 	text-decoration-color: var(--danger);

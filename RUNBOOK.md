@@ -245,9 +245,9 @@ marca onde começa/termina dentro da aula (simplificação deliberada da fase
 JSON — um markdown corrido só (título / árvore de conhecimento / sumário /
 corpo por seções / trechos incompletos, nesta ordem — ver ai/bridge.py),
 com o corpo formatado pra leitura: sub-títulos à vontade, listas aninhadas,
-tabelas, dispositivos legais na forma completa (`art. 7º, I, "a", CP`) e
+tabelas, dispositivos legais na forma completa (`art. 7º, I, alínea "a", CP`, sem repetir o dispositivo-pai em listas e tabelas) e
 parágrafos rotulados "Lei:", "Definição:", "Exemplo:", "Atenção:",
-"Pergunta de aluno:", "Material da aula:" — que `app/markdown_render.py`
+"Pergunta de aluno:" — que `app/markdown_render.py`
 desenha como blocos coloridos (e que também normaliza sublista com 2
 espaços, que o Python-Markdown achataria),
 não é mais um passo separado. Um parser em código (`ai/guia_parser.py`,

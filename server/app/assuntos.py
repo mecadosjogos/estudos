@@ -45,6 +45,16 @@ def similar_slugs(slug: str, outros: list[str], *, threshold: float = 0.6, limit
     return [outro for _, outro in scored[:limit]]
 
 
+def _partes_do_rotulo(rotulo: str) -> list[str]:
+    """Nó da árvore vem como "nome — complemento (espécie)", ex.
+    'art. 7º, I, "a", CP — vida ou liberdade do Presidente (defesa)': casa
+    com um Assunto pelo rótulo inteiro ou por qualquer um desses pedaços."""
+    sem_parenteses = re.sub(r"\s*\([^)]*\)", "", rotulo)
+    partes = [rotulo, sem_parenteses, *re.findall(r"\(([^)]*)\)", rotulo)]
+    partes += re.split(r"\s+[—–-]\s+", sem_parenteses)
+    return [p.strip() for p in partes if p.strip()]
+
+
 def annotate_arvore_checklist(nodes: list[dict], accepted_slugs: set[str]) -> list[dict]:
     """Marca folhas da árvore de conhecimento do guia sem Assunto aceito
     correspondente (checklist leve). Só folhas: nós intermediários são
@@ -58,7 +68,9 @@ def annotate_arvore_checklist(nodes: list[dict], accepted_slugs: set[str]) -> li
     for node in nodes:
         filhos = annotate_arvore_checklist(node.get("filhos", []), accepted_slugs)
         is_leaf = not filhos
-        sem_assunto = is_leaf and normalize_slug(node["rotulo"]) not in accepted_slugs
+        sem_assunto = is_leaf and not any(
+            normalize_slug(parte) in accepted_slugs for parte in _partes_do_rotulo(node["rotulo"])
+        )
         annotated.append({"rotulo": node["rotulo"], "filhos": filhos, "sem_assunto": sem_assunto})
     return annotated
 

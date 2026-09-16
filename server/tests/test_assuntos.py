@@ -102,3 +102,15 @@ def test_merge_assuntos_migrates_links_and_coberturas_without_orphans(app_env):
             select(AssuntoCobertura).where(AssuntoCobertura.assunto_id == capacidade.id)
         ).all()
         assert len(coberturas) == 1  # a duplicada (mesma matéria) foi descartada, não duplicada
+
+
+def test_checklist_da_arvore_casa_pedaco_do_rotulo_nome_complemento():
+    from app.assuntos import annotate_arvore_checklist
+
+    nos = [
+        {"rotulo": "Detração — desconto da pena cumprida no exterior", "filhos": []},
+        {"rotulo": 'art. 7º, I, "a", CP — vida do Presidente (princípio da defesa)', "filhos": []},
+        {"rotulo": "Genocídio — art. 7º, I, \"d\", CP", "filhos": []},
+    ]
+    out = annotate_arvore_checklist(nos, {"detracao", "principio-da-defesa"})
+    assert [n["sem_assunto"] for n in out] == [False, False, True]

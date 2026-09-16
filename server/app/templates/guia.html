@@ -1,6 +1,7 @@
 {% macro render_arvore_no(no) %}
 <li class="{{ 'guia-no-sem-assunto' if no.sem_assunto else '' }}">
-	{{ no.rotulo }}
+	{% set nome, _, complemento = no.rotulo.partition(' — ') %}
+	<strong>{{ nome }}</strong>{% if complemento %} <span class="guia-arvore-complemento">— {{ complemento }}</span>{% endif %}
 	{% if no.filhos %}<ul>{% for filho in no.filhos %}{{ render_arvore_no(filho) }}{% endfor %}</ul>{% endif %}
 </li>
 {% endmacro %}
