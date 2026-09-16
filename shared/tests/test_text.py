@@ -50,3 +50,8 @@ def test_does_not_touch_plain_prose_with_parentheses_and_periods():
 def test_blank_line_becomes_sentence_pause_not_missing_space():
     texto = markdown_para_narracao("primeira frase\n\nsegunda frase")
     assert texto == "primeira frase. segunda frase"
+
+
+def test_table_reads_cells_without_pipes_or_separator():
+    texto = markdown_para_narracao("| Espécie | Princípio |\n|---|:---:|\n| **Alínea a** | Defesa |")
+    assert texto == "Espécie, Princípio. Alínea a, Defesa"

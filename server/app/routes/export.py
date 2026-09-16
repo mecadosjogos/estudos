@@ -4,7 +4,7 @@ bibliografia ABNT da matéria, e o corpus inteiro em .zip de Markdown --
 
 import html as html_lib
 
-import markdown as markdown_lib
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import select
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_session
 from ..db import get_session
 from ..export.bibliografia import build_bibliografia_txt
+from ..markdown_render import render_markdown
 from ..export.corpus import build_corpus_zip
 from ..export.lesson_export import build_edited_lesson_html
 from ..export.pdf import add_header_footer, render_html_to_pdf
@@ -75,7 +76,7 @@ def download_guia_pdf(lesson_id: int, session: Session = Depends(get_session)):
     # Taxonomia depois do guia, não antes: quem abre o PDF quer começar a
     # ler a aula, e abrir com uma árvore de doutrina geral empurra o texto
     # pra segunda página.
-    partes = [markdown_lib.markdown(lesson.guia_md, extensions=["extra"])]
+    partes = [render_markdown(lesson.guia_md)]
     if lesson.mapa_mermaid:
         arvore = build_taxonomy_tree(session, [lesson.mapa_mermaid])
         partes.append(f"<hr><h2>Mapa de taxonomia (doutrina geral)</h2>{_taxonomy_html(arvore)}")

@@ -70,7 +70,10 @@ COBERTURA OBRIGATÓRIA DE DEFINIÇÕES: TODA definição presente no guia tem
 que ter o seu próprio exercício **definicao** -- sem exceção, em qualquer
 seção. Conta como definição todo trecho em que o guia diz o que algo é:
 "X é aquele/aquela que...", "X é o/a...", "chama-se X", "o que se chama de
-X", "X, também chamadas de Y", "X consiste em...", "entende-se por X". Isso
+X", "X, também chamadas de Y", "X consiste em...", "entende-se por X" --
+e, sempre, todo parágrafo que começa com o rótulo "Definição:" (o guia
+marca assim as definições, mas nem toda definição está rotulada: itens de
+lista "**termo** — o que ele é" também contam). Isso
 SE SOMA aos outros tipos, não os substitui: o mesmo conceito pode (e
 continua devendo, quando fizer sentido) aparecer também em cloze,
 discriminação, recordação livre etc. -- o que não pode é uma definição do

@@ -16,6 +16,7 @@ from ..auth import require_admin, require_session
 from ..db import get_session
 from ..library.gdocs import build_create_doc_url, extract_doc_id, fetch_public_doc_html, get_drive_client
 from ..library.html_to_md import html_to_markdown
+from ..markdown_render import render_markdown
 from ..models import (
     Assunto,
     AudioSegment,
@@ -479,7 +480,6 @@ def download_transcript_txt(lesson_id: int, session: Session = Depends(get_sessi
 
 @router.get("/{lesson_id}/guia")
 def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_session)):
-    import markdown as markdown_lib
 
     from ..assuntos import annotate_arvore_checklist, normalize_slug
 
@@ -496,7 +496,7 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
     # guia_md como sempre foi -- nenhuma aula precisa de conversão, ela só
     # "sobe" de versão quando reprocessada de verdade.
     if not secoes:
-        guia_html = markdown_lib.markdown(lesson.guia_md, extensions=["extra"])
+        guia_html = render_markdown(lesson.guia_md)
         return templates.TemplateResponse(
             request,
             "guia_legado.html",
@@ -546,7 +546,7 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "numero": i,
             "titulo": s.titulo,
             "corpo": s.corpo,
-            "html": markdown_lib.markdown(s.corpo, extensions=["extra"]),
+            "html": render_markdown(s.corpo),
             "audio_start_s": s.audio_start_s,
             "audio_end_s": s.audio_end_s,
         }
@@ -739,9 +739,8 @@ def edit_guia_secao(
     _rebuild_guia_md(session, lesson)
     session.commit()
 
-    import markdown as markdown_lib
 
-    return {"ok": True, "html": markdown_lib.markdown(secao.corpo, extensions=["extra"])}
+    return {"ok": True, "html": render_markdown(secao.corpo)}
 
 
 @router.get("/{lesson_id}/mapa")

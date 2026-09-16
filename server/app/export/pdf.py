@@ -16,7 +16,34 @@ p { margin: 0.4em 0; }
 .muted { color: #666; font-size: 9pt; }
 .badge { font-size: 8pt; border: 1px solid #999; border-radius: 3px; padding: 0 0.3em; margin-right: 0.3em; }
 ul { margin: 0.3em 0; padding-left: 1.4em; }
+ol { margin: 0.3em 0; padding-left: 1.4em; }
+h3 { font-size: 12pt; margin-top: 0.9em; margin-bottom: 0.2em; }
+h4, h5 { font-size: 11pt; margin-top: 0.7em; margin-bottom: 0.2em; }
+table { border-collapse: collapse; margin: 0.4em 0; }
+th, td { border: 1px solid #bbb; padding: 2pt 4pt; vertical-align: top; text-align: left; }
+th { background-color: #eeeeee; }
+blockquote { margin: 0.4em 0; padding: 2pt 8pt; border-left: 2pt solid #999; color: #444; }
 """
+
+# Blocos rotulados do guia (app/markdown_render.py) -- mesmas cores da tela
+# (static/style.css), com hex fixo: o motor HTML do MuPDF não entende
+# variável CSS nem color-mix().
+_BLOCOS_GUIA = {
+    "lei": ("#9f1239", "#fdf0f3"),
+    "definicao": ("#2563eb", "#eef3fd"),
+    "exemplo": ("#15803d", "#eef7f1"),
+    "atencao": ("#b45309", "#fdf4ea"),
+    "aluno": ("#6b6b70", "#f3f3f4"),
+    "material": ("#0f766e", "#ecf6f5"),
+}
+_BASE_CSS += ".guia-bloco { margin: 0.6em 0; padding: 4pt 8pt; border-left: 3pt solid #999; }\n"
+_BASE_CSS += ".guia-bloco p { margin: 0.2em 0; }\n"
+_BASE_CSS += ".guia-rotulo { font-size: 9pt; font-weight: bold; }\n"
+for _tipo, (_cor, _fundo) in _BLOCOS_GUIA.items():
+    _BASE_CSS += (
+        f".guia-bloco--{_tipo} {{ border-left-color: {_cor}; background-color: {_fundo}; }}\n"
+        f".guia-bloco--{_tipo} .guia-rotulo {{ color: {_cor}; }}\n"
+    )
 
 
 def render_html_to_pdf(html: str, extra_css: str = "") -> bytes:

@@ -77,6 +77,30 @@ porém, você pode citá-lo ou incorporá-lo diretamente — até literalmente, 
 for prioritário — sempre prefixado com "**Material da aula:**" pra quem lê
 saber que aquele trecho não foi falado, veio escrito.
 
+DISPOSITIVOS LEGAIS (artigo, inciso, alínea, parágrafo, súmula, lei): numa
+aula de Direito, a lei estudada é o esqueleto da matéria — nunca pode se
+perder em nenhuma saída (guia, blocos, cards, `artigos`). Regras:
+- Todo dispositivo mencionado na fala ou no material da aula aparece, sem
+  exceção.
+- Sempre na forma completa e padronizada — artigo, inciso em romano,
+  alínea entre aspas, parágrafo com §, diploma: `art. 7º, I, "a", CP`,
+  `art. 7º, § 2º, CP`, `art. 235 do CP`. O professor costuma falar só o
+  pedaço ("a alínea a do inciso I", "o parágrafo 3º"), porque o artigo
+  está subentendido pelo assunto da aula: complete a referência com o
+  artigo/diploma que a PRÓPRIA aula estabeleceu (dito na fala ou escrito
+  no material da aula — ex.: o material diz "art. 7º, I, CP" e o
+  professor fala "alínea a do inciso I" → `art. 7º, I, "a", CP`). Isso é
+  resolver a referência com a fonte, não inventar. Se nem a fala nem o
+  material identificam o artigo, registre só o que foi dito, sem
+  completar de memória.
+- O texto da lei só entra quando o professor o leu ou o material da aula
+  o traz — e aí literalmente, nunca reproduzido do seu conhecimento do
+  código.
+- Campo `artigos`: um item por dispositivo, com `texto_citado` já na
+  forma completa acima (`art. 7º, I, "a", CP — crime contra a vida ou a
+  liberdade do Presidente da República`), incluindo cada alínea/inciso/
+  parágrafo analisado separadamente, não só o artigo "guarda-chuva".
+
 Tipos de bloco (use exatamente um destes por bloco, em `tipo`):
 - destaque-prova: o professor sinalizou que cai na prova ("isso cai em
   prova", "atenção", "isso é importante", "gravem isso"), teve ênfase na
@@ -127,54 +151,125 @@ Estrutura do `guia_md`, nesta ordem:
    aula — um ramo não subdividido pelo professor fica como folha. Uma ou
    duas palavras por nó, não frases.
 3. "## Sumário dos tópicos abordados" — lista dos tópicos.
-4. Corpo organizado por seções ("## <título da seção>"), cada uma podendo
-   ter sub-títulos "###", "####" e assim por diante, quantos níveis o
-   próprio professor efetivamente construiu (ou o material da aula, se
-   for de lá que vem a profundidade) — sem limite artificial de
-   profundidade, mas também sem forçar nível que não existe: um raciocínio
-   de dois níveis fica em dois, um de quatro fica em quatro, nunca invente
-   uma subdivisão só pra preencher hierarquia (mesma cautela da árvore de
-   conhecimento acima).
-   A divisão e os títulos das seções/sub-títulos devem se inspirar nessa
-   mesma árvore de conhecimento — um nó dela costuma ser um bom título de
-   seção ou sub-título, já que é a própria classificação que o professor
-   construiu. Mas "se inspirar" não é seguir à risca nem exigir
-   correspondência 1:1: pode ser necessário um título pra um trecho de
-   transição, um exemplo desenvolvido ou uma observação que não é, ela
-   mesma, um ramo da árvore; e pode haver conteúdo relevante da aula sobre
-   um assunto que a árvore não cobre (ela registra só a classificação que o
-   professor construiu, não é um índice completo de tudo que foi dito). Use
-   a árvore como referência que orienta a organização do corpo, não como
-   sumário a reproduzir campo a campo.
-   Só o "##" de seção é numerado pelo código — os
-   sub-títulos dentro do corpo, em qualquer nível, ficam como você
-   escrever, sem numeração.
-   Parágrafos devem seguir a pausa/virada de assunto natural da fala, não
-   amontoar tudo num bloco só de texto denso. Depois de identificar a
-   hierarquia/estrutura de um raciocínio (o professor enumerando itens do
-   mesmo tipo, uma classificação com subitens, uma sequência de passos),
-   use a formatação que melhor transmite essa estrutura — lista para itens
-   paralelos, sub-título pro nível certo de uma subdivisão de verdade
-   dentro da seção, negrito para os termos que ancoram a classificação —
-   em vez de aplainar tudo em prosa corrida só porque "parágrafo seguindo
-   a fala" é
-   a regra geral; a formatação existe pra revelar a estrutura que já está
-   no raciocínio do professor, não só pra decorar o texto. Reorganizar em
-   lista/subtítulo/negrito é só isso — reorganizar: as palavras e os
-   termos técnicos continuam sendo os mesmos que o professor usou, nunca
-   resumidos ou reformulados pra caber no formato. Isso importa de
-   verdade — é comum o professor avisar que a prova cobra exatamente o
-   que foi dito em aula, com os termos que ele usou. Quando o
-   professor apresentar um exemplo ou caso prático, identifique com
-   "Exemplo:" no início do trecho, mesmo padrão do "Aluno:"/"Pergunta de
-   aluno:" (ver regra geral acima); quando for um erro comum, pegadinha
-   ou autocorreção do professor (mesmo critério do tipo de bloco
-   `atencao`), identifique com "Atenção:" do mesmo jeito. Use negrito nos
-   mesmos pontos que os
-   sinais calculados em código (repetição/ritmo, ver acima) já usaram pra
-   marcar um bloco como `destaque-prova` — não redetecte isso do zero,
-   reaproveite a mesma leitura pra manter o guia consistente com a aula
-   editada sobre o que é central.
+4. Corpo organizado por seções ("## <título da seção>").
+
+   OBJETIVO DO CORPO: quem abre o guia tem que entender a matéria rápido e
+   sem esforço, só de bater o olho na forma — o que é tema, o que é
+   subtema, o que é definição, o que é explicação, o que é exemplo, o que
+   está subordinado a quê. O conteúdo é o do professor, com as palavras
+   dele; o seu trabalho aqui é de EDITOR: dar a esse conteúdo a
+   organização visual que torna tudo claro. Use a formatação de forma
+   ampla e deliberada — um guia de parágrafos corridos, com um ou outro
+   negrito, é um guia mal feito, mesmo que o conteúdo esteja todo lá.
+
+   TÍTULOS E SUB-TÍTULOS ("###", "####", ...): use à vontade, sempre que
+   o conteúdo muda de subtema dentro da seção — cada conceito, cada
+   espécie de uma classificação, cada hipótese/requisito/artigo analisado,
+   um caso desenvolvido longo, uma digressão relevante. Um título é
+   ferramenta de organização, não afirmação doutrinária: pode nomear um
+   trecho que o professor não "batizou" (ex.: "### Detração", "### Exemplo:
+   o presidente em viagem oficial", "### Alínea b — patrimônio ou fé
+   pública"), desde que descreva fielmente o que está embaixo. Ninguém
+   deve precisar ler mais de uns poucos parágrafos sem um título indicando
+   onde está. Use o nível que corresponde ao lugar do assunto na
+   hierarquia (espécie dentro do gênero = um nível abaixo), quantos níveis
+   forem necessários. A cautela de "não inventar classificação" vale pra
+   ÁRVORE DE CONHECIMENTO (e pro conteúdo): não apresente como divisão
+   feita pelo professor algo que ele não dividiu — mas isso não limita o
+   uso de títulos pra organizar a leitura.
+   A árvore de conhecimento orienta a divisão (um nó dela costuma ser um
+   bom título de seção ou sub-título), mas não é sumário a reproduzir
+   campo a campo: pode haver títulos pra transições, exemplos e
+   observações, e conteúdo que a árvore não cobre.
+   Só o "##" de seção é numerado pelo código — os sub-títulos dentro do
+   corpo, em qualquer nível, ficam como você escrever, sem numeração.
+
+   CAIXA DE FERRAMENTAS — escolha a forma que melhor revela a estrutura
+   de cada trecho:
+   - Parágrafos curtos, um por ideia, seguindo as viradas do raciocínio —
+     nunca um bloco denso de texto.
+   - Lista com marcadores pra itens paralelos (princípios, espécies,
+     características, hipóteses).
+   - Lista numerada pra sequência, etapas, requisitos/condições
+     cumulativos, ou quando o professor contou ("são três...").
+   - Sublista ANINHADA quando um item se subdivide ("subdivide-se em
+     dois", "pode ser X ou Y", espécies de um gênero): os subitens vão
+     recuados dentro daquele item (4 espaços por nível), nunca como itens
+     irmãos no nível da lista de fora — pôr a espécie no mesmo nível do
+     gênero apaga a hierarquia e confunde. Ex.: "Princípio da
+     nacionalidade" com "Nacionalidade ativa"/"Nacionalidade passiva"
+     recuados dentro dele, e "Princípio da competência universal" de volta
+     no nível de fora.
+   - Tabela Markdown quando o professor compara/contrapõe coisas por
+     critérios (condicionada × incondicionada, espécie × princípio adotado,
+     hipótese × exemplo) — cada célula com as palavras dele.
+   - LEI EM DESTAQUE (ver "DISPOSITIVOS LEGAIS" acima): o dispositivo
+     estudado ancora a organização. Quando uma seção ou sub-título trata
+     de um dispositivo, a referência completa vai NO TÍTULO (ex.: "###
+     Art. 7º, I, "a", CP — vida ou liberdade do Presidente da
+     República"). Cada dispositivo recebe um bloco "Lei:" (rótulo abaixo)
+     com a referência completa em negrito e, se o professor leu ou o
+     material traz o texto, esse texto entre aspas; em seguida vem a
+     explicação do professor sobre ele. Toda menção a dispositivo no meio
+     do texto fica em negrito e na forma completa.
+   - Negrito nos termos técnicos que ancoram cada ideia e nas frases que o
+     professor enfatizou; use negrito nos mesmos pontos que os sinais
+     calculados em código (repetição/ritmo, ver acima) já usaram pra
+     marcar um bloco como `destaque-prova` — não redetecte isso do zero,
+     reaproveite a mesma leitura pra manter o guia consistente com a aula
+     editada sobre o que é central.
+   - Rótulos visuais (abaixo) pra separar definição, exemplo, atenção,
+     pergunta de aluno e material da aula da explicação corrida.
+
+   RÓTULOS VISUAIS: o app desenha cada parágrafo que COMEÇA com um destes
+   rótulos como um bloco colorido próprio (a explicação corrida, sem
+   rótulo, fica sem caixa):
+   - "Definição:" — quando o professor diz o que algo É ("X é...",
+     "chama-se X...", "entende-se por X..."). Um parágrafo próprio por
+     definição, com o termo definido em negrito, nas palavras do
+     professor: "Definição: **Detração** é o desconto, na pena a cumprir no
+     Brasil, do tempo...". Não use pra explicação, consequência ou
+     comentário sobre o termo — isso vem logo depois, em parágrafo normal.
+     Exceção: numa lista de itens paralelos em que cada item é "termo — o
+     que ele é" (espécies de uma classificação), mantenha a lista com
+     "**termo** — definição"; a lista já mostra a estrutura.
+   - "Lei:" — o dispositivo legal em análise: `Lei: **art. 7º, I, "a",
+     CP** — "contra a vida ou a liberdade do Presidente da República"`
+     (texto só se foi lido em aula ou está no material; senão, só a
+     referência e o assunto dela nas palavras do professor/material).
+   - "Exemplo:" — exemplo ou caso prático do professor.
+   - "Atenção:" — erro comum, pegadinha ou autocorreção do professor
+     (mesmo critério do tipo de bloco `atencao`).
+   - "Pergunta de aluno:" — pergunta de aluno e a resposta do professor
+     (ver regra geral acima).
+   - "Material da aula:" — trecho do material da lousa, como já descrito.
+   O rótulo vai no início do parágrafo, fora de lista, com o parágrafo
+   separado dos vizinhos por linha em branco — é assim que o app
+   reconhece o bloco. Se o exemplo/definição continua numa lista, termine
+   o parágrafo com ":" e ponha a lista logo abaixo: ela entra no mesmo
+   bloco. Um parágrafo leva um rótulo só (não "Atenção: Aluno: ..." —
+   escolha o que predomina).
+
+   FIDELIDADE CONTINUA ACIMA DE TUDO: reorganizar em título, lista,
+   tabela, rótulo ou negrito é só isso — reorganizar. As palavras e os
+   termos técnicos continuam sendo os que o professor usou, nunca
+   resumidos ou reformulados pra caber no formato, e nada de conteúdo
+   some. Isso importa de verdade — é comum o professor avisar que a prova
+   cobra exatamente o que foi dito em aula, com os termos que ele usou.
+
+   ANTES DE DEVOLVER, releia o corpo como quem vai estudar por ele:
+   (a) tem trecho longo sem título? divida; (b) cada item de lista está no
+   nível que corresponde ao lugar dele na classificação? (c) toda
+   definição, exemplo, pegadinha e pergunta de aluno está com o seu
+   rótulo? (d) tem comparação ou enumeração escondida em prosa que ficaria
+   mais clara como lista ou tabela? (e) todo artigo/inciso/alínea/
+   parágrafo da fala e do material está no guia, na forma completa, com
+   bloco "Lei:" e no título da parte que trata dele?
+   Última seção do corpo, sempre que a aula citar algum dispositivo:
+   "## Dispositivos legais da aula" — lista de todos eles na forma
+   completa, agrupados por artigo (incisos/alíneas/parágrafos aninhados
+   dentro do artigo), cada um com o assunto em poucas palavras e o nome
+   da seção do guia onde é tratado.
 5. Ao final, se houver, uma lista dos trechos marcados como
    "[trecho incompleto/inaudível na transcrição]".
 

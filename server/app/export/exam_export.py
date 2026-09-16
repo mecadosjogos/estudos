@@ -6,10 +6,11 @@ novo a partir dos blocos crus da aula editada."""
 
 import html
 
-import markdown as markdown_lib
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..markdown_render import render_markdown
 from ..models import Exam, Lesson, LessonAssunto
 
 
@@ -36,7 +37,7 @@ def build_exam_scope_html(session: Session, exam: Exam) -> str:
         for lesson in lessons:
             parts.append(f"<p class='muted'>{lesson.titulo} — {lesson.data.isoformat()}</p>")
             if lesson.guia_md:
-                parts.append(markdown_lib.markdown(lesson.guia_md, extensions=["extra"]))
+                parts.append(render_markdown(lesson.guia_md))
             elif lesson.resumo:
                 parts.append(f"<p>{html.escape(lesson.resumo)}</p>")
             else:
