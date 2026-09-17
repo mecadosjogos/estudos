@@ -152,6 +152,37 @@ def wrap_labeled_blocks(text: str) -> str:
     return "\n".join(out)
 
 
+_HEADING_RE = re.compile(r"^(#{3,6})[ \t]+\S")
+
+
+def nest_under_headings(text: str) -> str:
+    """Põe o conteúdo de cada sub-título ("###" em diante) num
+    `guia-nivel` recuado, aninhado conforme o nível. Sem isso, "####
+    Nacionalidade ativa" dentro de "### Nacionalidade" aparece na tela no
+    mesmo alinhamento do pai, com fonte quase igual -- a hierarquia que o
+    título devia mostrar some (achado real, aula 28). "##" fica de fora:
+    é a divisão de seção, sempre no nível de fora."""
+    out: list[str] = []
+    abertos: list[int] = []  # níveis com <div> aberto
+    in_fence = False
+    for line in text.split("\n"):
+        if _FENCE_RE.match(line):
+            in_fence = not in_fence
+        m = None if in_fence else _HEADING_RE.match(line)
+        if not m:
+            out.append(line)
+            continue
+        nivel = len(m.group(1))
+        while abertos and abertos[-1] >= nivel:
+            abertos.pop()
+            out.extend(["", "</div>", ""])
+        out.extend(["", line, "", f'<div class="guia-nivel guia-nivel--{nivel}" markdown="1">', ""])
+        abertos.append(nivel)
+    for _ in abertos:
+        out.extend(["", "</div>", ""])
+    return "\n".join(out)
+
+
 def render_markdown(text: str | None) -> str:
-    md = wrap_labeled_blocks(normalize_list_indent(text or ""))
+    md = nest_under_headings(wrap_labeled_blocks(normalize_list_indent(text or "")))
     return markdown_lib.markdown(md, extensions=["extra"])

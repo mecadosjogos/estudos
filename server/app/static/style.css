@@ -601,7 +601,7 @@ textarea {
 	max-width: 42rem;
 }
 
-.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5 {
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
 	text-wrap: balance;
 	margin-top: var(--space-4);
 	margin-bottom: var(--space-2);
@@ -640,12 +640,28 @@ textarea {
 	font-size: 0.9em;
 }
 
-.markdown-body h4, .markdown-body h5 {
-	font-size: 1em;
+/* Sub-títulos do guia: tamanho decrescente por nível e o conteúdo de cada
+   um recuado com uma linha-guia (app/markdown_render.py::nest_under_headings),
+   pra hierarquia ficar visível e não só implícita no número de "#". */
+.markdown-body h3 {
+	font-size: 1.15em;
 }
 
-.markdown-body h5 {
+.markdown-body h4 {
+	font-size: 1.05em;
+	margin-top: var(--space-3);
+}
+
+.markdown-body h5, .markdown-body h6 {
+	font-size: 1em;
+	margin-top: var(--space-3);
 	color: var(--text-muted);
+}
+
+.guia-nivel {
+	margin-left: 0.35rem;
+	padding-left: 0.85rem;
+	border-left: 2px solid var(--border);
 }
 
 .markdown-body table {

@@ -62,3 +62,13 @@ def test_bloco_lei_e_falso_positivo():
     html = render_markdown('Lei: **art. 7º, I, "a", CP** — "contra a vida"\n\nLeia o artigo: depois.')
     assert html.count("guia-bloco--lei") == 1
     assert '<span class="guia-rotulo">Lei</span>' in html
+
+
+def test_subtitulos_recuam_o_conteudo_por_nivel():
+    md = "intro\n\n### Nacionalidade\n\ntexto\n\n#### Ativa\n\nx\n\n### Competência\n\ny"
+    html = render_markdown(md)
+    assert html.count('class="guia-nivel guia-nivel--3"') == 2
+    ativa = html.split("<h4>Ativa</h4>")[1]
+    # "Ativa" fecha antes de "Competência" voltar pro nível 3
+    assert ativa.index('guia-nivel--4') < ativa.index("</div>") < ativa.index("<h3>Competência</h3>")
+    assert html.startswith("<p>intro</p>")

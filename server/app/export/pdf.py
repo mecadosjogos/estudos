@@ -18,7 +18,9 @@ p { margin: 0.4em 0; }
 ul { margin: 0.3em 0; padding-left: 1.4em; }
 ol { margin: 0.3em 0; padding-left: 1.4em; }
 h3 { font-size: 12pt; margin-top: 0.9em; margin-bottom: 0.2em; }
-h4, h5 { font-size: 11pt; margin-top: 0.7em; margin-bottom: 0.2em; }
+h4 { font-size: 11.5pt; margin-top: 0.7em; margin-bottom: 0.2em; }
+h5, h6 { font-size: 11pt; margin-top: 0.6em; margin-bottom: 0.2em; color: #555; }
+.guia-nivel { margin-left: 12pt; }
 table { border-collapse: collapse; margin: 0.4em 0; }
 th, td { border: 1px solid #bbb; padding: 2pt 4pt; vertical-align: top; text-align: left; }
 th { background-color: #eeeeee; }

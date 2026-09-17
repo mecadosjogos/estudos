@@ -225,10 +225,30 @@ Estrutura do `guia_md`, nesta ordem:
    ÁRVORE DE CONHECIMENTO (e pro conteúdo): não apresente como divisão
    feita pelo professor algo que ele não dividiu — mas isso não limita o
    uso de títulos pra organizar a leitura.
+   SUB-TÍTULO OU LISTA ANINHADA? Sub-título é pra subtema com conteúdo
+   próprio de verdade — vários parágrafos, exemplo, pergunta de aluno,
+   tabela. Quando as espécies de uma classificação são curtas (cada uma
+   cabe em uma ou duas frases, tipicamente só "o que ela é"), elas NÃO
+   viram sub-títulos: vão numa lista aninhada dentro do item/parágrafo do
+   gênero, com "**termo** — o que é". Ex. ruim: "### Nacionalidade" e,
+   dentro, "#### Nacionalidade ativa" + bloco Definição de uma frase e
+   "#### Nacionalidade passiva" + bloco Definição de uma frase. Ex. bom:
+   dentro de "### Nacionalidade", o parágrafo "Subdivide-se em dois:"
+   seguido de
+       - **Nacionalidade ativa** — diz respeito ao sujeito ativo, a quem
+         comete o crime.
+       - **Nacionalidade passiva** — diz respeito à vítima.
+   Título também não repete o que vem logo abaixo: no corpo, o título é o
+   NOME do subtema ("### Nacionalidade", "### Alínea a) — vida ou
+   liberdade do Presidente da República" quando o complemento é o assunto
+   do dispositivo); o complemento explicativo "— ..." é da árvore, não do
+   título, se a definição logo abaixo já diz a mesma coisa.
    Corpo e árvore de conhecimento andam juntos: os títulos de matéria do
-   corpo e os nós da árvore têm os mesmos nomes, na mesma ordem e na
-   mesma hierarquia; o corpo só acrescenta títulos que não entram na
-   árvore (exemplos, perguntas de aluno, transições, digressões).
+   corpo e os nós da árvore têm os mesmos nomes (a árvore acrescenta o
+   complemento), na mesma ordem e na mesma hierarquia; o corpo só
+   acrescenta títulos que não entram na árvore (exemplos, perguntas de
+   aluno, transições, digressões), e a árvore pode ter nós que no corpo
+   são itens de lista aninhada (espécies curtas, como acima).
    Só o "##" de seção é numerado pelo código — os sub-títulos dentro do
    corpo, em qualquer nível, ficam como você escrever, sem numeração.
 
@@ -353,7 +373,10 @@ Estrutura do `guia_md`, nesta ordem:
    repete o material da aula ao lado do que o guia já explica? apague; o
    que o material acrescenta está integrado no lugar certo? (g) a árvore
    de conhecimento tem a mesma organização, ordem e nomes dos títulos de
-   matéria do corpo, com os dispositivos e o assunto de cada um?
+   matéria do corpo, com os dispositivos e o assunto de cada um? (h) tem
+   sub-título cujo conteúdo é só uma ou duas frases (espécie curta)?
+   troque por lista aninhada dentro do gênero; tem título repetindo a
+   definição logo abaixo? encurte pro nome.
    Última seção do corpo, sempre que a aula citar algum dispositivo:
    "## Dispositivos legais da aula" — lista de todos eles na forma
    completa, agrupados por artigo (incisos/alíneas/parágrafos aninhados
