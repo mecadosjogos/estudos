@@ -796,3 +796,306 @@ textarea {
 }
 
 .guia-bloco--definicao > p:first-child { font-size: 1.04em; }
+
+/* --- Dissertativas pelo guia (fase 13b) --------------------------------- */
+
+.ia-selo {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+	background: var(--bg-elevated);
+	color: var(--text-muted);
+	font-size: 0.9rem;
+	margin-bottom: var(--space-3);
+}
+
+.ia-selo::before {
+	content: "";
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 50%;
+	background: var(--text-muted);
+	flex: none;
+}
+
+.ia-selo[data-estado="online"]::before { background: var(--bloco-exemplo); }
+.ia-selo[data-estado="ocupada"]::before { background: var(--bloco-atencao); }
+.ia-selo[data-estado="offline"]::before { background: var(--danger); }
+
+.dis-escolher-secao {
+	margin-bottom: var(--space-3);
+}
+
+.dis-criterio {
+	border-left: 3px solid var(--accent);
+	padding-left: var(--space-3);
+	margin: var(--space-3) 0;
+}
+
+.dis-reescrita {
+	background: var(--bg-elevated);
+	border-radius: var(--radius);
+	padding: var(--space-3);
+	margin-bottom: var(--space-3);
+}
+
+#resposta {
+	width: 100%;
+	font: inherit;
+	line-height: 1.6;
+	padding: var(--space-3);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+	background: var(--bg);
+	color: var(--text);
+}
+
+.dis-previa-ditado {
+	color: var(--text-muted);
+	font-style: italic;
+	margin: var(--space-1) 0 0;
+}
+
+button.ditando {
+	background: var(--danger);
+	border-color: var(--danger);
+}
+
+.button-primary {
+	font-weight: 600;
+}
+
+.dis-confianca {
+	margin-top: var(--space-3);
+	padding: var(--space-3);
+	border-radius: var(--radius);
+	border: 2px solid var(--accent);
+}
+
+.confianca-btn {
+	background: transparent;
+	color: var(--text);
+	border-color: var(--border);
+}
+
+.confianca-btn.selecionado {
+	background: var(--accent);
+	color: var(--accent-text);
+	border-color: var(--accent);
+}
+
+.linha-tempo {
+	list-style: none;
+	padding: 0;
+	margin: var(--space-3) 0;
+}
+
+.linha-tempo li {
+	position: relative;
+	padding: var(--space-1) 0 var(--space-1) var(--space-5);
+	color: var(--text-muted);
+}
+
+.linha-tempo li::before {
+	content: "○";
+	position: absolute;
+	left: var(--space-3);
+}
+
+.linha-tempo li.feito { color: var(--text); }
+.linha-tempo li.feito::before { content: "✔"; color: var(--bloco-exemplo); }
+.linha-tempo li.atual { color: var(--accent); font-weight: 600; }
+.linha-tempo li.atual::before { content: "●"; animation: voz-pulso 0.9s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+	.linha-tempo li.atual::before { animation: none; }
+}
+
+.dis-resposta-enviada {
+	white-space: pre-wrap;
+	padding: var(--space-2) 0;
+}
+
+.dis-cobertura {
+	font-size: 1.15rem;
+}
+
+.fb-destaque {
+	background: var(--bg-elevated);
+	border-left: 3px solid var(--accent);
+	border-radius: var(--radius);
+	padding: var(--space-3);
+	margin: var(--space-3) 0;
+}
+
+.fb-evolucao {
+	border-color: var(--bloco-exemplo);
+}
+
+.fb-prioridades li {
+	margin-bottom: var(--space-3);
+}
+
+.fb-aplicar {
+	float: right;
+	font-size: 0.9rem;
+	color: var(--text-muted);
+}
+
+.rubrica-lista {
+	list-style: none;
+	padding: 0;
+}
+
+.rubrica-item {
+	--veredito-cor: var(--text-muted);
+	border-left: 4px solid var(--veredito-cor);
+	padding: var(--space-2) var(--space-3);
+	margin-bottom: var(--space-3);
+	background: var(--bg-elevated);
+	border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.rubrica-item[data-veredito="coberto"] { --veredito-cor: var(--bloco-exemplo); }
+.rubrica-item[data-veredito="parcial"] { --veredito-cor: var(--bloco-atencao); }
+.rubrica-item[data-veredito="ausente"] { --veredito-cor: var(--danger); }
+
+.rubrica-icone,
+.rubrica-veredito {
+	color: var(--veredito-cor);
+	font-weight: 600;
+}
+
+.rubrica-veredito {
+	text-transform: uppercase;
+	font-size: 0.8rem;
+	letter-spacing: 0.04em;
+	margin-right: var(--space-2);
+}
+
+.trecho-citado {
+	margin: var(--space-2) 0;
+	padding-left: var(--space-3);
+	border-left: 2px solid var(--border);
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.pista {
+	margin: var(--space-2) 0;
+}
+
+.pista-secao {
+	margin: var(--space-2) 0;
+	padding: var(--space-2) var(--space-3);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+}
+
+.discordo {
+	margin-top: var(--space-2);
+	font-size: 0.9rem;
+}
+
+.estrutura-ok,
+.estrutura-falta,
+.badge-revisao {
+	background: transparent;
+	border: 1px solid currentColor;
+}
+
+.estrutura-ok { color: var(--bloco-exemplo); }
+.estrutura-falta { color: var(--danger); }
+.badge-revisao { color: var(--accent); }
+
+.dis-versao-melhorada {
+	padding: var(--space-3);
+	border-radius: var(--radius);
+	border: 1px dashed var(--bloco-exemplo);
+	line-height: 1.6;
+}
+
+.dis-acoes {
+	margin: var(--space-4) 0;
+}
+
+.calib-barra {
+	display: inline-block;
+	height: 0.7rem;
+	border-radius: 0.35rem;
+	vertical-align: middle;
+}
+
+.calib-barra--conf { background: var(--accent); }
+.calib-barra--cob { background: var(--bloco-exemplo); }
+
+/* Painel "Sua fila" e avisos das dissertativas (fase 13b) */
+.dis-fila {
+	border-color: var(--accent);
+}
+
+.dis-fila-titulo {
+	margin: 0 0 var(--space-1);
+	font-size: 1.05rem;
+}
+
+.dis-fila-nota {
+	margin: 0 0 var(--space-2);
+	font-size: 0.85rem;
+}
+
+.dis-fila-lista {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.dis-fila-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-2) 0;
+	border-top: 1px solid var(--border);
+	flex-wrap: wrap;
+}
+
+.dis-fila-item[data-estado="corrigida"][data-vista="false"] {
+	font-weight: 600;
+}
+
+.dis-fila-acao {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.dis-toast {
+	position: fixed;
+	left: 50%;
+	bottom: var(--space-4);
+	transform: translateX(-50%);
+	max-width: min(36rem, calc(100vw - 2rem));
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius);
+	background: var(--text);
+	color: var(--bg);
+	z-index: 20;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.dis-voltar {
+	margin-bottom: var(--space-3);
+}
+
+.dis-resposta-certa {
+	padding: var(--space-3);
+	border-radius: var(--radius);
+	border: 1px solid var(--bloco-definicao);
+	line-height: 1.6;
+	margin-bottom: var(--space-3);
+}

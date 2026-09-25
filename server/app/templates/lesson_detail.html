@@ -141,21 +141,13 @@
 </div>
 
 <div class="card">
-	<h2>Dissertativa <span class="badge">funciona aqui</span></h2>
-	<p class="muted">Gera uma questão no estilo do professor, com rubrica, a partir do conteúdo desta aula.</p>
-
-	<h3>Automático</h3>
-	<div class="button-row">
-		<form method="post" action="/lessons/{{ lesson.id }}/dissertativas/gerar">
-			<button type="submit">Gerar questão (automático)</button>
-		</form>
-	</div>
-
-	<h3>Manual</h3>
-	<div class="button-row">
-		<a class="button" href="/lessons/{{ lesson.id }}/dissertativas/gerar-pacote.md">Baixar pacote (.md)</a>
-		<a class="button" href="/lessons/{{ lesson.id }}/dissertativas/colar-questao">Gravar uma questão (manual)</a>
-	</div>
+	<h2>Dissertativas</h2>
+	{% if lesson.guia_secoes %}
+	<p class="muted">Questões tiradas do guia desta aula, corrigidas ponto a ponto contra o material pela IA local — com ditado por voz, pistas graduais e reescrita.</p>
+	<p><a class="button" href="/lessons/{{ lesson.id }}/dissertativas">Treinar dissertativas →</a></p>
+	{% else %}
+	<p class="muted">As dissertativas saem do guia da aula — aparecem aqui depois que a aula for processada e tiver guia.</p>
+	{% endif %}
 </div>
 {% endif %}
 

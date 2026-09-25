@@ -6,6 +6,8 @@ Vocabulário fechado pros tipos de bloco (Integridade do design, não do
 banco): sem isso cada aula sai com uma estética diferente.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 BLOCK_TIPOS = ("destaque-prova", "ditado", "conceito", "exemplo", "atencao", "normal")
@@ -121,21 +123,96 @@ class FeynmanFeedbackOut(BaseModel):
     comentario_geral: str = ""
 
 
-class DissertativaQuestionOut(BaseModel):
-    """Fase 13 -- questão no estilo do professor, gerada a partir do
-    recorte literal de uma aula ou de um assunto inteiro."""
+# --- Fase 13b: dissertativa pelo guia, IA local -------------------------------
+#
+# Estes schemas viram a GRAMÁTICA do llama-server (`response_format:
+# json_schema`): o modelo local não consegue sair do formato. Por isso a
+# ordem dos campos importa -- o JSON sai na ordem declarada, e em
+# `VereditoPontoOut` o trecho citado vem ANTES do veredito de propósito
+# (evidência antes da decisão; ver PLANO.md, princípios pedagógicos).
+# Sem Field(description=...) longos: tudo que o modelo precisa saber está
+# no prompt, e o schema fica enxuto pra gramática.
 
-    enunciado: str
-    rubrica: list[str]
+
+class PontoRubricaOut(BaseModel):
+    # min_length vira gramática no llama-server: impede o modelo de devolver
+    # ponto vazio (achado na bancada de qualidade: o Qwen3.6 gerou uma
+    # rubrica inteira de ", ").
+    ponto: str = Field(min_length=15)
+    # Número da seção como aparece no material ("Seção N") -- a mesma
+    # numeração 1..N da página do guia (âncora #secao-N).
+    secao: int
+    pista: str = Field(min_length=10)
 
 
-class DissertativaCorrectionOut(BaseModel):
-    """Fase 13 -- correção de uma resposta dissertativa contra a rubrica
-    da questão."""
+class DissertativaQuestionGuiaOut(BaseModel):
+    tipo: Literal["caso", "comparacao", "explicacao", "critica"]
+    enunciado: str = Field(min_length=40)
+    criterio_texto: str = Field(min_length=20)
+    rubrica: list[PontoRubricaOut] = Field(min_length=3, max_length=6)
+    # Depois da rubrica de propósito: o modelo escreve a resposta certa já
+    # sabendo os pontos que ela precisa cobrir.
+    resposta_modelo: str = Field(min_length=200)
 
-    pontos_cobertos: list[str] = Field(default_factory=list)
-    pontos_faltantes: list[str] = Field(default_factory=list)
-    comentario: str = ""
+
+class QuestaoLoteOut(DissertativaQuestionGuiaOut):
+    """Uma questão do lote gerado pelo Claude (/gerar-dissertativas):
+    igual à da IA local, mais as seções-fonte que ela usou."""
+
+    secoes: list[int] = Field(min_length=1, max_length=3)
+
+
+class DissertativasLoteOut(BaseModel):
+    questoes: list[QuestaoLoteOut] = Field(min_length=1)
+
+
+class VereditoPontoOut(BaseModel):
+    trecho_da_resposta: str
+    veredito: Literal["coberto", "parcial", "ausente"]
+    o_que_falta: str
+
+
+class CriterioEstruturaOut(BaseModel):
+    trecho_da_resposta: str
+    atende: bool
+
+
+class EstruturaOut(BaseModel):
+    identificou_problema: CriterioEstruturaOut
+    usou_conceito_do_material: CriterioEstruturaOut
+    aplicou_ao_caso: CriterioEstruturaOut
+    concluiu: CriterioEstruturaOut
+
+
+class PrioridadeOut(BaseModel):
+    ponto_idx: int
+    por_que_importa: str
+    sugestao: str
+    secao: int
+
+
+class PontoForteOut(BaseModel):
+    trecho: str
+    por_que_funciona: str
+
+
+class EvolucaoOut(BaseModel):
+    ponto_idx: int
+    antes: str
+    depois: str
+
+
+class DissertativaFeedbackOut(BaseModel):
+    leitura_da_confianca: str
+    prioridades: list[PrioridadeOut] = Field(max_length=3)
+    demais_sugestoes: list[str] = Field(default_factory=list)
+    pontos_fortes: list[PontoForteOut] = Field(default_factory=list)
+    fora_do_material: list[str] = Field(default_factory=list)
+    estrutura_comentario: str
+    evolucao: list[EvolucaoOut] = Field(default_factory=list)
+    proximo_passo: str
+    versao_melhorada: str
+    mensagem_final: str
 
 
 GUIA_EXERCICIO_TIPOS = (

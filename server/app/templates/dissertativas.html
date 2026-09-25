@@ -1,21 +1,50 @@
 {% extends "base.html" %}
 {% block title %}Dissertativas{% endblock %}
 {% block content %}
-<p><a href="/">← Início</a></p>
+<p><a href="/estudar">← Estudar</a></p>
 <h1>Dissertativas</h1>
-<p class="muted">Prova de Direito é escrita — treine no formato certo, corrigido contra o que o professor realmente disse.</p>
+<p class="muted">Prova de Direito é escrita — treine no formato certo. As questões saem do guia de cada aula e são corrigidas contra o material, ponto a ponto, pela IA local.</p>
 
-<ul class="search-results">
-	{% for q in questions %}
-	<li>
-		<a href="/dissertativas/{{ q.id }}">
-			{% if q.subject %}<span class="badge">{{ q.subject.sigla }}</span>{% endif %}
-			{% if q.assunto %}<span class="badge">{{ q.assunto.titulo }}</span>{% endif %}
-			<strong>{{ q.enunciado[:120] }}{% if q.enunciado|length > 120 %}…{% endif %}</strong>
-		</a>
-	</li>
-	{% else %}
-	<p class="muted">Nenhuma questão ainda — gere uma a partir de uma aula ou de um assunto.</p>
-	{% endfor %}
-</ul>
+<p>
+	<span class="ia-selo" data-estado="{{ 'online' if maquina.online else 'offline' }}">
+		{% if maquina.online %}IA local ligada · {{ "Claude (autorizado)" if maquina.motor == "claude_cli" else (maquina.modelo or "modelo local") }}
+		{% else %}IA local desligada — dá pra escrever e enviar; a correção sai quando a máquina ligar{% endif %}
+	</span>
+	<a class="button button-ghost" href="/dissertativas/calibracao">Minha calibração</a>
+</p>
+
+{% for grupo in grupos %}
+<div class="card">
+	<h2><span class="dot" style="background: {{ grupo.subject.cor or 'var(--border)' }}"></span> {{ grupo.subject.sigla }} — {{ grupo.subject.nome }}</h2>
+	<ul class="search-results">
+		{% for a in grupo.aulas %}
+		<li>
+			<a href="/lessons/{{ a.lesson.id }}/dissertativas"><strong>{{ a.lesson.titulo }}</strong></a>
+			<span class="muted">{{ a.lesson.data.strftime("%d/%m/%Y") }}</span>
+			{% if a.vencidas %}<span class="badge badge-revisao">{{ a.vencidas }} para revisar</span>{% endif %}
+			{% if a.respondidas %}<span class="muted">· {{ a.respondidas }} questão(ões) respondida(s)</span>{% endif %}
+		</li>
+		{% endfor %}
+	</ul>
+</div>
+{% else %}
+<p class="muted">Nenhuma aula com guia ainda — as dissertativas saem do guia de cada aula.</p>
+{% endfor %}
+
+{% if legado %}
+<details class="card">
+	<summary>Arquivo: questões do formato antigo ({{ legado|length }}) — só leitura</summary>
+	<ul class="search-results">
+		{% for q in legado %}
+		<li>
+			<a href="/dissertativas/{{ q.id }}">
+				{% if q.subject %}<span class="badge">{{ q.subject.sigla }}</span>{% endif %}
+				{% if q.assunto %}<span class="badge">{{ q.assunto.titulo }}</span>{% endif %}
+				{{ q.enunciado[:120] }}{% if q.enunciado|length > 120 %}…{% endif %}
+			</a>
+		</li>
+		{% endfor %}
+	</ul>
+</details>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,740 @@
+{% extends "base.html" %}
+{% block title %}Dissertativas — {{ lesson.titulo }}{% endblock %}
+{% block content %}
+<p><a href="/lessons/{{ lesson.id }}">← Voltar à aula</a> · <a href="/dissertativas">Todas as dissertativas</a> · <a href="/dissertativas/calibracao">Minha calibração</a></p>
+<h1>Dissertativas: {{ lesson.titulo }}</h1>
+<p class="muted">
+	<span class="dot" style="background: {{ lesson.subject.cor or 'var(--border)' }}"></span>
+	{{ lesson.subject.sigla }} — {{ lesson.subject.nome }} · questões tiradas do <a href="/lessons/{{ lesson.id }}/guia">guia da aula</a>, corrigidas contra o material (não contra a lei)
+</p>
+
+<div class="ia-selo" id="selo-maquina" data-estado="carregando">verificando a IA local…</div>
+
+<aside class="card dis-fila" id="painel-fila" hidden>
+	<h2 class="dis-fila-titulo">Sua fila</h2>
+	<p class="muted dis-fila-nota">Correções passam na frente da geração de questões. Você pode continuar respondendo enquanto a máquina corrige.</p>
+	<ul class="dis-fila-lista" id="fila-lista"></ul>
+</aside>
+<div class="dis-toast" id="dis-toast" role="status" hidden></div>
+
+{% if secoes %}
+<details class="dis-escolher-secao">
+	<summary class="muted">Treinar uma seção específica</summary>
+	<div class="button-row" style="align-items:center">
+		<select id="secao-select">
+			{% for s in secoes %}<option value="{{ s.numero }}">{{ s.numero }}. {{ s.titulo }}</option>{% endfor %}
+		</select>
+		<button type="button" id="nova-secao-btn">Gerar questão desta seção</button>
+	</div>
+</details>
+{% endif %}
+
+<div id="dis-aviso" class="error" hidden></div>
+
+<div class="dis-voltar" id="voltar-barra" hidden>
+	<button type="button" class="button-ghost" id="voltar-questao-btn">← Voltar para a questão que eu estava respondendo</button>
+</div>
+
+<!-- Gerando a questão -->
+<section id="tela-gerando" class="card" hidden>
+	<h2>Preparando uma questão</h2>
+	<ol class="linha-tempo" id="gerando-etapas"></ol>
+	<p class="muted" id="gerando-detalhe"></p>
+</section>
+
+<!-- Escrever -->
+<section id="tela-questao" class="card" hidden>
+	<p id="questao-badges"></p>
+	<h2 id="questao-enunciado"></h2>
+	<div class="dis-criterio" id="questao-criterio"></div>
+	<p class="muted" id="questao-secoes"></p>
+	<p class="error" id="questao-guia-mudou" hidden>O guia desta aula foi refeito depois que esta questão foi criada — a rubrica pode não bater exatamente com o material atual.</p>
+
+	<div class="dis-reescrita" id="reescrita-painel" hidden>
+		<strong>Reescrevendo (versão <span id="reescrita-versao"></span>). O que você marcou para aplicar:</strong>
+		<ul id="reescrita-lista"></ul>
+	</div>
+
+	<textarea id="resposta" rows="12" placeholder="Escreva sua resposta — ou aperte Ditar e fale."></textarea>
+	<p class="dis-previa-ditado" id="previa-ditado" hidden></p>
+	<div class="button-row" style="align-items:center">
+		<button type="button" id="ditar-btn">🎙 Ditar</button>
+		<span class="voz-indicador" id="ditado-indicador" hidden></span>
+		<span class="muted" id="contador-palavras"></span>
+	</div>
+	<div class="button-row">
+		<button type="button" class="button-primary" id="enviar-btn">Enviar resposta</button>
+		<span class="muted">Ctrl+Enter</span>
+	</div>
+
+	<div class="dis-confianca" id="confianca-faixa" hidden>
+		<p><strong>Antes de ver a correção: quão seguro você está desta resposta?</strong></p>
+		<div class="button-row" id="confianca-botoes">
+			{% for valor, rotulo in confiancas.items() %}
+			<button type="button" class="confianca-btn" data-valor="{{ valor }}">{{ valor }} · {{ rotulo }}</button>
+			{% endfor %}
+		</div>
+		<p><label>O que você acha que faltou? <span class="muted">(opcional)</span><br>
+			<input type="text" id="autoavaliacao" style="width:100%" placeholder="ex.: não lembrei do segundo requisito"></label></p>
+		<div class="button-row">
+			<button type="button" class="button-primary" id="confirmar-envio-btn" disabled>Enviar para correção</button>
+			<button type="button" class="button-ghost" id="cancelar-envio-btn">Voltar a editar</button>
+		</div>
+		<p class="muted">Marcar a confiança antes é parte do treino: comparar o que você achava com o resultado mostra onde você se engana sobre o que sabe.</p>
+	</div>
+</section>
+
+<!-- Corrigindo -->
+<section id="tela-correcao" class="card" hidden>
+	<h2>Em correção <span class="muted" id="correcao-cronometro"></span></h2>
+	<p class="muted" id="correcao-enunciado"></p>
+	<ol class="linha-tempo" id="correcao-etapas"></ol>
+	<p class="muted" id="correcao-detalhe"></p>
+	<div id="correcao-erro" hidden>
+		<p class="error" id="correcao-erro-texto"></p>
+		<button type="button" id="tentar-de-novo-btn">Tentar de novo</button>
+	</div>
+	<details><summary class="muted">Sua resposta</summary><div class="dis-resposta-enviada" id="correcao-resposta"></div></details>
+</section>
+
+<!-- Feedback -->
+<section id="tela-feedback" hidden></section>
+
+<script src="/static/ditado.js"></script>
+<script>
+(() => {
+	const LESSON_ID = {{ lesson.id }};
+	const GUIA_URL = "/lessons/{{ lesson.id }}/guia";
+	const $ = (id) => document.getElementById(id);
+	const telas = ["tela-gerando", "tela-questao", "tela-correcao", "tela-feedback"];
+
+	let questaoAtual = null;
+	let tentativaAtual = null;
+	let reescrita = null; // {anterior_id, versao, escolhidas: [idx], textos: [str]}
+	let confiancaEscolhida = null;
+	let timerPoll = null;
+	let inicioCorrecao = null;
+	let timerCronometro = null;
+	// Há uma questão aberta, ainda não respondida, pra onde "voltar" leva.
+	let questaoPendente = false;
+	let timerFila = null;
+	let estadosFila = {};
+
+	function esc(texto) {
+		return String(texto ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+	}
+	function mostrar(tela) {
+		telas.forEach((t) => { $(t).hidden = t !== tela; });
+		// Olhando uma correção com uma questão aberta: dá pra voltar pra ela.
+		$("voltar-barra").hidden = !(questaoPendente && (tela === "tela-feedback" || tela === "tela-correcao"));
+	}
+	let timerToast = null;
+	function toast(texto) {
+		const el = $("dis-toast");
+		el.textContent = texto;
+		el.hidden = false;
+		clearTimeout(timerToast);
+		timerToast = setTimeout(() => { el.hidden = true; }, 6000);
+	}
+	function aviso(texto) {
+		$("dis-aviso").hidden = !texto;
+		$("dis-aviso").textContent = texto || "";
+	}
+	async function api(url, opcoes = {}) {
+		const resp = await fetch(url, {
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			...opcoes,
+		});
+		const dados = await resp.json().catch(() => ({}));
+		if (!resp.ok) throw new Error(dados.detail || ("erro " + resp.status));
+		return dados;
+	}
+	function pararPoll() {
+		clearTimeout(timerPoll);
+		timerPoll = null;
+	}
+
+	// --- selo da máquina ---------------------------------------------------
+	function atualizarSelo(maquina) {
+		const selo = $("selo-maquina");
+		if (!maquina) return;
+		if (!maquina.online) {
+			selo.dataset.estado = "offline";
+			selo.textContent = "IA local desligada — pode escrever e enviar mesmo assim: sua resposta fica salva na fila e é corrigida quando a máquina ligar.";
+			return;
+		}
+		selo.dataset.estado = maquina.ocupado_etapa ? "ocupada" : "online";
+		let texto = "IA local ligada · " + (maquina.motor === "claude_cli" ? "Claude (autorizado)" : (maquina.modelo || "modelo local"));
+		if (maquina.ocupado_etapa) texto += " · " + maquina.ocupado_etapa;
+		selo.textContent = texto;
+	}
+
+	// --- rascunho (só conveniência deste navegador) ------------------------
+	function chaveRascunho() {
+		if (!questaoAtual) return null;
+		return "dissertativa-rascunho-" + questaoAtual.id + "-" + (reescrita ? "r" + reescrita.anterior_id : "v1");
+	}
+	function salvarRascunho() {
+		const chave = chaveRascunho();
+		if (!chave) return;
+		try { localStorage.setItem(chave, $("resposta").value); } catch (e) {}
+		contarPalavras();
+	}
+	function lerRascunho() {
+		const chave = chaveRascunho();
+		try { return chave ? localStorage.getItem(chave) : null; } catch (e) { return null; }
+	}
+	function apagarRascunho() {
+		const chave = chaveRascunho();
+		try { if (chave) localStorage.removeItem(chave); } catch (e) {}
+	}
+	function contarPalavras() {
+		const n = ($("resposta").value.match(/\S+/g) || []).length;
+		$("contador-palavras").textContent = n ? n + " palavra" + (n === 1 ? "" : "s") : "";
+	}
+
+	// --- estado inicial / próxima questão ---------------------------------
+	async function carregarEstado(questaoId) {
+		pararPoll();
+		aviso("");
+		const url = "/lessons/" + LESSON_ID + "/dissertativas/estado.json" + (questaoId ? "?questao=" + questaoId : "");
+		let dados;
+		try {
+			dados = await api(url);
+		} catch (erro) {
+			aviso("Não consegui carregar: " + erro.message);
+			return;
+		}
+		atualizarSelo(dados.maquina);
+		if (dados.modo === "sem_guia") {
+			mostrar(null);
+			aviso(dados.erro || "Esta aula ainda não tem guia estruturado — as dissertativas saem do guia. Processe a aula primeiro.");
+		} else if (dados.modo === "gerando") {
+			acompanharGeracao(dados.job);
+		} else if (dados.modo === "questao") {
+			reescrita = null;
+			abrirQuestao(dados.questao);
+		}
+	}
+
+	// --- gerando ------------------------------------------------------------
+	function acompanharGeracao(job) {
+		mostrar("tela-gerando");
+		const etapas = ["Na fila", "A máquina recebeu", "Criando a questão a partir do guia", "Pronto"];
+		const atual = job.status === "pending" ? 0 : job.status === "claimed" ? (job.etapa && job.etapa.includes("cri") ? 2 : 1) : 3;
+		$("gerando-etapas").innerHTML = etapas.map((e, i) => `<li class="${i < atual ? "feito" : i === atual ? "atual" : ""}">${esc(e)}</li>`).join("");
+		let detalhe = job.etapa || "";
+		if (job.status === "pending" && job.posicao_na_fila > 0) detalhe += " · " + job.posicao_na_fila + " na frente";
+		$("gerando-detalhe").textContent = detalhe;
+		if (job.status === "done") {
+			carregarEstado(job.question_id);
+			return;
+		}
+		if (job.status === "failed" || job.status === "cancelled") {
+			$("gerando-detalhe").textContent = "A geração falhou: " + (job.erro || job.status) + ". Recarregue a página para tentar de novo.";
+			return;
+		}
+		timerPoll = setTimeout(async () => {
+			try {
+				const dados = await api("/ia-local/jobs/" + job.id + "/status.json");
+				atualizarSelo(dados.maquina);
+				acompanharGeracao(dados.job);
+			} catch (erro) {
+				timerPoll = setTimeout(() => acompanharGeracao(job), 3000);
+			}
+		}, 1000);
+	}
+
+	// --- escrever ------------------------------------------------------------
+	const ROTULO_TIPO = { caso: "caso concreto", comparacao: "comparação", explicacao: "explicação", critica: "crítica" };
+
+	function abrirQuestao(questao) {
+		questaoAtual = questao;
+		questaoPendente = true;
+		mostrar("tela-questao");
+		let badges = "";
+		if (questao.tipo) badges += `<span class="badge">${esc(ROTULO_TIPO[questao.tipo] || questao.tipo)}</span> `;
+		badges += `<span class="badge">${questao.total_pontos} pontos na rubrica</span> `;
+		if (questao.motivo === "revisao") {
+			const dias = questao.progresso && questao.progresso.dias != null ? " — volta de " + questao.progresso.dias + " dia(s)" : "";
+			badges += `<span class="badge badge-revisao">revisão espaçada${esc(dias)}</span>`;
+		}
+		$("questao-badges").innerHTML = badges;
+		$("questao-enunciado").textContent = questao.enunciado;
+		$("questao-criterio").innerHTML = questao.criterio_texto ? `<strong>O que a questão pede:</strong> ${esc(questao.criterio_texto)}` : "";
+		$("questao-secoes").innerHTML = questao.secoes.length
+			? "Material: " + questao.secoes.map((s) => `<a href="${GUIA_URL}#secao-${s.numero}" target="_blank">seção ${s.numero} — ${esc(s.titulo)}</a>`).join(" · ")
+			: "";
+		$("questao-guia-mudou").hidden = !questao.guia_mudou;
+
+		const painel = $("reescrita-painel");
+		if (reescrita) {
+			painel.hidden = false;
+			$("reescrita-versao").textContent = reescrita.versao;
+			$("reescrita-lista").innerHTML = reescrita.textos.length
+				? reescrita.textos.map((t) => `<li><label><input type="checkbox"> ${esc(t)}</label></li>`).join("")
+				: "<li class='muted'>(nenhuma sugestão marcada — reescreva livremente)</li>";
+		} else {
+			painel.hidden = true;
+		}
+
+		const rascunho = lerRascunho();
+		$("resposta").value = rascunho !== null ? rascunho : (reescrita ? reescrita.texto_anterior : "");
+		contarPalavras();
+		fecharConfianca();
+		$("resposta").focus();
+	}
+
+	function abrirConfianca() {
+		if (!$("resposta").value.trim()) {
+			aviso("Escreva (ou dite) a resposta antes de enviar.");
+			return;
+		}
+		aviso("");
+		if (ditado.ativo()) ditado.parar();
+		$("confianca-faixa").hidden = false;
+		$("enviar-btn").hidden = true;
+		confiancaEscolhida = null;
+		document.querySelectorAll(".confianca-btn").forEach((b) => b.classList.remove("selecionado"));
+		$("confirmar-envio-btn").disabled = true;
+		$("confianca-faixa").scrollIntoView({ behavior: "smooth", block: "center" });
+	}
+	function fecharConfianca() {
+		$("confianca-faixa").hidden = true;
+		$("enviar-btn").hidden = false;
+		$("autoavaliacao").value = "";
+	}
+	function escolherConfianca(valor) {
+		confiancaEscolhida = valor;
+		document.querySelectorAll(".confianca-btn").forEach((b) => b.classList.toggle("selecionado", Number(b.dataset.valor) === valor));
+		$("confirmar-envio-btn").disabled = false;
+	}
+
+	async function enviar() {
+		if (!confiancaEscolhida) return;
+		$("confirmar-envio-btn").disabled = true;
+		try {
+			const dados = await api("/dissertativas/" + questaoAtual.id + "/responder.json", {
+				method: "POST",
+				body: JSON.stringify({
+					resposta_texto: $("resposta").value,
+					confianca: confiancaEscolhida,
+					autoavaliacao_texto: $("autoavaliacao").value,
+					tentativa_anterior_id: reescrita ? reescrita.anterior_id : null,
+					sugestoes_escolhidas: reescrita ? reescrita.escolhidas : [],
+				}),
+			});
+			apagarRascunho();
+			reescrita = null;
+			questaoPendente = false;
+			atualizarSelo(dados.maquina);
+			estadosFila[dados.tentativa.id] = "na_fila";
+			toast("Enviada para correção ✓ — acompanhe em \"Sua fila\". Indo para a próxima questão.");
+			atualizarFila();
+			carregarEstado(null);
+		} catch (erro) {
+			aviso("Não consegui enviar: " + erro.message);
+			$("confirmar-envio-btn").disabled = false;
+		}
+	}
+
+	// --- painel "Sua fila" -------------------------------------------------
+	const ICONE_FILA = { na_fila: "⏳", em_correcao: "⚙️", corrigida: "✅", erro: "⚠️", gerando: "✍️" };
+
+	async function atualizarFila() {
+		clearTimeout(timerFila);
+		let dados;
+		try {
+			dados = await api("/lessons/" + LESSON_ID + "/dissertativas/fila.json");
+		} catch (erro) {
+			timerFila = setTimeout(atualizarFila, 10000);
+			return;
+		}
+		atualizarSelo(dados.maquina);
+		const itens = [];
+		if (dados.geracao) {
+			let d = dados.geracao.etapa && dados.geracao.estado === "gerando" ? dados.geracao.etapa : "";
+			if (dados.geracao.posicao > 0) d = dados.geracao.posicao + " na frente (correções primeiro)";
+			itens.push(`<li class="dis-fila-item" data-estado="${dados.geracao.estado}"><span>${ICONE_FILA.gerando} ${esc(dados.geracao.rotulo)}</span><span class="muted">${esc(d)}</span></li>`);
+		} else if (dados.questoes_prontas > 0) {
+			itens.push(`<li class="dis-fila-item muted">${dados.questoes_prontas} questão(ões) nova(s) pronta(s)</li>`);
+		}
+		let ativo = !!dados.geracao;
+		for (const c of dados.correcoes) {
+			if (c.estado === "na_fila" || c.estado === "em_correcao") ativo = true;
+			// Aviso quando uma correção termina enquanto você faz outra questão.
+			if (estadosFila[c.attempt_id] && estadosFila[c.attempt_id] !== "corrigida" && c.estado === "corrigida") {
+				toast("✅ Correção pronta: \"" + c.enunciado.slice(0, 60) + "…\" — veja em \"Sua fila\".");
+			}
+			estadosFila[c.attempt_id] = c.estado;
+			let d = "";
+			if (c.estado === "na_fila") d = c.posicao > 0 ? c.posicao + " na frente" : "é a próxima";
+			if (c.estado === "em_correcao") d = c.etapa || "";
+			if (c.estado === "corrigida") d = c.cobertura.soma.toString().replace(".", ",") + " de " + c.cobertura.total + " pontos" + (c.vista ? "" : " · nova");
+			if (c.estado === "erro") d = "abra para tentar de novo";
+			const acao = c.estado === "corrigida" ? "Ver avaliação" : (c.estado === "erro" ? "Ver" : "Acompanhar");
+			itens.push(`<li class="dis-fila-item" data-estado="${c.estado}" data-vista="${c.vista}">
+				<span>${ICONE_FILA[c.estado] || ""} <strong>${esc(c.rotulo)}</strong>${c.versao > 1 ? " · v" + c.versao : ""}<br><span class="muted">${esc(c.enunciado)}</span></span>
+				<span class="dis-fila-acao"><span class="muted">${esc(d)}</span> <button type="button" class="button-ghost fila-abrir" data-attempt="${c.attempt_id}">${acao}</button></span>
+			</li>`);
+		}
+		$("fila-lista").innerHTML = itens.join("");
+		$("painel-fila").hidden = itens.length === 0;
+		$("fila-lista").querySelectorAll(".fila-abrir").forEach((b) => b.addEventListener("click", () => abrirCorrecao(Number(b.dataset.attempt))));
+		timerFila = setTimeout(atualizarFila, ativo ? 3000 : 15000);
+	}
+
+	async function abrirCorrecao(attemptId) {
+		pararPoll();
+		try {
+			const dados = await api("/dissertativas/attempts/" + attemptId + ".json?marcar_vista=1");
+			inicioCorrecao = null;
+			exibirTentativa(dados.tentativa);
+			window.scrollTo({ top: 0, behavior: "smooth" });
+			atualizarFila();
+		} catch (erro) { aviso(erro.message); }
+	}
+
+	function voltarParaQuestao() {
+		pararPoll();
+		pararCronometro();
+		if (questaoPendente && questaoAtual) {
+			mostrar("tela-questao");
+			$("resposta").focus();
+		} else {
+			carregarEstado(null);
+		}
+	}
+
+	// --- corrigindo -------------------------------------------------------
+	function exibirTentativa(t) {
+		tentativaAtual = t;
+		if (t.status === "avaliado") {
+			pararCronometro();
+			renderizarFeedback(t);
+			return;
+		}
+		mostrar("tela-correcao");
+		$("correcao-enunciado").textContent = t.enunciado || "";
+		$("correcao-resposta").textContent = t.resposta_texto;
+		iniciarCronometro();
+
+		const etapas = ["Na fila", "A máquina recebeu", "Julgando os pontos da rubrica", "Conferindo as citações", "Escrevendo o feedback", "Pronto"];
+		const job = t.job || {};
+		let atual = 0;
+		if (t.status === "julgando") atual = job.status === "claimed" ? (job.etapa && /julg|confer|estrutura/.test(job.etapa) ? 2 : 1) : 0;
+		if (t.status === "redigindo") atual = job.status === "claimed" ? 4 : 3;
+		$("correcao-etapas").innerHTML = etapas.map((e, i) => `<li class="${i < atual ? "feito" : i === atual ? "atual" : ""}">${esc(e)}</li>`).join("");
+
+		let detalhe = job.etapa || "";
+		if (job.palavras) detalhe += " · " + job.palavras + " palavras";
+		if (job.status === "pending" && job.posicao_na_fila > 0) detalhe += " · " + job.posicao_na_fila + " na frente";
+		$("correcao-detalhe").textContent = detalhe;
+
+		const falhou = t.status === "erro";
+		$("correcao-erro").hidden = !falhou;
+		if (falhou) {
+			pararCronometro();
+			$("correcao-erro-texto").textContent = "A correção falhou: " + (t.erro || "erro desconhecido");
+			return;
+		}
+		timerPoll = setTimeout(async () => {
+			try {
+				const dados = await api("/dissertativas/attempts/" + t.id + ".json");
+				atualizarSelo(dados.maquina);
+				exibirTentativa(dados.tentativa);
+			} catch (erro) {
+				timerPoll = setTimeout(() => exibirTentativa(t), 3000);
+			}
+		}, 1000);
+	}
+	function iniciarCronometro() {
+		if (timerCronometro) return;
+		if (!inicioCorrecao) inicioCorrecao = Date.now();
+		timerCronometro = setInterval(() => {
+			const s = Math.floor((Date.now() - inicioCorrecao) / 1000);
+			$("correcao-cronometro").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+		}, 500);
+	}
+	function pararCronometro() {
+		clearInterval(timerCronometro);
+		timerCronometro = null;
+		inicioCorrecao = null;
+	}
+
+	// --- feedback ---------------------------------------------------------
+	const ICONE = { coberto: "✔", parcial: "◐", ausente: "✖", nao_verificado: "?" };
+	const ROTULO_VEREDITO = { coberto: "coberto", parcial: "parcial", ausente: "ausente", nao_verificado: "não verificado" };
+
+	function linkSecao(numero, titulo) {
+		if (!numero) return "";
+		return `<a href="${GUIA_URL}#secao-${numero}" target="_blank">seção ${numero}${titulo ? " — " + esc(titulo) : ""}</a>`;
+	}
+
+	function blocoPonto(p) {
+		let html = `<li class="rubrica-item" data-veredito="${esc(p.veredito)}">`;
+		html += `<div class="rubrica-cabeca"><span class="rubrica-icone">${ICONE[p.veredito] || "?"}</span>`;
+		html += `<span class="rubrica-veredito">${esc(ROTULO_VEREDITO[p.veredito] || p.veredito)}</span>`;
+		if (p.ponto) html += ` <span class="rubrica-ponto">${esc(p.ponto)}</span>`;
+		else html += ` <span class="muted">ponto ${p.idx + 1} (escondido — use as pistas)</span>`;
+		html += `</div>`;
+		if (p.trecho) html += `<blockquote class="trecho-citado">você escreveu: «${esc(p.trecho)}»</blockquote>`;
+		if (p.veredito === "nao_verificado") html += `<p class="muted">O avaliador citou algo que não está na sua resposta — este ponto não pôde ser verificado. Se você acha que cobriu, use "discordo".</p>`;
+		if (p.o_que_falta && p.veredito !== "coberto") html += `<p><strong>O que falta:</strong> ${esc(p.o_que_falta)}</p>`;
+
+		if (p.veredito !== "coberto") {
+			if (p.pista) html += `<p class="pista">💡 <strong>Pista:</strong> ${esc(p.pista)}</p>`;
+			if (p.secao_html) html += `<details class="pista-secao" open><summary>📖 ${linkSecao(p.secao, p.secao_titulo)}</summary><div class="markdown-body">${p.secao_html}</div></details>`;
+			const proximo = { 0: "💡 Ver uma pista", 1: "📖 Ver a seção do guia", 2: "Mostrar o ponto completo" }[p.nivel_pista];
+			if (proximo) html += `<button type="button" class="button-ghost pista-btn" data-idx="${p.idx}">${proximo}</button>`;
+		}
+
+		if (p.discordado) {
+			html += `<p class="muted">✓ sua discordância foi registrada</p>`;
+		} else {
+			html += `<details class="discordo"><summary class="muted">discordo deste veredito</summary>
+				<div class="button-row" style="align-items:center">
+					<label>O certo seria:
+						<select class="discordo-veredito">
+							${["coberto", "parcial", "ausente"].filter((v) => v !== p.veredito).map((v) => `<option value="${v}">${v}</option>`).join("")}
+						</select></label>
+					<input type="text" class="discordo-comentario" placeholder="por quê? (opcional)">
+					<button type="button" class="discordo-btn" data-idx="${p.idx}">Registrar</button>
+				</div></details>`;
+		}
+		return html + `</li>`;
+	}
+
+	function renderizarFeedback(t) {
+		mostrar("tela-feedback");
+		const f = t.feedback || {};
+		const cob = t.cobertura;
+		let h = `<div class="card">`;
+		h += `<h2>Correção — versão ${t.versao}</h2>`;
+		h += `<p class="dis-cobertura"><strong>Você cobriu ${cob.soma.toString().replace(".", ",")} de ${cob.total} pontos</strong> <span class="muted">(parcial vale meio)</span></p>`;
+		h += `<p class="muted">Corrigido por ${esc(t.modelo || t.motor || "IA local")}${t.segundos_total ? " em " + Math.round(t.segundos_total) + " s" : ""} · confiança declarada: ${esc(t.confianca_rotulo || "—")}</p>`;
+		if (f.leitura_da_confianca) h += `<div class="fb-destaque">${esc(f.leitura_da_confianca)}</div>`;
+		else if (f.escondidos && f.escondidos.leitura_da_confianca != null) h += `<div class="fb-destaque muted">Você marcou "${esc(t.confianca_rotulo || "—")}" e cobriu ${cob.soma.toString().replace(".", ",")} de ${cob.total}. (O comentário completo entregaria o ponto ${f.escondidos.leitura_da_confianca + 1} — aparece quando você revelar esse ponto.)</div>`;
+		h += `</div>`;
+
+		if (f.evolucao && f.evolucao.length) {
+			h += `<div class="card fb-evolucao"><h3>O que melhorou desde a versão anterior</h3><ul>`;
+			h += f.evolucao.map((e) => `<li><strong>Ponto ${e.ponto_idx + 1}:</strong> ${esc(e.antes)} → ${esc(e.depois)}</li>`).join("");
+			h += `</ul></div>`;
+		}
+
+		let indiceSugestao = 0;
+		if (f.prioridades && f.prioridades.length) {
+			h += `<div class="card"><h3>O que mais vai melhorar sua resposta</h3><ol class="fb-prioridades">`;
+			for (const pr of f.prioridades) {
+				h += `<li><label class="fb-aplicar"><input type="checkbox" class="aplicar-cb" value="${indiceSugestao}"> vou aplicar</label>`;
+				if (pr.sugestao) {
+					h += `<p><strong>${esc(pr.sugestao)}</strong></p>`;
+				} else {
+					h += `<p><strong>Sugestão escondida</strong> — ela entregaria o ponto ${pr.sugestao_escondida_ponto + 1}, que você ainda não descobriu. Use as pistas desse ponto em "Ponto a ponto", abaixo; a sugestão aparece quando o ponto for revelado.</p>`;
+				}
+				h += `<p class="muted">Por que importa: ${esc(pr.por_que_importa)}</p>`;
+				if (pr.secao) h += `<p>📖 ${linkSecao(pr.secao, pr.secao_titulo)}</p>`;
+				h += `</li>`;
+				indiceSugestao++;
+			}
+			h += `</ol></div>`;
+		}
+
+		h += `<div class="card"><h3>Ponto a ponto</h3><ul class="rubrica-lista">${t.pontos.map(blocoPonto).join("")}</ul></div>`;
+
+		if (t.estrutura && t.estrutura.length) {
+			h += `<div class="card"><h3>Estrutura</h3><p class="fb-estrutura">`;
+			h += t.estrutura.map((e) => `<span class="badge ${e.atende ? "estrutura-ok" : "estrutura-falta"}">${e.atende ? "✔" : "✖"} ${esc(e.rotulo)}</span>`).join(" ");
+			h += `</p>${f.estrutura_comentario ? `<p>${esc(f.estrutura_comentario)}</p>` : ""}</div>`;
+			// (estrutura_comentario escondido não é reexibido: os marcadores acima já dizem o essencial)
+		}
+
+		if ((f.pontos_fortes && f.pontos_fortes.length) || (f.demais_sugestoes && f.demais_sugestoes.length) || (f.fora_do_material && f.fora_do_material.length)) {
+			h += `<div class="card">`;
+			if (f.pontos_fortes && f.pontos_fortes.length) {
+				h += `<h3>O que funcionou</h3><ul>` + f.pontos_fortes.map((p) => `<li><blockquote class="trecho-citado">«${esc(p.trecho)}»</blockquote>${esc(p.por_que_funciona)}</li>`).join("") + `</ul>`;
+			}
+			if (f.demais_sugestoes && f.demais_sugestoes.length) {
+				h += `<h3>Outras melhorias</h3><ul>`;
+				for (const s of f.demais_sugestoes) {
+					h += `<li><label><input type="checkbox" class="aplicar-cb" value="${indiceSugestao}"> ${esc(s)}</label></li>`;
+					indiceSugestao++;
+				}
+				h += `</ul>`;
+			}
+			if (f.fora_do_material && f.fora_do_material.length) {
+				h += `<h3>Fora do material</h3><p class="muted">Não é necessariamente erro — mas na prova o que conta é o que foi dado em aula.</p><ul>` + f.fora_do_material.map((s) => `<li>${esc(s)}</li>`).join("") + `</ul>`;
+			}
+			h += `</div>`;
+		}
+
+		h += `<div class="card">`;
+		const esc_ = f.escondidos || {};
+		if (f.proximo_passo) h += `<div class="fb-destaque"><strong>Próximo passo:</strong> ${esc(f.proximo_passo)}</div>`;
+		else if (esc_.proximo_passo != null) h += `<div class="fb-destaque muted"><strong>Próximo passo:</strong> escondido até você revelar o ponto ${esc_.proximo_passo + 1} — ele entregaria a resposta.</div>`;
+		if (f.mensagem_final) h += `<p>${esc(f.mensagem_final)}</p>`;
+		else if (esc_.mensagem_final != null) h += `<p class="muted">(A mensagem final entregaria o ponto ${esc_.mensagem_final + 1} — aparece quando você revelar esse ponto.)</p>`;
+		if (t.resposta_certa_existe) {
+			h += `<h3>Resposta certa</h3>`;
+			if (t.resposta_certa) {
+				h += `<p class="muted">Uma resposta completa para esta questão, escrita a partir do material — compare com a sua.</p><div class="dis-resposta-certa">${esc(t.resposta_certa).replace(/\n/g, "<br>")}</div>`;
+			} else {
+				h += `<p class="muted">Uma resposta completa, escrita a partir do material.${t.resposta_certa_sem_custo ? "" : " Se abrir antes de reescrever, a questão volta amanhã — ver a resposta pronta sem tentar de novo não é lembrar."}</p>`;
+				h += `<button type="button" id="resposta-certa-btn">Ver resposta certa</button>`;
+			}
+		}
+		h += `<h3>Versão melhorada da sua resposta</h3>`;
+		if (f.versao_melhorada_liberada && f.versao_melhorada) {
+			h += `<div class="dis-versao-melhorada">${esc(f.versao_melhorada).replace(/\n/g, "<br>")}</div>`;
+		} else {
+			h += `<p class="muted">🔒 Disponível depois que você reescrever — ver a resposta pronta antes de tentar de novo ensina bem menos.</p>`;
+			h += `<button type="button" class="button-ghost" id="desisto-btn">desisto, mostrar agora</button>`;
+		}
+		h += `</div>`;
+
+		h += `<div class="button-row dis-acoes">`;
+		h += `<button type="button" class="button-primary" id="reescrever-btn">✍ Reescrever aplicando o que marquei</button>`;
+		h += `<button type="button" id="proxima-btn">${questaoPendente ? "Voltar para a questão aberta →" : "Próxima questão →"}</button>`;
+		h += `</div>`;
+		h += `<details class="card"><summary>Sua resposta (versão ${t.versao})</summary><div class="dis-resposta-enviada">${esc(t.resposta_texto)}</div></details>`;
+
+		$("tela-feedback").innerHTML = h;
+		$("tela-feedback").scrollIntoView({ behavior: "smooth", block: "start" });
+		ligarFeedback(t);
+	}
+
+	function ligarFeedback(t) {
+		const raiz = $("tela-feedback");
+		raiz.querySelectorAll(".pista-btn").forEach((b) => b.addEventListener("click", async () => {
+			b.disabled = true;
+			try {
+				const dados = await api("/dissertativas/attempts/" + t.id + "/pista/" + b.dataset.idx, { method: "POST" });
+				const aberto = window.scrollY;
+				renderizarFeedback(dados.tentativa);
+				window.scrollTo(0, aberto);
+			} catch (erro) { aviso(erro.message); b.disabled = false; }
+		}));
+		raiz.querySelectorAll(".discordo-btn").forEach((b) => b.addEventListener("click", async () => {
+			const caixa = b.closest(".discordo");
+			try {
+				const dados = await api("/dissertativas/attempts/" + t.id + "/discordo", {
+					method: "POST",
+					body: JSON.stringify({
+						ponto_idx: Number(b.dataset.idx),
+						veredito_usuario: caixa.querySelector(".discordo-veredito").value,
+						comentario: caixa.querySelector(".discordo-comentario").value,
+					}),
+				});
+				const aberto = window.scrollY;
+				renderizarFeedback(dados.tentativa);
+				window.scrollTo(0, aberto);
+			} catch (erro) { aviso(erro.message); }
+		}));
+		const respostaCerta = $("resposta-certa-btn");
+		if (respostaCerta) respostaCerta.addEventListener("click", async () => {
+			if (!t.resposta_certa_sem_custo && !confirm("Ver a resposta certa antes de reescrever? A questão volta a aparecer amanhã.")) return;
+			try {
+				const dados = await api("/dissertativas/attempts/" + t.id + "/resposta-certa", { method: "POST" });
+				const aberto = window.scrollY;
+				renderizarFeedback(dados.tentativa);
+				window.scrollTo(0, aberto);
+			} catch (erro) { aviso(erro.message); }
+		});
+		const desisto = $("desisto-btn");
+		if (desisto) desisto.addEventListener("click", async () => {
+			if (!confirm("Ver a versão melhorada sem reescrever? A questão volta a aparecer amanhã.")) return;
+			try {
+				const dados = await api("/dissertativas/attempts/" + t.id + "/revelar-modelo", { method: "POST", body: JSON.stringify({ desisto: true }) });
+				const aberto = window.scrollY;
+				renderizarFeedback(dados.tentativa);
+				window.scrollTo(0, aberto);
+			} catch (erro) { aviso(erro.message); }
+		});
+		$("reescrever-btn").addEventListener("click", () => {
+			const escolhidas = [...raiz.querySelectorAll(".aplicar-cb:checked")].map((c) => Number(c.value));
+			const novaReescrita = {
+				anterior_id: t.id,
+				versao: t.versao + 1,
+				escolhidas,
+				textos: escolhidas.map((i) => t.sugestoes[i]).filter(Boolean),
+				texto_anterior: t.resposta_texto,
+			};
+			// A questão aberta (se houver) guarda o rascunho sozinha e volta
+			// depois, pelo "próxima questão".
+			api("/lessons/" + LESSON_ID + "/dissertativas/estado.json?questao=" + t.question_id).then((dados) => {
+				reescrita = novaReescrita;
+				abrirQuestao(dados.questao);
+				window.scrollTo({ top: 0, behavior: "smooth" });
+			}).catch((erro) => aviso(erro.message));
+		});
+		$("proxima-btn").addEventListener("click", () => {
+			reescrita = null;
+			voltarParaQuestao();
+			window.scrollTo({ top: 0, behavior: "smooth" });
+		});
+	}
+
+	// --- ligações fixas -----------------------------------------------------
+	const ditado = window.criarDitado({
+		textarea: $("resposta"),
+		botao: $("ditar-btn"),
+		indicador: $("ditado-indicador"),
+		previa: $("previa-ditado"),
+		aoMudar: salvarRascunho,
+	});
+	$("resposta").addEventListener("input", salvarRascunho);
+	$("voltar-questao-btn").addEventListener("click", voltarParaQuestao);
+	$("enviar-btn").addEventListener("click", abrirConfianca);
+	$("cancelar-envio-btn").addEventListener("click", fecharConfianca);
+	$("confirmar-envio-btn").addEventListener("click", enviar);
+	document.querySelectorAll(".confianca-btn").forEach((b) => b.addEventListener("click", () => escolherConfianca(Number(b.dataset.valor))));
+	$("tentar-de-novo-btn").addEventListener("click", async () => {
+		try {
+			const dados = await api("/dissertativas/attempts/" + tentativaAtual.id + "/tentar-de-novo", { method: "POST" });
+			inicioCorrecao = Date.now();
+			exibirTentativa(dados.tentativa);
+		} catch (erro) { aviso(erro.message); }
+	});
+	const novaSecao = $("nova-secao-btn");
+	if (novaSecao) novaSecao.addEventListener("click", async () => {
+		try {
+			reescrita = null;
+			const dados = await api("/lessons/" + LESSON_ID + "/dissertativas/nova.json", {
+				method: "POST", body: JSON.stringify({ secao: Number($("secao-select").value) }),
+			});
+			acompanharGeracao(dados.job);
+		} catch (erro) { aviso(erro.message); }
+	});
+
+	document.addEventListener("keydown", (ev) => {
+		const escrevendo = !$("tela-questao").hidden;
+		if (!escrevendo) return;
+		const faixaAberta = !$("confianca-faixa").hidden;
+		if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+			ev.preventDefault();
+			if (faixaAberta) enviar(); else abrirConfianca();
+			return;
+		}
+		if (faixaAberta && document.activeElement !== $("autoavaliacao") && ["1", "2", "3", "4"].includes(ev.key)) {
+			escolherConfianca(Number(ev.key));
+		} else if (faixaAberta && ev.key === "Enter" && confiancaEscolhida) {
+			ev.preventDefault();
+			enviar();
+		} else if (faixaAberta && ev.key === "Escape") {
+			fecharConfianca();
+		}
+	});
+
+	// Selo atualizado de tempos em tempos mesmo parado na tela de escrever.
+	setInterval(async () => {
+		try { atualizarSelo(await api("/ia-local/status.json")); } catch (e) {}
+	}, 15000);
+
+	const params = new URLSearchParams(location.search);
+	carregarEstado(params.get("questao"));
+	atualizarFila();
+})();
+</script>
+{% endblock %}

@@ -1202,11 +1202,31 @@ class FeynmanAttempt(Base):
     avaliado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+DISSERTATIVA_FONTES = ("transcricao", "guia")
+DISSERTATIVA_TIPOS = ("caso", "comparacao", "explicacao", "critica")
+# "respondido"/"avaliado" são do fluxo legado (ponte manual); o fluxo pelo
+# guia passa por julgando -> redigindo -> avaliado, ou para em "erro".
+DISSERTATIVA_ATTEMPT_STATUSES = ("respondido", "julgando", "redigindo", "avaliado", "erro")
+DISSERTATIVA_VEREDITOS = ("coberto", "parcial", "ausente")
+# 1..4, marcada ANTES de ver o feedback (PLANO.md, fase 13b: declarar a
+# confiança antes é o que mais pesou na pesquisa sobre feedback de IA).
+DISSERTATIVA_CONFIANCAS = {1: "chutei", 2: "inseguro", 3: "razoavelmente seguro", 4: "seguro"}
+
+
 class DissertativaQuestion(Base):
-    """Questão no estilo do professor, com rubrica (PLANO.md, "dissertativa
-    avaliada") -- gerada a partir de uma aula (`lesson_id`) ou de um
-    assunto inteiro (`assunto_id`, via `context/window.py`, mesmo recorte
-    literal usado em fase 8a), nunca das duas ao mesmo tempo."""
+    """Questão dissertativa com rubrica. Duas origens (`fonte`):
+
+    - "transcricao" (legado, fase 13): gerada pela ponte manual a partir
+      do recorte literal de uma aula (`lesson_id`) ou de um assunto
+      (`assunto_id`). Só leitura desde a fase 13b.
+    - "guia" (fase 13b): gerada pela IA local a partir do GUIA de uma
+      aula, e corrigida contra o material -- não contra a lei. Rubrica é
+      `[{ponto, secao_ordem, pista}]` (legado é `list[str]`; ver
+      `ai/dissertativa.py::normalizar_rubrica`).
+
+    Compartilhada entre usuários, como GuiaExercicio -- o que é de cada
+    pessoa (tentativas, espaçamento) mora em DissertativaAttempt e
+    DissertativaProgresso."""
 
     __tablename__ = "dissertativa_question"
 
@@ -1224,6 +1244,27 @@ class DissertativaQuestion(Base):
     enunciado: Mapped[str] = mapped_column(Text, nullable=False)
     rubrica_json: Mapped[str] = mapped_column(Text, nullable=False)
 
+    fonte: Mapped[str] = mapped_column(String, nullable=False, default="transcricao")
+    tipo: Mapped[str | None] = mapped_column(String, nullable=True)
+    # "O que a questão pede" -- mostrado ANTES de escrever (feed-up), sem
+    # entregar a rubrica.
+    criterio_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seções do guia usadas como fonte: [{ordem, titulo}]. Por ordem+título,
+    # não por id: GuiaSecao é apagada e recriada a cada reprocessamento.
+    secoes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Chave de derivação (PLANO.md, Integridade): o `guia_gerado_em` da aula
+    # quando a questão nasceu. Se o guia foi refeito depois, a página avisa
+    # que a questão pode não bater mais com o material.
+    guia_gerado_em_ref: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # "Resposta certa": resposta-modelo de prova escrita só com o material,
+    # gerada JUNTO com a questão -- diferente da "versão melhorada" do
+    # feedback, que reescreve a resposta de quem respondeu. Só aparece
+    # depois da correção, atrás de um clique (ver routes/dissertativas.py).
+    resposta_modelo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Quem gerou: "local:<modelo>" (fila da IA local, o padrão) ou "claude"
+    # (skill /gerar-dissertativas, só quando o usuário pede no Claude Code).
+    origem: Mapped[str | None] = mapped_column(String, nullable=True)
+
     ai_call_id: Mapped[int | None] = mapped_column(ForeignKey("ai_call.id"), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -1234,26 +1275,165 @@ class DissertativaQuestion(Base):
 
 class DissertativaAttempt(Base):
     """Uma tentativa de resposta -- histórico, nunca sobrescreve a
-    anterior (PLANO.md: "histórico de tentativas"). `status` segue o
-    mesmo vocabulário de FeynmanAttempt: escrita entra "respondido",
-    correção pela ponte manual leva a "avaliado"."""
+    anterior (PLANO.md: "histórico de tentativas").
+
+    Fluxo pelo guia (fase 13b): entra "julgando" (um veredito por ponto da
+    rubrica, com o trecho da resposta como evidência), vai a "redigindo"
+    (o feedback pedagógico, escrito a partir dos vereditos já conferidos)
+    e termina "avaliado" -- ou "erro" se a IA local falhar. Reescrever
+    cria uma tentativa nova apontando pra anterior (`tentativa_anterior_id`,
+    a cadeia v1 -> v2 -> ...): o feedback da v2 compara com a v1."""
 
     __tablename__ = "dissertativa_attempt"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     question_id: Mapped[int] = mapped_column(ForeignKey("dissertativa_question.id"), nullable=False)
     question: Mapped["DissertativaQuestion"] = relationship(back_populates="attempts")
+    # Nulo nas tentativas legadas (fase 13 não tinha dono por tentativa).
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), nullable=True)
 
     resposta_texto: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="respondido")
+    erro: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     pontos_cobertos_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     pontos_faltantes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     comentario: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    confianca: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    autoavaliacao_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tentativa_anterior_id: Mapped[int | None] = mapped_column(ForeignKey("dissertativa_attempt.id"), nullable=True)
+    tentativa_anterior: Mapped["DissertativaAttempt | None"] = relationship(remote_side=[id])
+    # Índices das sugestões do feedback anterior que a pessoa marcou "vou
+    # aplicar" antes de reescrever.
+    sugestoes_escolhidas_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Saída do juiz já conferida: [{ponto, secao_ordem, veredito, trecho,
+    # o_que_falta, citacao_ok}] + {"estrutura": {...}}. Ver ai/dissertativa.py.
+    vereditos_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Saída do redator (DissertativaFeedbackOut), com `versao_melhorada`
+    # guardada aqui mas só entregue ao navegador depois de liberada.
+    feedback_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    motor: Mapped[str | None] = mapped_column(String, nullable=True)
+    modelo: Mapped[str | None] = mapped_column(String, nullable=True)
+    segundos_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Pedagogia: pistas graduais abertas ({idx: nível}) e quando a versão
+    # melhorada foi revelada (e se foi por "desisto").
+    pistas_abertas_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    modelo_revelado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    modelo_revelado_por_desistencia: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    resposta_certa_vista_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A fila da tela mostra "corrigida — ver avaliação" até a pessoa abrir.
+    avaliacao_vista_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     ai_call_id: Mapped[int | None] = mapped_column(ForeignKey("ai_call.id"), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     avaliado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DissertativaProgresso(Base):
+    """Espaçamento de UMA questão pra UM usuário (retorno em 1, 2, 4, 7, 12
+    dias -- mesma escada de caixas do "Dominar o guia",
+    study/guia_scheduler.py::apply_leitner, só que em DIAS em vez de
+    posições). Só a v1 de cada ciclo move a caixa: reescrever logo depois
+    de ler o feedback não é recuperar da memória, é aplicar o que acabou
+    de ver."""
+
+    __tablename__ = "dissertativa_progresso"
+    __table_args__ = (UniqueConstraint("user_id", "question_id", name="uq_dissertativa_progresso_user_question"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    question_id: Mapped[int] = mapped_column(ForeignKey("dissertativa_question.id"), nullable=False)
+    question: Mapped["DissertativaQuestion"] = relationship()
+
+    caixa: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Nulo = dominada (não volta mais).
+    proxima_revisao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ultima_cobertura: Mapped[float | None] = mapped_column(Float, nullable=True)
+    atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class DissertativaDiscordancia(Base):
+    """"Discordo" num veredito do juiz. Duas funções: é a métrica principal
+    pra comparar os modelos locais (% de vereditos contestados) e vira
+    exemplo de calibração no prompt do juiz nas próximas correções."""
+
+    __tablename__ = "dissertativa_discordancia"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    attempt_id: Mapped[int] = mapped_column(ForeignKey("dissertativa_attempt.id"), nullable=False)
+    attempt: Mapped["DissertativaAttempt"] = relationship()
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    ponto_idx: Mapped[int] = mapped_column(Integer, nullable=False)
+    veredito_modelo: Mapped[str] = mapped_column(String, nullable=False)
+    veredito_usuario: Mapped[str] = mapped_column(String, nullable=False)
+    comentario: Mapped[str | None] = mapped_column(Text, nullable=True)
+    modelo: Mapped[str | None] = mapped_column(String, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+# Fase 13b -- fila da IA local. A máquina com GPU PUXA o trabalho (long-poll
+# em /api/ia-local/next); a VPS nunca abre conexão com ela. Tabela própria,
+# não TranscriptionJob: aqui o job carrega o prompt pronto (payload) e volta
+# com a resposta (resultado), vários por aula, com progresso.
+IA_LOCAL_JOB_TIPOS = ("dissertativa_gerar", "dissertativa_julgar", "dissertativa_redigir")
+IA_LOCAL_JOB_STATUSES = ("pending", "claimed", "done", "failed", "cancelled")
+
+
+class IaLocalJob(Base):
+    __tablename__ = "ia_local_job"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tipo: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+
+    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lesson.id"), nullable=True)
+    question_id: Mapped[int | None] = mapped_column(ForeignKey("dissertativa_question.id"), nullable=True)
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("dissertativa_attempt.id"), nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("user.id"), nullable=True)
+
+    # {"chamadas": [{id, sistema, prompt, schema, temperatura, max_tokens}],
+    #  "meta": {...só o servidor lê...}} -- o ouvinte executa as chamadas em
+    # ordem e não sabe o que é juiz nem redator.
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # {"respostas": [{id, conteudo}], "reparos": n}
+    resultado_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    etapa: Mapped[str | None] = mapped_column(String, nullable=True)
+    palavras: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    claim_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    claimed_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    erro: Mapped[str | None] = mapped_column(Text, nullable=True)
+    motor: Mapped[str | None] = mapped_column(String, nullable=True)
+    modelo: Mapped[str | None] = mapped_column(String, nullable=True)
+    segundos_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tokens_por_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class IaLocalPresenca(Base):
+    """Última vez que cada ouvinte local apareceu (cada long-poll atualiza).
+    A página mostra "IA local ligada" se alguém apareceu no último minuto."""
+
+    __tablename__ = "ia_local_presenca"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    worker_name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    visto_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    motor: Mapped[str | None] = mapped_column(String, nullable=True)
+    modelo: Mapped[str | None] = mapped_column(String, nullable=True)
+    claude_autorizado_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ocupado_etapa: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 # Fase 14 -- provas, plano regressivo e exportação. "Os assuntos emergem

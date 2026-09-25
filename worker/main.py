@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from shared import gpu_lock  # noqa: E402
 from worker import api_client, config, tts  # noqa: E402
 
 
@@ -419,11 +420,19 @@ def run(mode: str, targets: list[str], lesson_id: int | None = None) -> None:
             return
 
         if job_target == "rebuild_media":
-            process_rebuild_job(job)
-        elif job_target == "tts_guia":
-            process_tts_job(job)
+            process_rebuild_job(job)  # só ffmpeg, CPU -- não precisa da GPU
         else:
-            process_one_job(job)
+            # Numa GPU de 6 GB, Whisper/TTS e a IA local das dissertativas
+            # não cabem juntos: pede a GPU e espera o ouvinte da IA local
+            # (worker/ia_local.py) derrubar o llama-server entre um job e
+            # outro. Ver shared/gpu_lock.py.
+            with gpu_lock.usar_gpu(
+                "transcricao", ao_esperar=lambda: _log("esperando a IA local soltar a GPU...")
+            ):
+                if job_target == "tts_guia":
+                    process_tts_job(job)
+                else:
+                    process_one_job(job)
         jobs_done += 1
 
         if mode == "once":

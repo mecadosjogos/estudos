@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Minha calibração{% endblock %}
+{% block content %}
+<p><a href="/dissertativas">← Dissertativas</a></p>
+<h1>Minha calibração</h1>
+<p class="muted">Antes de cada correção você marca o quanto está seguro. Aqui essa confiança é comparada com a cobertura real da rubrica — só a primeira versão de cada questão conta, porque é ela que mede o que você sabia antes de ver o feedback. Saber onde você se superestima é tão útil quanto saber o conteúdo: é ali que a prova surpreende.</p>
+
+{% if materias %}
+<div class="card">
+	<h2>Por matéria</h2>
+	<table class="calib-tabela" style="width:100%; border-collapse: collapse">
+		<thead><tr><th style="text-align:left">Matéria</th><th>Respostas</th><th style="text-align:left">Confiança × cobertura</th><th>Leitura</th></tr></thead>
+		<tbody>
+		{% for m in materias %}
+		<tr>
+			<td>{{ m.subject.sigla }}</td>
+			<td style="text-align:center">{{ m.n }}</td>
+			<td>
+				<div><span class="calib-barra calib-barra--conf" style="width: {{ (m.conf * 12) | round(1) }}rem"></span> <span class="muted">confiança {{ (m.conf * 100) | round | int }}%</span></div>
+				<div><span class="calib-barra calib-barra--cob" style="width: {{ (m.cob * 12) | round(1) }}rem"></span> <span class="muted">cobertura {{ (m.cob * 100) | round | int }}%</span></div>
+			</td>
+			<td style="text-align:center">
+				{% if m.leitura == "superconfiante" %}<span class="badge estrutura-falta">superconfiante</span>
+				{% elif m.leitura == "subconfiante" %}<span class="badge badge-revisao">subconfiante</span>
+				{% else %}<span class="badge estrutura-ok">calibrado</span>{% endif %}
+			</td>
+		</tr>
+		{% endfor %}
+		</tbody>
+	</table>
+	<p class="muted"><strong>Superconfiante:</strong> você acha que sabe mais do que a resposta mostra — revise esses temas mesmo quando "parecem fáceis". <strong>Subconfiante:</strong> você sabe mais do que acha — confie mais na primeira ideia na hora da prova.</p>
+</div>
+
+<div class="card">
+	<h2>Últimas respostas</h2>
+	<ul class="search-results">
+		{% for r in recentes %}
+		<li>
+			<span class="badge">{{ r.subject.sigla }}</span>
+			<a href="/lessons/{{ r.question.lesson_id }}/dissertativas?questao={{ r.question.id }}">{{ r.question.enunciado[:90] }}{% if r.question.enunciado|length > 90 %}…{% endif %}</a>
+			<span class="muted">· marcou <strong>{{ r.confianca_rotulo }}</strong>, cobriu {{ r.soma }} de {{ r.total }}</span>
+		</li>
+		{% endfor %}
+	</ul>
+</div>
+{% else %}
+<p class="muted">Ainda não há respostas corrigidas com confiança marcada. Faça algumas dissertativas e volte aqui.</p>
+{% endif %}
+{% endblock %}

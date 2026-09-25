@@ -9,6 +9,7 @@ para os dois clientes de máquina (worker de transcrição, Atalho do iOS)
 que não têm como fazer login interativo.
 """
 
+import hmac
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request
@@ -95,6 +96,8 @@ def require_session_or_token(request: Request, session: Session = Depends(get_se
     if get_current_user(request, session) is not None:
         return
     header = request.headers.get("authorization", "")
-    if config.ACCESS_TOKEN and header == f"Bearer {config.ACCESS_TOKEN}":
+    # compare_digest: comparação em tempo constante -- `==` vaza, pelo
+    # tempo de resposta, quantos caracteres do token já batem.
+    if config.ACCESS_TOKEN and hmac.compare_digest(header.encode(), f"Bearer {config.ACCESS_TOKEN}".encode()):
         return
     raise HTTPException(status_code=401, detail="Sessão inválida")

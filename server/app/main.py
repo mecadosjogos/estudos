@@ -16,6 +16,7 @@ from .routes import (
     feynman,
     glossary,
     guia_exercicios,
+    ia_local,
     jobs,
     lessons,
     library,
@@ -76,6 +77,8 @@ app.include_router(uploads.router)
 app.include_router(uploads.api_router)
 app.include_router(uploads.direct_router)
 app.include_router(jobs.router)
+app.include_router(ia_local.api_router)
+app.include_router(ia_local.router)
 app.include_router(search.router)
 app.include_router(ai.router)
 app.include_router(review.router)

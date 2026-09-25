@@ -478,44 +478,136 @@ curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/termos/{id}/feynman/{attempt_id}/co
   --data-urlencode "resposta@${WINPATH}"
 ```
 
-**2. Dissertativa — gerar a questão.** Duas fontes possíveis, cada uma
-com seu próprio par pacote/colar: a partir de **uma aula**
-(`/lessons/{id}/dissertativas/gerar-pacote.md` →
-`/lessons/{id}/dissertativas/colar-questao`) ou a partir de **um
-assunto inteiro** (`/assuntos/{id}/dissertativas/gerar-pacote.md` →
-`/assuntos/{id}/dissertativas/colar-questao`, concatenando a transcrição
-literal de toda aula vinculada via `context/window.py`, mesmo recorte da
-fase 8a). Sempre a partir da transcrição literal, nunca da aula editada
-— mesma regra do resto do app. Um assunto sem nenhuma aula aceita
-vinculada não tem o que gerar (erro claro, não pacote vazio).
-
-**3. Dissertativa — responder e corrigir.** Depois que a questão existe
-(`/dissertativas/{question_id}`), responda no formulário da própria
-página — isso só grava a tentativa (`status="respondido"`), sem custo
-nenhum. A correção segue o mesmo par pacote/colar de sempre, agora por
-tentativa: `/dissertativas/{question_id}/attempts/{attempt_id}/prompt.md`
-→ `/dissertativas/{question_id}/attempts/{attempt_id}/colar-correcao`.
-O histórico de tentativas fica todo na mesma página da questão — nada é
-sobrescrito, cada resposta é uma linha nova.
-
-```bash
-curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/dissertativas/gerar-pacote.md" -o pacote.md
-WINPATH=$(cygpath -w questao.md)
-curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/dissertativas/colar-questao" \
-  --data-urlencode "resposta@${WINPATH}"
-
-curl -s -b "$COOKIEJAR" "$SERVER_URL/dissertativas/{question_id}/attempts/{attempt_id}/prompt.md" -o pacote.md
-WINPATH=$(cygpath -w correcao.md)
-curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/dissertativas/{question_id}/attempts/{attempt_id}/colar-correcao" \
-  --data-urlencode "resposta@${WINPATH}"
-```
+**2. Dissertativa — não passa mais por aqui.** Desde a fase 13b a
+dissertativa sai do guia da aula e quem gera e corrige é a IA local da
+máquina com GPU — ver a seção "IA local — dissertativas" abaixo. As
+questões antigas (transcrição + ponte manual) continuam visíveis, só
+leitura, em `/dissertativas`.
 
 **Validar:**
 
 ```bash
 curl -s -b "$COOKIEJAR" "$SERVER_URL/termos/{id}/feynman/{attempt_id}" | grep -o "Faltou\|Nada faltando"
-curl -s -b "$COOKIEJAR" "$SERVER_URL/dissertativas" | grep -o "search-results"
 ```
+
+### IA local — dissertativas (fase 13b; não é chat, é um processo que fica ligado)
+
+**Diferente de tudo acima, aqui não há pacote nem colar.** A dissertativa
+é gerada e corrigida por um modelo local rodando nesta máquina (llama.cpp,
+repositório irmão `..\LlamaCppLocal`). A VPS enfileira o trabalho, e um
+ouvinte aqui puxa, executa e devolve. O navegador só fala com a VPS. Ver
+PLANO.md, fase 13b, pro desenho e o porquê de cada etapa pedagógica.
+
+**Uma vez por máquina (instalação):**
+
+```powershell
+cd ..\LlamaCppLocal
+.\instalar.ps1          # llama.cpp CUDA em C:\models\llama.cpp
+.\baixar-modelos.ps1    # os 4 GGUFs em C:\models\gguf (~40 GB)
+python calibrar.py      # mede VRAM/RAM/velocidade de cada um -> calibracao\<COMPUTERNAME>.json
+```
+
+Feche o Docker Desktop antes de calibrar e antes de deixar o ouvinte em
+modo servidor: no notebook (16 GB), a VM do WSL come ~4,6 GB e nenhum MoE
+sobe junto (o `iniciar.ps1` recusa com "RAM insuficiente", e o ouvinte cai
+no modelo de reserva).
+
+**Ligar (deixa rodando):**
+
+```powershell
+.\worker\ia_local.ps1                       # servidor do .env (produção), modelo padrão desta máquina
+.\worker\ia_local.ps1 -Servidor local       # contra o Docker dev (127.0.0.1:8000)
+.\worker\ia_local.ps1 -Modelo gpt-oss-20b   # outro modelo só nesta execução
+```
+
+Fica fazendo long-poll na VPS. Ao chegar trabalho, sobe o llama-server
+(primeira subida de um MoE: ~20 a 60 s), executa e devolve; depois de 10
+min sem trabalho, derruba o llama-server e devolve a RAM. Ctrl+C encerra
+tudo. Se a transcrição (`run_local.ps1`) pedir a GPU, o ouvinte solta
+entre um job e outro, e a página mostra "máquina ocupada transcrevendo".
+
+**Ligado sozinho no logon (notebook, configurado em 25/09/2026):** a
+tarefa agendada "Estudos - IA local (dissertativas)" roda
+`worker\ia_local_servico.ps1` sem janela, que liga o ouvinte (servidor do
+`.env`, modelo padrão desta máquina) e o religa se ele cair. Log em
+`%LOCALAPPDATA%\Estudos\ia_local.log`. Energia na tomada: sem suspender,
+sem hibernar, tampa fechada não faz nada (na bateria continua
+suspendendo). Atenção: o Legion Vantage troca de esquema de energia pelo
+Fn+Q, e o outro esquema pode voltar a suspender — os ajustes valem para o
+"Legion Performance Mode".
+
+```powershell
+Get-ScheduledTask -TaskName "Estudos - IA local (dissertativas)"        # conferir
+Start-ScheduledTask -TaskName "Estudos - IA local (dissertativas)"      # ligar agora sem relogar
+Get-Content "$env:LOCALAPPDATA\Estudos\ia_local.log" -Tail 30          # ver o que está fazendo
+Unregister-ScheduledTask -TaskName "Estudos - IA local (dissertativas)" # desfazer
+```
+
+**Conferir que está ligado:** a página `/dissertativas` (ou a de
+qualquer aula) mostra "IA local ligada · <modelo>". Pelo terminal:
+`curl -s -b "$COOKIEJAR" "$SERVER_URL/ia-local/status.json"`.
+
+**Modelo padrão desta máquina** (grava em
+`%LOCALAPPDATA%\Estudos\ia_local.json`, não no `.env`, que sincroniza com
+o desktop pelo OneDrive):
+
+```powershell
+.\worker\ia_local.ps1 -Comando usar-modelo -Modelo gemma4-26b-a4b
+.\worker\ia_local.ps1 -Comando status
+```
+
+**Claude CLI no lugar do modelo local — só com autorização, por tempo:**
+
+```powershell
+.\worker\ia_local.ps1 -Comando autorizar-claude            # 24 h
+.\worker\ia_local.ps1 -Comando autorizar-claude -Horas 3
+.\worker\ia_local.ps1 -Comando revogar-claude
+```
+
+Autorizado, o ouvinte usa `claude -p --model opus --tools "" --json-schema`
+(assinatura, nunca `ANTHROPIC_API_KEY`; sem ferramentas, então sem
+`--dangerously-skip-permissions`). Passado o prazo, volta ao local
+sozinho. Se o Claude falhar num job, o job é refeito no local.
+
+**Rodada de escolha do modelo (uma vez, contra a VPS):** um modelo por
+vez — `.\worker\ia_local.ps1 -Servidor vps -Modelo <id>`, fazer algumas
+dissertativas de verdade pelo site (para comparar na mesma base,
+"Reescrever" aceita reenviar o mesmo texto), usar "discordo" sempre que o
+veredito de um ponto estiver errado. Ordem: `qwen3.5-4b`, `gemma4-26b-a4b`,
+`gpt-oss-20b`, `qwen3.6-35b-a3b`. Cada tentativa grava modelo, tempo e
+tokens/s. Para o resumo de cada modelo (read-only, com o login do
+"Ambiente" acima):
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/dissertativas/attempts/{id}.json"
+```
+
+Métrica principal: a % de vereditos contestados ("discordo"). Depois:
+tempo médio, falhas de formato, citações "não verificadas" e o tom do
+feedback. O vencedor vira o padrão (`usar-modelo`) e é registrado no
+PLANO.md, fase 13b.
+
+**Gerar questões pelo Claude (só quando o usuário pedir):**
+`/gerar-dissertativas <id-da-aula> [quantidade]` (padrão 5, máx. 15). A
+skill faz o ciclo sozinha:
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/dissertativas/pacote-claude.md?n=5" -o pacote.md
+# gerar lote.json seguindo o pacote (schema no fim dele)
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/dissertativas/importar" \
+  -H "Content-Type: application/json; charset=utf-8" --data-binary "@lote.json"
+```
+
+O lote é tudo ou nada: se uma questão não valida (seção que não existe,
+rubrica vazia, resposta certa curta demais), nada entra e o erro diz qual
+— corrigir e reenviar. As questões ficam com `origem="claude"` e são
+corrigidas pela IA local como as outras, com a resposta certa de cada
+uma como referência.
+
+**Quando algo falha:** a tentativa fica "a correção falhou" com a mensagem
+e um botão "Tentar de novo". O log do llama-server está em
+`worker\tmp\ia_local\llama-server-<modelo>.log`; o do ouvinte, no próprio
+terminal.
 
 ### Dominar o guia (exercícios de memorização, fora da numeração de fases do PLANO.md)
 

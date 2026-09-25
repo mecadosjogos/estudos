@@ -76,18 +76,6 @@
 </div>
 
 <div class="card">
-	<h2>Dissertativa</h2>
-	<p class="muted">Gera uma questão a partir de todas as aulas vinculadas a este assunto (qualquer semestre).</p>
-	<div class="button-row">
-		<form method="post" action="/assuntos/{{ assunto.id }}/dissertativas/gerar">
-			<button type="submit">Gerar questão (automático)</button>
-		</form>
-		<a class="button" href="/assuntos/{{ assunto.id }}/dissertativas/gerar-pacote.md">Baixar pacote (.md)</a>
-		<a class="button" href="/assuntos/{{ assunto.id }}/dissertativas/colar-questao">Colar questão</a>
-	</div>
-</div>
-
-<div class="card">
 	<h2>Renomear</h2>
 	<form method="post" action="/assuntos/{{ assunto.id }}/renomear">
 		<label>Título<br><input type="text" name="titulo" value="{{ assunto.titulo }}"></label>
