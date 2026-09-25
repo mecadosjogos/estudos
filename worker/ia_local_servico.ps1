@@ -22,7 +22,9 @@ while ($true) {
 		Move-Item $log "$log.anterior" -Force
 	}
 	"[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] iniciando o ouvinte" | Out-File $log -Append -Encoding utf8
-	& $script *>> $log
+	# Out-File -Encoding utf8, não `*>>`: no PowerShell 5.1 o redirecionamento
+	# grava em UTF-16 e o log fica ilegível no Get-Content/editor.
+	& $script 2>&1 | ForEach-Object { "$_" } | Out-File $log -Append -Encoding utf8
 	"[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] o ouvinte saiu (código $LASTEXITCODE); de novo em 30 s" | Out-File $log -Append -Encoding utf8
 	Start-Sleep -Seconds 30
 }
