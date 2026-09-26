@@ -218,6 +218,19 @@ button, .button {
 	50% { opacity: 0.2; }
 }
 
+/* Microfone parado de propósito enquanto a locução fala (não captar a
+   própria voz): ponto vazado, sem pulsar -- diferente de "desligado". */
+.voz-indicador[data-estado="pausado"]::before {
+	background: transparent;
+	border: 2px solid currentColor;
+}
+
+/* Aparece só quando o navegador barra o autoplay: alvo grande pro polegar. */
+.locucao-tocar {
+	font-size: 1.1rem;
+	padding: var(--space-3) var(--space-4);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.voz-indicador::before {
 		animation: none;

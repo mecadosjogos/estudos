@@ -387,6 +387,86 @@ def process_tts_job(job: dict) -> None:
         heartbeat.stop()
 
 
+def process_tts_exercicios_job(job: dict) -> None:
+    """Job `tts_exercicios`: locução do "Dominar o guia" -- narra a pergunta
+    e a resposta de cada questão que o servidor listou em
+    `exercicios_audio` (o texto já vem pronto pra fala, montado no servidor
+    em study/guia_locucao.py -- o mesmo que a voz do navegador lê enquanto
+    o mp3 não existe) e **sobe cada áudio assim que fica pronto**, sem
+    concatenar: a tela toca questão a questão, e quem está praticando já
+    ouve o que saiu antes do lote terminar.
+
+    Falha de um item não derruba os outros; o job só é reportado como
+    falha se nenhum sair. Ao fim, `concluir` fecha o lote -- e o servidor
+    reenfileira sozinho se a aula ainda tiver áudio faltando. Um job
+    retomado depois de obsoleto não refaz nada: o claim novo só lista o
+    que ainda falta."""
+    from shared.audio import compress_to_mp3
+
+    job_id = job["id"]
+    claim_token = job["claim_token"]
+    itens = job.get("exercicios_audio") or []
+
+    work_dir = config.TMP_DIR / f"job-{job_id}"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    heartbeat = HeartbeatThread(job_id, claim_token)
+    heartbeat.start()
+
+    try:
+        _log(f"job {job_id} — locução das questões de \"{job['lesson_titulo']}\" — {len(itens)} áudio(s)")
+        narrados = 0
+        falhas: list[str] = []
+        for item in itens:
+            rotulo = f"{item['exercicio_id']}-{item['parte']}"
+            try:
+                bruto = work_dir / f"{rotulo}-bruto.mp3"
+                final = work_dir / f"{rotulo}.mp3"
+                bruto.write_bytes(tts.synthesize(item["texto"]))
+                # Mesmo padrão do áudio da aula e da narração do guia:
+                # 32kbps mono -- voz não precisa de mais, e é o celular que baixa.
+                compress_to_mp3(bruto, final)
+                result = api_client.submit_tts_exercicio(
+                    job_id,
+                    claim_token=claim_token,
+                    exercicio_id=item["exercicio_id"],
+                    parte=item["parte"],
+                    hash_=item["hash"],
+                    audio_path=final,
+                )
+            except Exception as exc:  # noqa: BLE001 — só esse item fica sem áudio, o lote segue
+                _log(f"questão {rotulo} falhou ({exc}) — seguindo pras outras")
+                falhas.append(rotulo)
+                continue
+            narrados += 1
+            if result.get("descartado"):
+                _log(f"questão {rotulo}: editada no meio do caminho — áudio descartado pelo servidor")
+            else:
+                _log(f"questão {rotulo} narrada ({narrados}/{len(itens)})")
+
+        if itens and not narrados:
+            raise RuntimeError(f"nenhum áudio conseguiu ser narrado ({len(falhas)} falharam)")
+
+        api_client.concluir_tts_exercicios(job_id, claim_token=claim_token, narrados=narrados, falhas=falhas)
+        if falhas:
+            _log(f"questões sem áudio (voltam no próximo pedido da tela): {falhas}")
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+    except Exception as exc:  # noqa: BLE001 — falha vira status "failed" no servidor, nunca some silenciosa
+        _log(f"FALHOU: {exc}")
+        traceback.print_exc()
+        try:
+            api_client.report_failure(job_id, claim_token, str(exc))
+        except Exception as report_exc:  # noqa: BLE001
+            _log(f"não consegui nem reportar a falha pro servidor: {report_exc}")
+    finally:
+        heartbeat.stop()
+
+
+# Alvos que dependem do tts-service/ (processo separado, ligado à mão).
+TTS_TARGETS = ("tts_exercicios", "tts_guia")
+
+
 def run(mode: str, targets: list[str], lesson_id: int | None = None) -> None:
     if not config.ACCESS_TOKEN:
         _log("ACCESS_TOKEN não configurado no .env — o servidor vai recusar tudo")
@@ -400,12 +480,17 @@ def run(mode: str, targets: list[str], lesson_id: int | None = None) -> None:
     while True:
         job = None
         job_target = None
+        tts_de_pe = None
         for target in targets:
-            # tts_guia depende de um processo separado (tts-service/) que
-            # pode não estar rodando -- pula esse alvo sem travar o resto do
-            # loop em vez de deixar o worker inteiro cair numa exceção.
-            if target == "tts_guia" and not tts.healthz():
-                continue
+            # Os alvos de narração dependem de um processo separado
+            # (tts-service/) que pode não estar rodando -- pula esses alvos
+            # sem travar o resto do loop em vez de deixar o worker inteiro
+            # cair numa exceção. Pergunta uma vez só por volta do laço.
+            if target in TTS_TARGETS:
+                if tts_de_pe is None:
+                    tts_de_pe = tts.healthz()
+                if not tts_de_pe:
+                    continue
             job = api_client.get_next_job(config.WORKER_NAME, target, lesson_id)
             if job is not None:
                 job_target = target
@@ -431,12 +516,14 @@ def run(mode: str, targets: list[str], lesson_id: int | None = None) -> None:
             ):
                 if job_target == "tts_guia":
                     process_tts_job(job)
+                elif job_target == "tts_exercicios":
+                    process_tts_exercicios_job(job)
                 else:
                     process_one_job(job)
         jobs_done += 1
 
         if mode == "once":
-            if job_target == "tts_guia":
+            if job_target in TTS_TARGETS:
                 _shutdown_tts_if_relevant(targets)
             return
         # "drain" e "watch" voltam pro topo do loop e pegam o próximo
@@ -449,8 +536,8 @@ def _shutdown_tts_if_relevant(targets: list[str]) -> None:
     GPU por completo (contexto CUDA incluso, não só o modelo -- ver
     tts.shutdown()) em vez de deixar o processo vivo. Próxima narração
     precisa de `tts-service\\iniciar.ps1` rodando nele de novo. No-op
-    silencioso se tts_guia nem era um dos alvos."""
-    if "tts_guia" not in targets:
+    silencioso se nenhum alvo de narração estava na lista."""
+    if not any(target in TTS_TARGETS for target in targets):
         return
     _log("encerrando o processo de narração pra liberar a GPU por completo...")
     tts.shutdown()
@@ -467,11 +554,12 @@ def main():
     parser.add_argument(
         "--target",
         default=None,
-        choices=["gpu_worker", "vps_cpu", "rebuild_media", "tts_guia"],
+        choices=["gpu_worker", "vps_cpu", "rebuild_media", "tts_exercicios", "tts_guia"],
         help=(
             "alvo único, pra rodadas avulsas (ex.: --target rebuild_media). "
-            "Sem isso, o modo contínuo padrão alterna sozinho entre gpu_worker "
-            "e tts_guia, priorizando gpu_worker."
+            "Sem isso, o modo contínuo padrão alterna sozinho entre gpu_worker, "
+            "tts_exercicios (locução do Dominar o guia) e tts_guia, nessa ordem "
+            "de prioridade."
         ),
     )
     parser.add_argument(
@@ -489,7 +577,9 @@ def main():
     if args.once and args.watch:
         raise SystemExit("--once e --watch são incompatíveis")
 
-    targets = [args.target] if args.target else ["gpu_worker", "tts_guia"]
+    # A locução vem antes da narração do guia: foi pedida por alguém que
+    # está com a prática aberta, esperando.
+    targets = [args.target] if args.target else ["gpu_worker", "tts_exercicios", "tts_guia"]
 
     if "gpu_worker" in targets:
         # Etapa 0 do RUNBOOK.md: acha e enfileira aula com áudio pendente

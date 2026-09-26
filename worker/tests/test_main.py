@@ -181,7 +181,7 @@ def test_main_enqueues_pending_before_draining_gpu_queue(monkeypatch):
         worker_main.main()
 
     mock_enqueue.assert_called_once()
-    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"], lesson_id=None)
+    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_exercicios", "tts_guia"], lesson_id=None)
 
 
 def test_main_does_not_enqueue_for_vps_cpu_target(monkeypatch):
@@ -209,7 +209,7 @@ def test_main_keeps_draining_even_if_enqueue_check_fails(monkeypatch):
     ):
         worker_main.main()
 
-    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_guia"], lesson_id=None)
+    mock_run.assert_called_once_with(mode="drain", targets=["gpu_worker", "tts_exercicios", "tts_guia"], lesson_id=None)
 
 
 def test_main_explicit_tts_guia_target_does_not_enqueue_transcriptions(monkeypatch):
@@ -484,3 +484,119 @@ def test_tts_job_resumes_without_resynthesizing_sections_already_on_disk(tmp_pat
     assert [t["ordem"] for t in submitted["timestamps"]] == [0, 1, 2]
     concat_paths = mock_concat.call_args.args[0]
     assert concat_paths[0] == work_dir / "secao-0.mp3"
+
+
+# --- locução do "Dominar o guia" (tts_exercicios) ---------------------------
+
+
+def _make_tts_exercicios_job(itens=None):
+    return {
+        "id": 700,
+        "claim_token": "tok",
+        "lesson_id": 8,
+        "lesson_titulo": "Aula 2",
+        "exercicios_audio": itens
+        if itens is not None
+        else [
+            {"exercicio_id": 1, "parte": "pergunta", "texto": "O que é posse?", "hash": "h1"},
+            {"exercicio_id": 1, "parte": "resposta", "texto": "Poder de fato.", "hash": "h2"},
+            {"exercicio_id": 2, "parte": "pergunta", "texto": "O que é dolo?", "hash": "h3"},
+        ],
+    }
+
+
+def test_tts_exercicios_sobe_cada_audio_assim_que_fica_pronto(tmp_path, monkeypatch):
+    """Um upload por item, com o texto pronto do servidor (sem limpeza de
+    Markdown aqui) e o hash de volta -- e o lote fecha com `concluir`."""
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    job = _make_tts_exercicios_job()
+
+    with (
+        patch("worker.tts.synthesize", return_value=b"mp3") as mock_synth,
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.submit_tts_exercicio", return_value={"ok": True, "descartado": False}) as mock_up,
+        patch("worker.api_client.concluir_tts_exercicios") as mock_concluir,
+        patch("worker.api_client.report_failure") as mock_fail,
+        patch("shared.audio.compress_to_mp3"),
+    ):
+        worker_main.process_tts_exercicios_job(job)
+
+    assert [c.args[0] for c in mock_synth.call_args_list] == ["O que é posse?", "Poder de fato.", "O que é dolo?"]
+    assert [(c.kwargs["exercicio_id"], c.kwargs["parte"], c.kwargs["hash_"]) for c in mock_up.call_args_list] == [
+        (1, "pergunta", "h1"),
+        (1, "resposta", "h2"),
+        (2, "pergunta", "h3"),
+    ]
+    mock_concluir.assert_called_once_with(700, claim_token="tok", narrados=3, falhas=[])
+    mock_fail.assert_not_called()
+    assert not (tmp_path / "job-700").exists()
+
+
+def test_tts_exercicios_falha_de_um_item_nao_derruba_o_lote(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    job = _make_tts_exercicios_job()
+
+    def fake_synth(texto):
+        if texto == "Poder de fato.":
+            raise RuntimeError("timeout")
+        return b"mp3"
+
+    with (
+        patch("worker.tts.synthesize", side_effect=fake_synth),
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.submit_tts_exercicio", return_value={"ok": True, "descartado": False}) as mock_up,
+        patch("worker.api_client.concluir_tts_exercicios") as mock_concluir,
+        patch("worker.api_client.report_failure") as mock_fail,
+        patch("shared.audio.compress_to_mp3"),
+    ):
+        worker_main.process_tts_exercicios_job(job)
+
+    assert mock_up.call_count == 2
+    mock_concluir.assert_called_once_with(700, claim_token="tok", narrados=2, falhas=["1-resposta"])
+    mock_fail.assert_not_called()
+
+
+def test_tts_exercicios_nenhum_item_narrado_reporta_falha(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker_config, "TMP_DIR", tmp_path)
+    job = _make_tts_exercicios_job()
+
+    with (
+        patch("worker.tts.synthesize", side_effect=RuntimeError("serviço caiu")),
+        patch("worker.api_client.send_heartbeat"),
+        patch("worker.api_client.submit_tts_exercicio") as mock_up,
+        patch("worker.api_client.concluir_tts_exercicios") as mock_concluir,
+        patch("worker.api_client.report_failure") as mock_fail,
+        patch("shared.audio.compress_to_mp3"),
+    ):
+        worker_main.process_tts_exercicios_job(job)
+
+    mock_up.assert_not_called()
+    mock_concluir.assert_not_called()
+    mock_fail.assert_called_once()
+    assert "nenhum áudio" in mock_fail.call_args.args[2]
+
+
+def test_run_pula_os_dois_alvos_de_narracao_com_tts_fora_e_pergunta_uma_vez(monkeypatch):
+    with (
+        patch("worker.tts.healthz", return_value=False) as mock_healthz,
+        patch("worker.api_client.get_next_job", return_value=None) as mock_get_next_job,
+        patch("worker.tts.shutdown"),
+    ):
+        worker_main.run(mode="drain", targets=["gpu_worker", "tts_exercicios", "tts_guia"])
+
+    mock_healthz.assert_called_once()
+    assert [c.args[1] for c in mock_get_next_job.call_args_list] == ["gpu_worker"]
+
+
+def test_run_despacha_tts_exercicios_e_encerra_tts_no_once(monkeypatch):
+    job = _make_tts_exercicios_job()
+    with (
+        patch("worker.tts.healthz", return_value=True),
+        patch("worker.api_client.get_next_job", return_value=job),
+        patch("worker.main.process_tts_exercicios_job") as mock_process,
+        patch("worker.tts.shutdown") as mock_shutdown,
+    ):
+        worker_main.run(mode="once", targets=["tts_exercicios"])
+
+    mock_process.assert_called_once_with(job)
+    mock_shutdown.assert_called_once()

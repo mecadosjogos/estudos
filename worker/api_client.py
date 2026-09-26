@@ -132,6 +132,36 @@ def submit_tts_result(
     return response.json()
 
 
+def submit_tts_exercicio(
+    job_id: int, *, claim_token: str, exercicio_id: int, parte: str, hash_: str, audio_path: Path
+) -> dict:
+    """Um áudio da locução do "Dominar o guia" (pergunta OU resposta de uma
+    questão), enviado assim que fica pronto. `hash_` é o do texto que foi
+    narrado -- o servidor descarta se a questão mudou nesse meio-tempo
+    (`{"descartado": true}`)."""
+    with audio_path.open("rb") as f:
+        response = httpx.post(
+            f"{config.SERVER_URL}/api/jobs/{job_id}/tts-exercicio",
+            headers=_headers(),
+            data={"claim_token": claim_token, "exercicio_id": str(exercicio_id), "parte": parte, "hash": hash_},
+            files={"audio": (audio_path.name, f, "audio/mpeg")},
+            timeout=120,
+        )
+    response.raise_for_status()
+    return response.json()
+
+
+def concluir_tts_exercicios(job_id: int, *, claim_token: str, narrados: int, falhas: list[str]) -> dict:
+    response = httpx.post(
+        f"{config.SERVER_URL}/api/jobs/{job_id}/tts-exercicios-concluir",
+        json={"claim_token": claim_token, "narrados": narrados, "falhas": falhas},
+        headers=_headers(),
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def report_failure(job_id: int, claim_token: str, error: str) -> None:
     httpx.post(
         f"{config.SERVER_URL}/api/jobs/{job_id}/fail",

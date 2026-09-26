@@ -24,7 +24,25 @@ from sqlalchemy.orm import Session
 from .. import config
 from ..auth import require_session_or_token
 from ..db import get_session
-from ..models import AudioSegment, GuiaSecao, Lesson, Subject, Transcript, TranscriptionJob, TranscriptSegment
+from ..models import (
+    AudioSegment,
+    GuiaExercicio,
+    GuiaSecao,
+    Lesson,
+    Subject,
+    Transcript,
+    TranscriptionJob,
+    TranscriptSegment,
+)
+from ..study.guia_locucao import (
+    LOTE_MAXIMO,
+    PARTES,
+    caminho_audio,
+    hash_fala,
+    itens_pendentes,
+    registrar_audio,
+    texto_falado,
+)
 
 router = APIRouter(prefix="/api/jobs", dependencies=[Depends(require_session_or_token)])
 
@@ -190,6 +208,15 @@ def next_job(
             "guia_secoes": [
                 {"ordem": s.ordem, "titulo": s.titulo, "corpo": s.corpo} for s in guia_secoes
             ],
+            # Só jobs target=tts_exercicios (locução do "Dominar o guia") --
+            # a consulta só roda pra esse alvo. Lista o que falta AGORA, no
+            # claim: um job retomado depois de obsoleto não refaz o que já
+            # subiu.
+            "exercicios_audio": (
+                itens_pendentes(session, job.lesson_id, limite=LOTE_MAXIMO)
+                if target == "tts_exercicios"
+                else []
+            ),
         }
     })
 
@@ -405,6 +432,86 @@ async def submit_tts_result(
     job.lesson.guia_audio_gerado_em = datetime.now(timezone.utc)
     job.status = "done"
     session.commit()
+    return JSONResponse({"ok": True, "already_received": False})
+
+
+def _claimed_job_or_409(session: Session, job_id: int, claim_token: str) -> TranscriptionJob:
+    job = session.get(TranscriptionJob, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job não encontrado")
+    if job.status != "claimed" or job.claim_token != claim_token:
+        raise HTTPException(
+            status_code=409, detail="claim inválido ou expirado — outro worker já processou"
+        )
+    return job
+
+
+@router.post("/{job_id}/tts-exercicio")
+async def submit_tts_exercicio(
+    job_id: int,
+    claim_token: str = Form(...),
+    exercicio_id: int = Form(...),
+    parte: str = Form(...),
+    hash: str = Form(...),
+    audio: UploadFile = File(...),
+    session: Session = Depends(get_session),
+):
+    """Um áudio da locução do "Dominar o guia" (job `tts_exercicios`, ver
+    study/guia_locucao.py): **um upload por item**, não um pacote no fim --
+    cada pergunta/resposta narrada já fica tocável na tela assim que chega.
+    Se a questão foi editada depois do claim, o `hash` não bate mais com o
+    texto atual: o áudio é descartado (o próximo pedido narra o texto novo)."""
+    job = _claimed_job_or_409(session, job_id, claim_token)
+    if parte not in PARTES:
+        raise HTTPException(status_code=400, detail="parte inválida")
+    exercicio = session.get(GuiaExercicio, exercicio_id)
+    if exercicio is None or exercicio.lesson_id != job.lesson_id:
+        raise HTTPException(status_code=404, detail="exercício não é da aula deste job")
+
+    job.heartbeat_at = datetime.now(timezone.utc)
+    if hash != hash_fala(texto_falado(exercicio, parte)):
+        session.commit()
+        return JSONResponse({"ok": True, "descartado": True})
+
+    dest = caminho_audio(job.lesson_id, exercicio_id, parte)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    # Grava ao lado e renomeia: a tela nunca serve um mp3 pela metade.
+    parcial = dest.with_suffix(".mp3.tmp")
+    with parcial.open("wb") as out:
+        while chunk := await audio.read(1024 * 1024):
+            out.write(chunk)
+    parcial.replace(dest)
+
+    registrar_audio(exercicio, parte, hash)
+    session.commit()
+    return JSONResponse({"ok": True, "descartado": False})
+
+
+class ConcluirTtsExerciciosBody(BaseModel):
+    claim_token: str
+    narrados: int
+    falhas: list[str] = []
+
+
+@router.post("/{job_id}/tts-exercicios-concluir")
+def concluir_tts_exercicios(job_id: int, body: ConcluirTtsExerciciosBody, session: Session = Depends(get_session)):
+    """Fecha um lote de locução. Se ainda falta áudio na aula (a aula tinha
+    mais que um lote), reenfileira sozinho -- mas só se este lote narrou
+    alguma coisa: item que falha sempre não pode virar um laço infinito na
+    fila; ele volta no próximo pedido da tela."""
+    job = session.get(TranscriptionJob, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job não encontrado")
+    if job.status == "done" and job.claim_token == body.claim_token:
+        return JSONResponse({"ok": True, "already_received": True})
+    job = _claimed_job_or_409(session, job_id, body.claim_token)
+
+    job.status = "done"
+    job.error = f"sem áudio: {', '.join(body.falhas)}" if body.falhas else None
+    session.commit()
+
+    if body.narrados and itens_pendentes(session, job.lesson_id, limite=1):
+        ensure_pending_job(session, job.lesson_id, target="tts_exercicios")
     return JSONResponse({"ok": True, "already_received": False})
 
 

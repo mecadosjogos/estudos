@@ -24,6 +24,7 @@ def app_env(tmp_path, monkeypatch):
     monkeypatch.setenv("MATERIAL_FILES_DIR", str(tmp_path / "materials"))
     monkeypatch.setenv("FEYNMAN_AUDIO_DIR", str(tmp_path / "media" / "feynman"))
     monkeypatch.setenv("DESTAQUES_CLIPS_DIR", str(tmp_path / "media" / "destaques"))
+    monkeypatch.setenv("GUIA_AUDIO_DIR", str(tmp_path / "media" / "guia-audio"))
 
     # Módulos já podem ter sido importados por outro teste com config antiga;
     # força reimport para pegar as env vars isoladas deste teste.

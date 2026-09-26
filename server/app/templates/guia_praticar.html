@@ -7,6 +7,24 @@
 	<span class="dot" style="background: {{ lesson.subject.cor or 'var(--border)' }}"></span>
 	<a href="/subjects/{{ lesson.subject_id }}">{{ lesson.subject.sigla }} — {{ lesson.subject.nome }}</a>
 </p>
+<div class="button-row" id="voice-control" style="align-items:center">
+	<button type="button" id="voice-toggle-btn">🎙️ Ativar comando de voz</button>
+	<button type="button" id="locucao-toggle-btn">🔊 Ativar locução</button>
+	<span class="muted" id="voice-status"></span>
+</div>
+<p class="button-row" id="locucao-tocar-wrap" hidden>
+	<button type="button" id="locucao-tocar-btn" class="locucao-tocar">▶ Toque para ouvir</button>
+	<span class="muted">O navegador só deixa tocar som depois de um toque na tela — daí em diante segue sozinho.</span>
+</p>
+<p class="muted" id="locucao-status" hidden></p>
+<audio id="locucao-player" preload="auto"></audio>
+
+{# Tudo daqui até o fim do bloco é trocado no lugar, sem recarregar a página,
+   quando se responde/ajusta/remove uma questão (static/guia_praticar.js):
+   recarregar travava o autoplay da locução no celular e reiniciava o
+   microfone a cada questão. Sem <script> aqui dentro -- conteúdo trocado não
+   executa script. #}
+<div id="praticar-conteudo" data-lesson-id="{{ lesson.id }}">
 {% if mastery_percent is not none %}
 <p class="muted">{{ (mastery_percent * 100) | round(0, "floor") | int }}% dominado</p>
 {% endif %}
@@ -17,13 +35,10 @@
 	<button type="submit">Definir</button>
 </form>
 
-<div class="button-row" id="voice-control" style="align-items:center">
-	<button type="button" id="voice-toggle-btn">🎙️ Ativar comando de voz</button>
-	<span class="muted" id="voice-status"></span>
-</div>
-
 {% if exercicio %}
-<div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}">
+<div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}"
+	data-pergunta-url="{{ locucao.pergunta_url or '' }}" data-resposta-url="{{ locucao.resposta_url or '' }}"
+	data-pergunta-texto="{{ locucao.pergunta_texto }}" data-resposta-texto="{{ locucao.resposta_texto }}">
 	<span class="badge">{{ exercicio.tipo }}</span>
 	{% if exercicio.secao_titulo %}<span class="badge">{{ exercicio.secao_titulo }}</span>{% endif %}
 	<h2>{{ exercicio.pergunta }}</h2>
@@ -46,7 +61,7 @@
 			{% endfor %}
 		</ul>
 		<p class="muted">Como foi? (isso decide quando este exercício volta a aparecer — ver "Como funcionam os botões" no fim da página)</p>
-		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form">
+		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form" data-trocar>
 			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
 			<input type="hidden" name="shortcut" id="shortcut-field">
 			<div class="button-row" style="align-items:center">
@@ -56,80 +71,23 @@
 			</div>
 		</form>
 		<div class="button-row">
-			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline">
+			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline" data-trocar>
 				<input type="hidden" name="delta" value="-1">
 				<button type="submit">↓ quero ver de novo mais cedo</button>
 			</form>
-			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline">
+			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline" data-trocar>
 				<input type="hidden" name="delta" value="1">
 				<button type="submit">↑ já sei, espaçar mais</button>
 			</form>
 		</div>
 	</div>
 
-	<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" class="button-row" style="margin-top: var(--space-3)">
+	<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" class="button-row" style="margin-top: var(--space-3)" data-trocar>
 		<button type="submit" class="button-ghost">✕ remover questão</button>
 	</form>
 	<p class="muted">Some da sua fila (só da sua — não afeta outros usuários) e continua fora mesmo depois de limpar o progresso. Dá pra trazer de volta em "Questões removidas", abaixo.</p>
 </div>
 
-<script>
-	const recallStep = document.getElementById("recall-step");
-	const gabaritoStep = document.getElementById("gabarito-step");
-	const respostaTexto = document.getElementById("resposta-texto");
-	const respostaTextoField = document.getElementById("resposta-texto-field");
-	const shortcutField = document.getElementById("shortcut-field");
-	const answerForm = document.getElementById("answer-form");
-	let revealed = false;
-
-	const exercicioCard = document.getElementById("exercicio-card");
-
-	// A cada questão nova (recarga de página após lembrei/não lembrei), o
-	// card some do topo se a página já rolou -- traz de volta pra tela.
-	// O navegador restaura sozinho a rolagem da página anterior, e fazia
-	// isso depois deste script, desfazendo o posicionamento: daí o
-	// "manual" e a repetição no load, quando o documento inteiro já existe.
-	if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-	exercicioCard.scrollIntoView({ block: "start" });
-	window.addEventListener("load", () => exercicioCard.scrollIntoView({ block: "start" }));
-
-	document.getElementById("revelar-btn").addEventListener("click", () => {
-		respostaTextoField.value = respostaTexto.value;
-		// A resposta escrita fica na tela, em leitura, junto do gabarito --
-		// é exatamente na hora de comparar que ela é útil pra autoavaliação.
-		// Só some se estiver em branco (não há o que comparar).
-		recallStep.hidden = respostaTexto.value.trim() === "";
-		respostaTexto.readOnly = true;
-		document.getElementById("recall-hint").hidden = true;
-		document.getElementById("recall-label").hidden = false;
-		document.getElementById("revelar-wrap").hidden = true;
-		gabaritoStep.hidden = false;
-		revealed = true;
-		// Rolar até o gabarito (que fica mais abaixo) empurrava a pergunta e
-		// a resposta escrita pra fora da tela -- rola até o início do card
-		// pra manter tudo visível.
-		exercicioCard.scrollIntoView({ block: "start", behavior: "smooth" });
-	});
-
-	document.querySelectorAll(".quality-btn").forEach((btn) => {
-		btn.addEventListener("click", (ev) => {
-			ev.preventDefault();
-			// Escurece antes de enviar: o botão fica marcado durante a
-			// requisição, mostrando qual opção saiu.
-			btn.classList.add("botao-acionado");
-			shortcutField.value = btn.dataset.shortcut;
-			answerForm.submit();
-		});
-	});
-
-	document.addEventListener("keydown", (ev) => {
-		if (!revealed) return;
-		if (["1", "2"].includes(ev.key)) {
-			const btn = document.querySelector('.quality-btn[data-shortcut="' + ev.key + '"]');
-			if (btn) btn.click();
-		}
-	});
-</script>
 {% else %}
 <div class="card">
 	{% if pool.filtrado and pool.total == 0 %}
@@ -167,15 +125,6 @@
 		</div>
 	</form>
 </details>
-<script>
-	(() => {
-		const form = document.getElementById("tipos-filtro-form");
-		const caixas = form.querySelectorAll('input[name="tipos"]');
-		const marcar = (valor) => caixas.forEach((caixa) => { caixa.checked = valor; });
-		document.getElementById("tipos-marcar-todos").addEventListener("click", () => marcar(true));
-		document.getElementById("tipos-limpar").addEventListener("click", () => marcar(false));
-	})();
-</script>
 {% endif %}
 
 <details class="card">
@@ -218,8 +167,15 @@
 </details>
 
 <details class="card">
-	<summary><strong>Comando de voz</strong></summary>
-	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" para revelar o gabarito, e depois "lembrei" ou "não lembrei" para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder depois de recarregar, é só clicar no botão de novo.</p>
+	<summary><strong>Comando de voz e locução</strong></summary>
+	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" para revelar o gabarito, e depois "lembrei" ou "não lembrei" para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder, é só clicar no botão de novo.</p>
+	<p class="muted">O botão "🔊 Ativar locução" lê a pergunta em voz alta assim que ela aparece, e a resposta assim que o gabarito é revelado. Enquanto a leitura toca, o microfone fica pausado (não capta a própria locução) e volta a ouvir quando ela termina. A voz é a mesma da narração do guia, gerada no computador com GPU; enquanto uma questão ainda não tem esse áudio, quem lê é a voz do próprio navegador, e o pedido de gerar os áudios da aula vai pra fila sozinho.</p>
+	<dl>
+		<dt>"leia novamente" (ou "de novo", "repetir")</dt>
+		<dd>Antes de revelar, lê a pergunta de novo; com o gabarito aberto, lê só a resposta.</dd>
+		<dt>"ler pergunta novamente"</dt>
+		<dd>Lê a pergunta de novo, mesmo com o gabarito aberto.</dd>
+	</dl>
 </details>
 
 <details class="card">
@@ -229,204 +185,7 @@
 		<button type="submit">Limpar meu progresso nesta aula</button>
 	</form>
 </details>
+</div>
 
-<script>
-	document.getElementById("limpar-progresso-form").addEventListener("submit", (ev) => {
-		if (!confirm('Atenção: isso apaga TODO o seu progresso nesta aula (caixa, mesa, streak e histórico de respostas) e começa do zero. Não tem como desfazer. Continuar?')) {
-			ev.preventDefault();
-		}
-	});
-</script>
-
-<script>
-(() => {
-	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-	const toggleBtn = document.getElementById("voice-toggle-btn");
-	const statusEl = document.getElementById("voice-status");
-	if (!toggleBtn) return;
-	if (!SpeechRecognition) {
-		toggleBtn.disabled = true;
-		statusEl.textContent = "Comando de voz não suportado neste navegador — use Chrome ou Edge.";
-		return;
-	}
-
-	const STORAGE_KEY = "guia-praticar-voz-ativa";
-	const indicadores = document.querySelectorAll(".voz-indicador");
-	let recognition = null;
-	let manualStop = false;
-	let voltarParaAguardando = null;
-	let esperandoFinal = null;
-	let ultimaExecutada = null;
-
-	// O indicador fica junto dos botões (e não só no topo da página) porque
-	// é olhando pra eles que se fala -- é ali que precisa dar pra ver se o
-	// microfone está ocioso, captando ou interpretando o que ouviu.
-	function estado(nome, texto, voltarEm) {
-		clearTimeout(voltarParaAguardando);
-		indicadores.forEach((el) => {
-			el.hidden = nome === "off";
-			el.dataset.estado = nome;
-			el.textContent = texto;
-		});
-		if (voltarEm) {
-			voltarParaAguardando = setTimeout(() => estado("aguardando", "aguardando comando"), voltarEm);
-		}
-	}
-
-	// Só reconhece, não age: separado de `executar` porque a frase precisa
-	// ser avaliada já no resultado parcial, pra decidir se vale esperar o
-	// final. Devolve o comando, ou null quando nada casa.
-	function identificar(fraseOriginal) {
-		const frase = fraseOriginal.toLowerCase();
-		const gabaritoStep = document.getElementById("gabarito-step");
-		const gabaritoVisivel = gabaritoStep && !gabaritoStep.hidden;
-
-		if (!gabaritoVisivel) {
-			// "revelar", "revelar gabarito" e só "gabarito" -- o motor corta
-			// palavra curta com frequência, então vale aceitar as duas metades.
-			if (frase.includes("revelar") || frase.includes("gabarito")) return "revelar";
-			return null;
-		}
-		if (frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei")) return "1";
-		if (frase.includes("lembrei") || frase.includes("acertei")) return "2";
-		return null;
-	}
-
-	// Ponto único de execução, alimentado tanto pelo resultado final quanto
-	// pelo parcial que o final não veio confirmar. Guarda a última frase
-	// executada pra não repetir o comando quando o final chega atrasado,
-	// depois do parcial já ter agido.
-	function processar(frase) {
-		if (frase === ultimaExecutada) return;
-		const comando = identificar(frase);
-		if (comando) {
-			ultimaExecutada = frase;
-			estado("ok", "✓ " + executar(comando), 2500);
-		} else {
-			estado("falhou", '"' + frase + '" — nenhum comando, fale de novo', 4000);
-		}
-	}
-
-	// Aciona o mesmo botão que o clique do mouse acionaria. Devolve o rótulo
-	// mostrado no indicador.
-	function executar(comando) {
-		if (comando === "revelar") {
-			document.getElementById("revelar-btn").click();
-			return "revelar gabarito";
-		}
-		const btn = document.querySelector('.quality-btn[data-shortcut="' + comando + '"]');
-		// Escurece o botão e espera um instante antes de enviar, senão a
-		// página troca antes de dar pra ver qual opção foi acionada. A classe
-		// também barra um segundo reconhecimento da mesma frase, que
-		// enfileiraria outro envio.
-		if (btn && !btn.classList.contains("botao-acionado")) {
-			btn.classList.add("botao-acionado");
-			setTimeout(() => btn.click(), 450);
-		}
-		return comando === "1" ? "não lembrei" : "lembrei";
-	}
-
-	function iniciar() {
-		recognition = new SpeechRecognition();
-		recognition.lang = "pt-BR";
-		recognition.continuous = true;
-		// Resultados parciais existem aqui só pelo indicador: são o único
-		// sinal confiável de que o microfone está captando agora (o evento
-		// speechstart não dispara sempre no Chrome). Comando mesmo só sai
-		// do resultado final.
-		recognition.interimResults = true;
-
-		// Um ciclo de fala passa por speechstart (entrou som de voz),
-		// speechend (parou de falar, o motor está transcrevendo) e result
-		// (veio a transcrição) -- é essa sequência que o indicador espelha.
-		recognition.onspeechstart = () => estado("captando", "ouvindo...");
-		recognition.onspeechend = () => estado("interpretando", "interpretando...");
-		recognition.onnomatch = () => estado("falhou", "não entendi", 2500);
-
-		recognition.onresult = (ev) => {
-			const ultimo = ev.results[ev.results.length - 1];
-			const frase = ultimo[0].transcript.trim();
-			clearTimeout(esperandoFinal);
-
-			if (!ultimo.isFinal) {
-				// Vai chegando palavra a palavra enquanto se fala: mostra o
-				// texto parcial (cortado, senão empurra os botões da linha).
-				const parcial = frase.length > 40 ? "…" + frase.slice(-40) : frase;
-				estado("captando", "ouvindo: " + parcial);
-				// O resultado final nem sempre chega -- a sessão do Chrome
-				// expira antes e o comando ficava só na tela, sem disparar.
-				// Se o parcial já casa, age nele depois de um instante,
-				// tempo de o final chegar e cancelar esta espera.
-				if (identificar(frase)) {
-					esperandoFinal = setTimeout(() => processar(frase), 1200);
-				}
-				return;
-			}
-			processar(frase);
-		};
-		recognition.onerror = (ev) => {
-			if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-				statusEl.textContent = "Permissão de microfone negada.";
-				manualStop = true;
-				localStorage.removeItem(STORAGE_KEY);
-				toggleBtn.textContent = "🎙️ Ativar comando de voz";
-				estado("off", "");
-			} else if (ev.error !== "no-speech") {
-				// no-speech é rotina (silêncio até o motor desistir e
-				// reiniciar), não vale sinalizar como falha.
-				estado("falhou", "falha no microfone", 3000);
-			}
-		};
-		recognition.onend = () => {
-			// O navegador encerra o reconhecimento sozinho depois de um tempo
-			// de silêncio; reinicia, a menos que o usuário tenha desligado
-			// manualmente. O start vai adiado e protegido porque chamado na
-			// hora, dentro do próprio onend, ele às vezes estoura
-			// InvalidStateError -- e aí o microfone morria calado, com o
-			// botão ainda dizendo "desativar".
-			if (manualStop) return;
-			setTimeout(() => {
-				if (manualStop || !recognition) return;
-				try {
-					recognition.start();
-				} catch (erro) {
-					estado("falhou", "microfone parou — clique em desativar e ativar", 0);
-				}
-			}, 150);
-		};
-		recognition.start();
-		toggleBtn.textContent = "🔴 Desativar comando de voz";
-		statusEl.textContent = 'Diga "revelar", "lembrei" ou "não lembrei".';
-		estado("aguardando", "aguardando comando");
-	}
-
-	function parar() {
-		manualStop = true;
-		if (recognition) recognition.stop();
-		recognition = null;
-		toggleBtn.textContent = "🎙️ Ativar comando de voz";
-		statusEl.textContent = "";
-		estado("off", "");
-	}
-
-	toggleBtn.addEventListener("click", () => {
-		if (recognition) {
-			parar();
-			localStorage.removeItem(STORAGE_KEY);
-		} else {
-			manualStop = false;
-			localStorage.setItem(STORAGE_KEY, "1");
-			iniciar();
-		}
-	});
-
-	// A preferência liga o microfone de novo sozinho a cada recarga de
-	// página (cada resposta recarrega a página) — a permissão do navegador
-	// já concedida evita pedir de novo.
-	if (localStorage.getItem(STORAGE_KEY) === "1") {
-		manualStop = false;
-		iniciar();
-	}
-})();
-</script>
+<script src="/static/guia_praticar.js"></script>
 {% endblock %}

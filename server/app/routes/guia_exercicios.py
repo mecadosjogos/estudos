@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,6 +24,16 @@ from ..ai.guia_exercicios import (
 from ..auth import require_session
 from ..db import get_session
 from ..models import GuiaExercicio, Lesson, Subject, User
+from ..study.guia_locucao import (
+    PARTES,
+    audio_em_dia,
+    audio_url,
+    caminho_audio,
+    gabarito_lines,
+    itens_pendentes,
+    texto_pergunta,
+    texto_resposta,
+)
 from ..study.guia_scheduler import (
     contagem_por_tipo,
     listar_removidos,
@@ -38,6 +48,7 @@ from ..study.guia_scheduler import (
     set_tipos_filtro,
     submit_attempt,
 )
+from .jobs import ensure_pending_job
 
 router = APIRouter(dependencies=[Depends(require_session)])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -75,43 +86,16 @@ def _get_exercicio_or_404(session: Session, lesson_id: int, exercicio_id: int) -
     return exercicio
 
 
-def _flatten_arvore(node: dict, prefix: str = "") -> list[str]:
-    if not isinstance(node, dict):
-        return []
-    lines = [f"{prefix}{node.get('rotulo', '')}"]
-    for filho in node.get("filhos", []) or []:
-        lines.extend(_flatten_arvore(filho, prefix + "— "))
-    return lines
-
-
-def _gabarito_lines(tipo: str, gabarito: dict) -> list[str]:
-    if tipo == "definicao":
-        return [gabarito.get("resposta", "")]
-    if tipo == "cloze":
-        respostas = gabarito.get("respostas", [])
-        # Compat com exercícios gerados antes desta correção, que
-        # guardavam a frase com lacuna aqui em vez de em `pergunta`.
-        linhas = [gabarito["texto_com_lacunas"]] if gabarito.get("texto_com_lacunas") else []
-        if respostas:
-            linhas.append("Respostas: " + ", ".join(respostas))
-        return linhas
-    if tipo == "lista_ordenada":
-        return [f"{i + 1}. {item}" for i, item in enumerate(gabarito.get("itens_em_ordem", []))]
-    if tipo == "hierarquia":
-        return _flatten_arvore(gabarito.get("arvore_alvo", {}))
-    if tipo == "discriminacao":
-        linhas = [f"{gabarito.get('termo_a', '')} × {gabarito.get('termo_b', '')}"]
-        if gabarito.get("eixo"):
-            linhas.append(gabarito["eixo"])
-        return linhas
-    if tipo == "recordacao_livre":
-        return gabarito.get("pontos_esperados", [])
-    if tipo == "aplicacao_caso":
-        linhas = [gabarito.get("caso", "")]
-        if gabarito.get("conceito_correto"):
-            linhas.append("Conceito correto: " + gabarito["conceito_correto"])
-        return linhas
-    return [json.dumps(gabarito, ensure_ascii=False)]
+def _locucao_context(exercicio: GuiaExercicio) -> dict:
+    """O que a locução da tela precisa da questão atual: a URL do mp3 de
+    cada parte (None enquanto o TTS local não narrou) e o texto falado, que
+    a voz do navegador lê nesse meio-tempo."""
+    return {
+        "pergunta_url": audio_url(exercicio, "pergunta"),
+        "resposta_url": audio_url(exercicio, "resposta"),
+        "pergunta_texto": texto_pergunta(exercicio),
+        "resposta_texto": texto_resposta(exercicio),
+    }
 
 
 # --- escolher aula (hub, a partir de /estudar) -----------------------------------
@@ -247,7 +231,8 @@ def practice(
         {
             "lesson": lesson,
             "exercicio": exercicio,
-            "gabarito_lines": _gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
+            "gabarito_lines": gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
+            "locucao": _locucao_context(exercicio) if exercicio else None,
             "mastery_percent": mastery_percent(session, lesson_id, user.id),
             "pool": pool_status(session, lesson, user.id),
             "tipos": contagem_por_tipo(session, lesson_id, user.id),
@@ -255,7 +240,7 @@ def practice(
             "removidos": [
                 {
                     "exercicio": removido,
-                    "gabarito_lines": _gabarito_lines(removido.tipo, json.loads(removido.gabarito_json)),
+                    "gabarito_lines": gabarito_lines(removido.tipo, json.loads(removido.gabarito_json)),
                 }
                 for removido in listar_removidos(session, lesson_id, user.id)
             ],
@@ -283,6 +268,32 @@ def answer_exercicio(
         grau_acerto=GRAU_ACERTO_POR_ATALHO[shortcut],
     )
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
+
+
+# --- locução -----------------------------------------------------------------
+
+
+@router.post("/lessons/{lesson_id}/guia/locucao")
+def request_locucao(lesson_id: int, session: Session = Depends(get_session)):
+    """Pedido da tela de prática quando a locução é ligada: se falta áudio
+    em alguma questão da aula, garante um job `tts_exercicios` na fila (o
+    worker com o tts-service de pé narra e sobe um a um). Idempotente --
+    a tela chama a cada carregamento, e nada pendente não cria job."""
+    _get_lesson_or_404(session, lesson_id)
+    pendentes = len(itens_pendentes(session, lesson_id))
+    if pendentes:
+        ensure_pending_job(session, lesson_id, target="tts_exercicios")
+    return JSONResponse({"pendentes": pendentes})
+
+
+@router.get("/lessons/{lesson_id}/guia/exercicios/{exercicio_id}/audio/{parte}.mp3")
+def exercicio_audio(lesson_id: int, exercicio_id: int, parte: str, session: Session = Depends(get_session)):
+    if parte not in PARTES:
+        raise HTTPException(status_code=404, detail="parte inválida")
+    exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
+    if not audio_em_dia(exercicio, parte):
+        raise HTTPException(status_code=404, detail="áudio ainda não narrado (ou desatualizado)")
+    return FileResponse(caminho_audio(lesson_id, exercicio_id, parte), media_type="audio/mpeg")
 
 
 @router.post("/lessons/{lesson_id}/guia/mesa-tamanho")

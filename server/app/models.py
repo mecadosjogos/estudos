@@ -532,6 +532,12 @@ class GuiaExercicio(Base):
     orfao_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     versao_nova_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Locução (study/guia_locucao.py): hash do texto falado que gerou o mp3
+    # em disco. O áudio só vale enquanto bate com o hash do texto atual --
+    # editar a questão invalida sozinho, sem precisar apagar nada.
+    audio_pergunta_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    audio_resposta_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+
     progressos: Mapped[list["GuiaExercicioProgresso"]] = relationship(
         back_populates="exercicio", cascade="all, delete-orphan"
     )
