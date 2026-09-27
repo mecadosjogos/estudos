@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dominar o guia{% endblock %}
 {% block content %}
+{% set admin = request.state.user and request.state.user.papel == "admin" %}
 <p><a href="/lessons/{{ lesson.id }}">← Voltar</a></p>
 <h1>Dominar o guia: {{ lesson.titulo }}</h1>
 <p class="muted">
@@ -91,9 +92,13 @@
 	</div>
 
 	<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" class="button-row" style="margin-top: var(--space-3)" data-trocar>
-		<button type="submit" class="button-ghost">✕ remover questão</button>
+		<button type="submit" class="button-ghost">✕ remover questão{% if admin %} para todos{% endif %}</button>
 	</form>
+	{% if admin %}
+	<p class="muted">Como admin, remover descarta a questão <strong>para todos os usuários</strong> — some da fila de cada um, inclusive no memorizador. Dá pra trazer de volta (para todos) em "Questões removidas", abaixo.</p>
+	{% else %}
 	<p class="muted">Some da sua fila (só da sua — não afeta outros usuários) e continua fora mesmo depois de limpar o progresso. Dá pra trazer de volta em "Questões removidas", abaixo.</p>
+	{% endif %}
 </div>
 
 {% else %}
@@ -153,7 +158,7 @@
 			{% endfor %}
 		</ul>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ item.exercicio.id }}/restaurar" class="button-row">
-			<button type="submit">↩ desfazer (voltar pra fila)</button>
+			<button type="submit">↩ desfazer (voltar pra fila{% if admin and item.exercicio.status == "descartado" %} de todos{% endif %})</button>
 		</form>
 	</div>
 	{% endfor %}

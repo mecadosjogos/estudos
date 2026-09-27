@@ -188,12 +188,24 @@ def contagem_por_tipo(session: Session, lesson_id: int, user_id: int) -> list[di
     return sorted(contagem.values(), key=lambda item: ordem.get(item["tipo"], 99))
 
 
-def remover_exercicio(session: Session, exercicio: GuiaExercicio, user_id: int) -> None:
+def remover_exercicio(
+    session: Session, exercicio: GuiaExercicio, user_id: int, *, para_todos: bool = False
+) -> None:
     """Botão "remover questão" em /praticar -- tira este exercício da fila
     DESTE usuário, pra sempre (sobrevive ao "limpar progresso", ver
     GuiaExercicioRemovido), até ele clicar "desfazer" na lista de
     removidas. O progresso acumulado nela é preservado, não apagado: se
-    voltar, volta na caixa em que estava."""
+    voltar, volta na caixa em que estava.
+
+    `para_todos` (quem remove é admin -- pedido do usuário): a questão é
+    descartada pra todo mundo (`status="descartado"`, o mesmo da tela de
+    aprovação). Toda fila filtra por `status="aceito"`, então ela some da
+    mesa, dos contadores e da locução de cada usuário na hora, e a mesa
+    de cada um se completa com o backlog no próximo acesso. O registro de
+    remoção do admin também é gravado: é por ele que a questão aparece na
+    lista de removidas do admin, com o "desfazer"."""
+    if para_todos:
+        exercicio.status = "descartado"
     ja = session.scalar(
         select(GuiaExercicioRemovido).where(
             GuiaExercicioRemovido.user_id == user_id, GuiaExercicioRemovido.exercicio_id == exercicio.id
@@ -216,9 +228,15 @@ def remover_exercicio(session: Session, exercicio: GuiaExercicio, user_id: int) 
     session.commit()
 
 
-def restaurar_exercicio(session: Session, exercicio: GuiaExercicio, user_id: int) -> None:
+def restaurar_exercicio(
+    session: Session, exercicio: GuiaExercicio, user_id: int, *, para_todos: bool = False
+) -> None:
     """"Desfazer" na lista de questões removidas -- devolve o exercício ao
-    backlog deste usuário; a mesa o readmite quando houver vaga."""
+    backlog deste usuário; a mesa o readmite quando houver vaga. Com
+    `para_todos` (admin), desfaz também o descarte: a questão volta pra
+    todo mundo, cada um com o progresso que tinha nela."""
+    if para_todos and exercicio.status == "descartado":
+        exercicio.status = "aceito"
     session.execute(
         delete(GuiaExercicioRemovido).where(
             GuiaExercicioRemovido.user_id == user_id, GuiaExercicioRemovido.exercicio_id == exercicio.id

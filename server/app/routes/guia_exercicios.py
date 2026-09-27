@@ -351,10 +351,10 @@ def remover_exercicio_route(
     session: Session = Depends(get_session),
     user: User = Depends(require_session),
 ):
-    """Tira a questão da fila DESTE usuário -- não descarta pra todo mundo
-    (isso é `/exercicios/{id}/descartar`, na tela de aprovação)."""
+    """Tira a questão da fila DESTE usuário. Se quem remove é admin, ela é
+    descartada pra todos os usuários (ver `remover_exercicio`)."""
     exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
-    remover_exercicio(session, exercicio, user.id)
+    remover_exercicio(session, exercicio, user.id, para_todos=user.papel == "admin")
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 
@@ -366,7 +366,7 @@ def restaurar_exercicio_route(
     user: User = Depends(require_session),
 ):
     exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
-    restaurar_exercicio(session, exercicio, user.id)
+    restaurar_exercicio(session, exercicio, user.id, para_todos=user.papel == "admin")
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 
