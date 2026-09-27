@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from .. import config
 from ..models import GuiaExercicio, GuiaExercicioProgresso
+from shared.text import texto_para_fala  # depois de `config`, que põe a raiz do repo no sys.path
 
 PARTES = ("pergunta", "resposta")
 
@@ -35,9 +36,6 @@ PARTES = ("pergunta", "resposta")
 LOTE_MAXIMO = 40
 
 _LACUNA_RE = re.compile(r"_{2,}")
-_ARTIGO_RE = re.compile(r"\bart\.\s*", re.IGNORECASE)
-_NEGRITO_RE = re.compile(r"\*{1,3}")
-_ESPACOS_RE = re.compile(r"\s{2,}")
 
 _ORDINAIS = (
     "Primeiro", "Segundo", "Terceiro", "Quarto", "Quinto",
@@ -89,10 +87,9 @@ def gabarito_lines(tipo: str, gabarito: dict) -> list[str]:
 
 
 def _limpar_para_fala(texto: str) -> str:
-    texto = _NEGRITO_RE.sub("", texto)
-    texto = _ARTIGO_RE.sub("artigo ", texto)
-    texto = texto.replace("§", "parágrafo ").replace("×", " versus ")
-    return _ESPACOS_RE.sub(" ", texto).strip()
+    # A mesma limpeza da narração do guia (shared/text.py): um símbolo que
+    # o TTS lê errado lá lê errado aqui também.
+    return texto_para_fala(texto)
 
 
 def _frases(partes: list[str]) -> str:
@@ -150,8 +147,15 @@ def texto_falado(exercicio: GuiaExercicio, parte: str) -> str:
     return texto_pergunta(exercicio) if parte == "pergunta" else texto_resposta(exercicio)
 
 
+# Entra no hash junto com o texto: subir a versão invalida todos os mp3 de
+# uma vez quando o que muda é o jeito de narrar, não o texto. 2: o
+# tts-service passou a descartar o balbucio que o Chatterbox gerava depois
+# do fim do texto -- áudios da versão 1 podem tê-lo.
+VERSAO_VOZ = 2
+
+
 def hash_fala(texto: str) -> str:
-    return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(f"v{VERSAO_VOZ}\n{texto}".encode("utf-8")).hexdigest()[:16]
 
 
 # --- áudio em disco ------------------------------------------------------------

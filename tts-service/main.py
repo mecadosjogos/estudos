@@ -28,7 +28,19 @@ from pydantic import BaseModel
 
 VOZES_DIR = Path(__file__).resolve().parent / "vozes"
 LANGUAGE_ID = "pt"
-MAX_CHUNK_CHARS = 300
+
+# Trecho curto e conferência de duração: o Chatterbox em PT às vezes termina
+# o texto e segue "falando" -- sílabas sem sentido, que soam como símbolo
+# sendo lido -- até o teto de 40 s. Medido (texto real do guia, 3 rodadas
+# por variante): trechos de ~270 caracteres saíram com esse balbucio em 7 de
+# 9 rodadas, frases soltas em 4 de 15. Áudio limpo sai a 15-22 caracteres
+# por segundo; com balbucio, a 11 ou menos. Como o modelo nunca termina
+# antes do fim do texto (ele suprime o fim até lá), áudio longo demais pro
+# tamanho do texto é sempre sobra -- e gerar de novo resolve.
+MAX_CHUNK_CHARS = 150
+MIN_CHARS_POR_SEGUNDO = 13
+FOLGA_S = 0.8
+MAX_TENTATIVAS = 4
 
 app = FastAPI(title="TTS local")
 
@@ -127,7 +139,9 @@ def speakers():
 
 
 def _split_into_chunks(texto: str, max_chars: int = MAX_CHUNK_CHARS) -> list[str]:
-    sentences = [s for s in re.split(r"(?<=[.!?])\s+", texto.strip()) if s]
+    # Ponto e vírgula também fecha trecho: no guia ele separa orações
+    # inteiras, e uma frase com dois ";" passa fácil dos 150 caracteres.
+    sentences = [s for s in re.split(r"(?<=[.!?;])\s+", texto.strip()) if s]
     chunks: list[str] = []
     current = ""
     for s in sentences:
@@ -139,6 +153,38 @@ def _split_into_chunks(texto: str, max_chars: int = MAX_CHUNK_CHARS) -> list[str
     if current:
         chunks.append(current)
     return chunks or [texto]
+
+
+def _duracao_maxima_s(chunk: str) -> float:
+    # Piso de 2 s: num título curto ("Fontes."), o silêncio de ponta pesa
+    # mais que a fala e a conta por caractere acusaria sobra que não há.
+    return max(2.0, len(chunk) / MIN_CHARS_POR_SEGUNDO + FOLGA_S)
+
+
+def _soltar_hooks_de_atencao(model) -> None:
+    """Cada `generate` do Chatterbox pendura 3 hooks novos nas camadas de
+    atenção (o analisador de alinhamento) e nunca os tira: num serviço que
+    narra centenas de trechos, eles se acumulam e cada passo de geração fica
+    mais lento. O analisador da geração seguinte registra os dele de novo."""
+    for layer in model.t3.tfmr.layers:
+        layer.self_attn._forward_hooks.clear()
+
+
+def _gerar_trecho(model, chunk: str, audio_prompt_path: str | None) -> np.ndarray:
+    """Gera o trecho e, se sobrou fala depois do texto (duração acima do
+    que o texto justifica), gera de novo. Esgotadas as tentativas, fica o
+    mais curto -- o que menos balbucia."""
+    limite = _duracao_maxima_s(chunk)
+    melhor = None
+    for _ in range(MAX_TENTATIVAS):
+        _soltar_hooks_de_atencao(model)
+        wav = model.generate(chunk, language_id=LANGUAGE_ID, audio_prompt_path=audio_prompt_path)
+        wav = wav.squeeze(0).cpu().numpy()
+        if melhor is None or len(wav) < len(melhor):
+            melhor = wav
+        if len(wav) / model.sr <= limite:
+            break
+    return melhor
 
 
 @app.post("/synthesize")
@@ -159,10 +205,9 @@ def synthesize(body: SynthesizeBody):
             raise HTTPException(status_code=400, detail=f"voz desconhecida ou sem referência: {body.speaker}")
         ref_wav = candidate
 
-    pieces = []
-    for chunk in _split_into_chunks(texto):
-        wav = model.generate(chunk, language_id=LANGUAGE_ID, audio_prompt_path=str(ref_wav) if ref_wav else None)
-        pieces.append(wav.squeeze(0).cpu().numpy())
+    pieces = [
+        _gerar_trecho(model, chunk, str(ref_wav) if ref_wav else None) for chunk in _split_into_chunks(texto)
+    ]
 
     full = pieces[0] if len(pieces) == 1 else np.concatenate(pieces)
 

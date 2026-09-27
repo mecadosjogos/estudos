@@ -378,8 +378,8 @@ def test_tts_job_strips_markdown_before_synthesizing(tmp_path, monkeypatch):
     for marker in ("#", "**", "- ", "[CF/88]", "]("):
         assert marker not in texto, f"{marker!r} vazou pro texto narrado: {texto!r}"
     assert "Lei 10.406" in texto
-    assert "Art. 1º" in texto
-    assert "CF/88" in texto
+    assert "artigo 1º" in texto
+    assert "CF 88" in texto
     assert "Os sujeitos da relação jurídica" in texto
 
 
