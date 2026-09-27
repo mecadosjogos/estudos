@@ -480,6 +480,46 @@ def submit_attempt(
     return tentativa
 
 
+ESTRELAS_MAXIMO = 3
+
+
+def estrelas(session: Session, exercicio: GuiaExercicio, user_id: int) -> int:
+    """Estrelas do card (1 a 3): 3 quer dizer que o próximo "Lembrei"
+    deixa a questão dominada, 2 que faltam dois, 1 que faltam três ou mais.
+    Conta simulando o próprio `apply_leitner` a partir da caixa/streak
+    atuais -- nunca diverge da regra, mesmo que os gaps ou o pulo mudem."""
+    progresso = session.scalar(
+        select(GuiaExercicioProgresso).where(
+            GuiaExercicioProgresso.user_id == user_id, GuiaExercicioProgresso.exercicio_id == exercicio.id
+        )
+    )
+    caixa = progresso.caixa if progresso else 0
+    streak = progresso.streak_atual if progresso else 0
+    faltam = 0
+    while faltam < ESTRELAS_MAXIMO:
+        faltam += 1
+        result = apply_leitner(caixa=caixa, streak=streak, grau_acerto=1.0, posicao_atual=0)
+        if result.dominado:
+            break
+        caixa, streak = result.caixa, result.streak
+    return max(1, ESTRELAS_MAXIMO + 1 - faltam)
+
+
+RESPOSTAS_JA_SEI = 2
+
+
+def marcar_ja_sei(session: Session, exercicio: GuiaExercicio, user_id: int) -> None:
+    """Botão "↑ já sei, espaçar mais": vale dois "Lembrei" seguidos --
+    pedido do usuário. Antes só reagendava (uma vez e meia o intervalo),
+    sem subir caixa, e a questão nunca chegava a dominada por ele. Grava as
+    duas tentativas como "Lembrei" de verdade (entram no streak e no
+    histórico); para na primeira se ela já graduar."""
+    for _ in range(RESPOSTAS_JA_SEI):
+        submit_attempt(session, exercicio, user_id, resposta_texto=None, grau_acerto=1.0)
+        if _get_or_create_exercicio_progresso(session, exercicio.id, user_id).dominado_em is not None:
+            return
+
+
 def manual_adjust(session: Session, exercicio: GuiaExercicio, user_id: int, delta: int) -> None:
     """Botão "reforçar mais" (delta=-1) / "já sei, espaçar mais" (delta=+1)
     -- reagenda `posicao_alvo` sem gravar tentativa nem mudar a caixa.

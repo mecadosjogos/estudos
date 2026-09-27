@@ -39,6 +39,14 @@
 <div class="card" id="exercicio-card" data-exercicio-id="{{ exercicio.id }}"
 	data-pergunta-url="{{ locucao.pergunta_url or '' }}" data-resposta-url="{{ locucao.resposta_url or '' }}"
 	data-pergunta-texto="{{ locucao.pergunta_texto }}" data-resposta-texto="{{ locucao.resposta_texto }}">
+	{% set faltam = 4 - estrelas %}
+	<span class="exercicio-estrelas" role="img"
+		aria-label="{{ estrelas }} de 3 estrelas — {% if faltam == 1 %}o próximo “Lembrei” domina esta questão{% else %}faltam {{ faltam }} “Lembrei” seguidos para dominar{% endif %}"
+		title="{% if faltam == 1 %}O próximo “Lembrei” domina esta questão{% else %}Faltam {{ faltam }} “Lembrei” seguidos para dominar{% endif %}">
+		{%- for i in range(3) -%}
+		<span class="{{ 'cheia' if i < estrelas else 'vazia' }}">{{ '★' if i < estrelas else '☆' }}</span>
+		{%- endfor -%}
+	</span>
 	<span class="badge">{{ exercicio.tipo }}</span>
 	{% if exercicio.secao_titulo %}<span class="badge">{{ exercicio.secao_titulo }}</span>{% endif %}
 	<h2>{{ exercicio.pergunta }}</h2>
@@ -162,7 +170,7 @@
 		<dt>↓ quero ver de novo mais cedo</dt>
 		<dd>Ajuste manual: reagenda pra metade do intervalo normal da caixa atual, sem contar como resposta — não muda a caixa nem o histórico. O exercício sai da tela e volta logo, depois de alguns outros.</dd>
 		<dt>↑ já sei, espaçar mais</dt>
-		<dd>O oposto: reagenda pra uma vez e meia o intervalo normal, sem precisar responder certo de novo.</dd>
+		<dd>Vale dois "Lembrei" seguidos: sobe a caixa como se você tivesse acertado duas vezes emendado (e entra no histórico assim). Numa questão nova, mais um "Lembrei" depois já a deixa dominada.</dd>
 	</dl>
 </details>
 

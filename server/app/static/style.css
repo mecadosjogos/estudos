@@ -179,6 +179,29 @@ button, .button {
 	filter: brightness(0.75);
 }
 
+/* Estrelas do card da prática do guia: quantos "Lembrei" seguidos faltam
+   pra dominar a questão (3 cheias = o próximo domina). Discretas, no canto
+   de cima; float, não absolute, pra os selos da questão desviarem delas no
+   celular em vez de passar por baixo. */
+.exercicio-estrelas {
+	float: right;
+	margin-left: var(--space-2);
+	font-size: 0.95rem;
+	letter-spacing: 0.1em;
+	line-height: 1.4;
+	cursor: default;
+}
+
+.exercicio-estrelas .cheia {
+	color: var(--accent);
+	opacity: 0.75;
+}
+
+.exercicio-estrelas .vazia {
+	color: var(--text-muted);
+	opacity: 0.45;
+}
+
 /* Estado do microfone, ao lado dos botões que o comando de voz aciona:
    ocioso, captando fala, interpretando, e o resultado (comando aceito ou
    frase sem comando). */

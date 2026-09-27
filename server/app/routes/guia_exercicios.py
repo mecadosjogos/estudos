@@ -36,8 +36,10 @@ from ..study.guia_locucao import (
 )
 from ..study.guia_scheduler import (
     contagem_por_tipo,
+    estrelas,
     listar_removidos,
     manual_adjust,
+    marcar_ja_sei,
     mastery_percent,
     next_exercicio,
     pool_status,
@@ -233,6 +235,7 @@ def practice(
             "exercicio": exercicio,
             "gabarito_lines": gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
             "locucao": _locucao_context(exercicio) if exercicio else None,
+            "estrelas": estrelas(session, exercicio, user.id) if exercicio else 0,
             "mastery_percent": mastery_percent(session, lesson_id, user.id),
             "pool": pool_status(session, lesson, user.id),
             "tipos": contagem_por_tipo(session, lesson_id, user.id),
@@ -333,7 +336,11 @@ def adjust_exercicio(
     user: User = Depends(require_session),
 ):
     exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
-    manual_adjust(session, exercicio, user.id, delta)
+    # "↑ já sei" conta como dois "Lembrei"; "↓ mais cedo" só reagenda.
+    if delta > 0:
+        marcar_ja_sei(session, exercicio, user.id)
+    else:
+        manual_adjust(session, exercicio, user.id, delta)
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 
