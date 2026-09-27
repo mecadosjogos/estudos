@@ -115,13 +115,6 @@ def _falar_arvore(node: dict) -> list[str]:
     return frases
 
 
-def _preencher_lacunas(frase: str, respostas: list[str]) -> str | None:
-    if not respostas or len(_LACUNA_RE.findall(frase)) != len(respostas):
-        return None
-    restantes = iter(respostas)
-    return _LACUNA_RE.sub(lambda _m: next(restantes), frase)
-
-
 def texto_pergunta(exercicio: GuiaExercicio) -> str:
     return _limpar_para_fala(_LACUNA_RE.sub(" lacuna ", exercicio.pergunta))
 
@@ -131,10 +124,13 @@ def texto_resposta(exercicio: GuiaExercicio) -> str:
     gabarito = json.loads(exercicio.gabarito_json)
 
     if tipo == "cloze":
-        # A frase inteira, já preenchida, reforça o termo no contexto em
-        # que ele aparece -- melhor que ouvir o termo solto.
-        preenchida = _preencher_lacunas(exercicio.pergunta, gabarito.get("respostas", []))
-        texto = preenchida or _frases(gabarito_lines(tipo, gabarito))
+        # Só os termos das lacunas, como na tela. Ler a frase inteira
+        # preenchida soava como a pergunta sendo lida de novo antes da
+        # resposta. Sem `texto_com_lacunas` (formato antigo): a frase dele
+        # é a pergunta, não a resposta.
+        respostas = [r for r in gabarito.get("respostas", []) if r and r.strip()]
+        rotulo = "Resposta: " if len(respostas) == 1 else "Respostas: "
+        texto = _frases([rotulo + ", ".join(respostas)]) if respostas else ""
     elif tipo == "lista_ordenada":
         itens = gabarito.get("itens_em_ordem", [])
         texto = _frases(

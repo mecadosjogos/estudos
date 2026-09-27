@@ -115,28 +115,40 @@
 			return saida;
 		}
 
+		// Fala em andamento guardada aqui: sem referência, o Chrome coleta o
+		// objeto no meio da fala e o `onend` dele nunca chega.
+		let falaAtual = null;
+
+		// Um trecho de cada vez, o próximo só no fim do anterior. Enfileirar
+		// todos de uma vez no speechSynthesis travava a fila no Chrome depois
+		// do primeiro -- respostas de vários pontos paravam no primeiro.
 		function sintetizar(texto, parte, minha) {
 			if (!sintese || !texto) return;
 			const trechos = pedacos(texto);
 			const voz = vozPortugues();
 			comecou();
-			trechos.forEach((trecho, i) => {
-				const fala = new SpeechSynthesisUtterance(trecho);
+			const falarTrecho = (i) => {
+				if (minha !== geracao) return;
+				if (i >= trechos.length) {
+					falaAtual = null;
+					terminou();
+					return;
+				}
+				const fala = new SpeechSynthesisUtterance(trechos[i]);
 				fala.lang = "pt-BR";
 				if (voz) fala.voice = voz;
-				if (i === trechos.length - 1) {
-					fala.onend = () => {
-						if (minha === geracao) terminou();
-					};
-				}
+				fala.onend = () => falarTrecho(i + 1);
 				fala.onerror = (ev) => {
 					if (minha !== geracao) return;
+					falaAtual = null;
 					sintese.cancel();
 					terminou();
 					if (ev.error === "not-allowed") pedirToque(parte);
 				};
+				falaAtual = fala;
 				sintese.speak(fala);
-			});
+			};
+			falarTrecho(0);
 		}
 
 		function falar(parte) {
@@ -158,8 +170,14 @@
 			player.onerror = daVez(terminou);
 			// Pausa vinda de fora (controle de mídia da tela bloqueada): sem
 			// isso o microfone ficaria parado esperando um fim que não vem.
-			player.onpause = daVez(() => {
-				if (!player.ended) terminou();
+			// Só vale depois que ESTE áudio começa: o `pause` do áudio anterior,
+			// parado pelo `parar()` acima, chega atrasado e soltava o microfone
+			// no meio da resposta.
+			player.onpause = null;
+			player.onplaying = daVez(() => {
+				player.onpause = daVez(() => {
+					if (!player.ended) terminou();
+				});
 			});
 			player.src = url;
 			// Avisa antes do som sair: o microfone precisa parar antes, não

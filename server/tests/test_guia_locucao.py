@@ -64,7 +64,10 @@ def test_texto_falado_por_tipo(app_env):
 
     cloze = _exercicio("cloze", "O ______ não é matemática.", {"respostas": ["direito penal"]})
     assert texto_pergunta(cloze) == "O lacuna não é matemática."
-    assert texto_resposta(cloze) == "O direito penal não é matemática."
+    # A resposta não repete a frase da pergunta -- só o que vai nas lacunas.
+    assert texto_resposta(cloze) == "Resposta: direito penal."
+    duas = _exercicio("cloze", "Lei ______ à época dos ______.", {"respostas": ["vigente", "fatos"]})
+    assert texto_resposta(duas) == "Respostas: vigente, fatos."
 
     lista = _exercicio("lista_ordenada", "Os passos?", {"itens_em_ordem": ["Sanção", "Promulgação", "Publicação"]})
     assert texto_resposta(lista) == "Primeiro: Sanção. Segundo: Promulgação. Terceiro: Publicação."
@@ -93,13 +96,6 @@ def test_texto_falado_por_tipo(app_env):
 
     livre = _exercicio("recordacao_livre", "Tudo sobre legalidade.", {"pontos_esperados": ["**Gênero**", "Duas espécies."]})
     assert texto_resposta(livre) == "Gênero. Duas espécies."
-
-
-def test_cloze_com_lacunas_e_respostas_em_numero_diferente_le_as_respostas(app_env):
-    from app.study.guia_locucao import texto_resposta
-
-    cloze = _exercicio("cloze", "A ____ e a ____.", {"respostas": ["posse"]})
-    assert texto_resposta(cloze) == "Respostas: posse."
 
 
 # --- fila e upload ----------------------------------------------------------
