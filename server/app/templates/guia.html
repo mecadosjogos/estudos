@@ -72,7 +72,7 @@
 {% endif %}
 
 {% if indice is not none %}
-<h2>Índice</h2>
+<h2 id="indice" class="guia-secao-titulo">Índice</h2>
 <ul class="guia-indice">
 	{% for no in indice %}{{ render_indice_no(no) }}{% endfor %}
 </ul>
@@ -286,6 +286,21 @@
 				if (i !== -1 && i < secoes.length - 1) seekTo(secoes[i + 1].start);
 			});
 		}
+	})();
+</script>
+{% endif %}
+{% if indice is not none %}
+<a href="#indice" class="guia-voltar-indice" id="guia-voltar-indice" hidden aria-label="Voltar ao índice">↑ Índice</a>
+<script>
+	// Botão flutuante de volta ao índice (guia consolidado): só aparece
+	// depois que o índice sai da tela.
+	(function () {
+		const indice = document.getElementById("indice");
+		const botao = document.getElementById("guia-voltar-indice");
+		if (!indice || !botao || !("IntersectionObserver" in window)) { if (botao) botao.hidden = false; return; }
+		new IntersectionObserver(([e]) => {
+			botao.hidden = e.isIntersecting || e.boundingClientRect.top > 0;
+		}).observe(indice);
 	})();
 </script>
 {% endif %}

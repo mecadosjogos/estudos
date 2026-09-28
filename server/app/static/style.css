@@ -793,6 +793,27 @@ textarea {
 	margin-right: 0.3em;
 }
 
+/* Botão flutuante de volta ao índice (guia consolidado, que é longo):
+   canto superior esquerdo, logo abaixo da barra de navegação fixa. */
+.guia-voltar-indice {
+	position: fixed;
+	top: calc(var(--nav-height) + var(--space-2));
+	left: var(--space-2);
+	z-index: 15;
+	padding: var(--space-1) var(--space-3);
+	border-radius: 999px;
+	background: var(--accent);
+	color: var(--accent-text);
+	font-size: 0.85em;
+	font-weight: 600;
+	text-decoration: none;
+	box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+}
+
+.guia-voltar-indice[hidden] {
+	display: none;
+}
+
 .guia-secao [id^="secao-"] {
 	scroll-margin-top: calc(var(--nav-height) + var(--space-2));
 }
