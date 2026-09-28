@@ -51,6 +51,13 @@ def _manifest_path(upload_id: str) -> Path:
     return config.UPLOAD_STAGING_DIR / upload_id / "manifest.json"
 
 
+def _recusa_consolidacao(lesson: Lesson) -> None:
+    """Aula de consolidação (ai/consolidacao.py) não tem áudio -- o guia
+    dela sai dos guias das aulas-fonte, não de uma gravação."""
+    if lesson.tipo == "consolidacao":
+        raise HTTPException(status_code=400, detail="aula de consolidação não recebe áudio")
+
+
 def _enqueue_transcription(session: Session, lesson_id: int) -> None:
     """Chamado só quando TODOS os segmentos da aula já terminaram de subir,
     para o worker nunca pegar uma aula com o intervalo faltando."""
@@ -69,6 +76,7 @@ def upload_page(request: Request, lesson_id: int | None = None, session: Session
         lesson = session.get(Lesson, lesson_id)
         if lesson is None:
             raise HTTPException(status_code=404, detail="aula não encontrada")
+        _recusa_consolidacao(lesson)
         next_ordem = len(lesson.audio_segments) + 1
         existing_lesson = {"id": lesson.id, "titulo": lesson.titulo, "next_ordem": next_ordem}
 
@@ -97,12 +105,15 @@ def api_create_lesson(
 
 
 @api_router.post("/uploads/init")
-async def init_upload(request: Request):
+async def init_upload(request: Request, session: Session = Depends(get_session)):
     body = await request.json()
     upload_id = _safe_upload_id(body["upload_id"])
     filename = body["filename"]
     total_chunks = int(body["total_chunks"])
     _extension_ok(filename)
+    lesson = session.get(Lesson, body["lesson_id"])
+    if lesson is not None:
+        _recusa_consolidacao(lesson)
 
     upload_dir = config.UPLOAD_STAGING_DIR / upload_id
     upload_dir.mkdir(parents=True, exist_ok=True)

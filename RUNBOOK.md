@@ -710,6 +710,85 @@ curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/exercicios-aprovacao" | g
 curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/praticar" | grep -o "dominado"
 ```
 
+### Consolidação de guias (aula de consolidação, fora da numeração de fases)
+
+**Junta os guias de várias aulas de uma matéria num guia único.** O uso é
+quando a matéria fecha: o material vira um guia só, sem repetição e
+organizado para ensinar, com índice numerado 8 / 8.1 / 8.1a. Como "Dominar
+o guia", **parte dos GUIAS, não da transcrição**: o guia já é material
+revisado e aceito para estudo. Ver `server/app/ai/consolidacao.py`.
+
+**A consolidação é uma aula especial da matéria** (`Lesson.tipo =
+'consolidacao'`, ids das aulas-fonte em `consolidacao_fontes_json`). Não
+tem áudio, transcrição, aula editada nem cards. Tem guia estruturado
+(`GuiaSecao`) como qualquer aula, então exercícios (`/dominar-guia`),
+dissertativas (`/gerar-dissertativas`), narração e `guia.md`/`guia.pdf`
+funcionam sem nada especial. Quem cria é o admin, na tela da matéria:
+"Consolidar aulas" lista as aulas com guia estruturado para marcar. O
+título padrão é "Consolidação aulas DD/MM até DD/MM" e a data da aula é a
+da última fonte. A seleção pode ser trocada depois na própria aula
+("Trocar as aulas desta consolidação"); o guia atual fica até a skill
+rodar de novo.
+
+**Regras de conteúdo (decisão do usuário), no pacote:**
+- reorganizar por tema, fundir, usar tabela ou lista: pode;
+- trocar a redação de um conceito: não, porque é o que cai na prova;
+- conteúdo externo: não;
+- perder conteúdo: não;
+- indicar a aula de origem de cada trecho: não. Um conceito dado em
+  várias aulas vira um bloco só, e a etiqueta atrapalharia.
+
+O texto completo das regras mora em `INSTRUCTIONS`
+(`ai/consolidacao.py`), que é a fonte única. A skill só orquestra.
+
+**Numeração e índice são de código, nunca da IA.** A resposta traz só os
+títulos `##`/`###`/`####` sem número. `ai/guia_numeracao.py` numera pela
+posição a cada renderização (`##` = 8, `###` = 8.1, `####` = 8.1a) e
+monta o índice aninhado no lugar do sumário plano. As âncoras são
+`#secao-8`, `#secao-8-1` e `#secao-8-1a`; `#secao-N` é o mesmo contrato
+que as dissertativas já usam. `GuiaSecao.corpo` fica sem número, e o
+cache `guia_md` sai numerado. Aulas normais não mudam.
+
+**Pendência:** não há fila. Consolidar é uma decisão explícita do usuário
+sobre uma consolidação específica, e ele pede `/consolidar-guia <id>`.
+Uma consolidação ainda sem guia aparece na página da aula como
+"aguardando consolidação".
+
+**Passo sob demanda, não automático, feito pela skill `/consolidar-guia`
+(Opus).** O agente faz o ciclo inteiro sozinho:
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/consolidacao/pacote.md" -o pacote.md
+# inventário por guia-fonte -> esqueleto temático -> redação seção a seção -> autoauditoria
+WINPATH=$(cygpath -w guia.md)
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/consolidacao/colar-resposta" \
+  --data-urlencode "resposta@${WINPATH}"
+```
+
+**A resposta do POST é JSON, não redirect:** `secoes`, `subtitulos`,
+`conceitos` e `relatorio`. O relatório lista:
+- `perdidos`: termos em **negrito** das fontes que não aparecem no
+  consolidado;
+- `externos`: termos em negrito do consolidado que não estão em nenhuma
+  fonte.
+
+A comparação ignora caixa, acento e marcação. É aviso, não bloqueio. O
+agente confere cada item e reenvia se for o caso; cada envio substitui o
+guia inteiro. O POST exige admin. Cada envio grava um `AiCall` com
+`tipo_acao="consolidar_guia"`, `via="manual"` e custo zero, e enfileira a
+narração (`tts_guia`), como no processamento normal.
+
+**Ao terminar**, o agente devolve o inventário (conceito de cada aula →
+número no guia novo) para o usuário conferir rápido que nada se perdeu.
+Depois, os exercícios saem com `/dominar-guia <id>`. O progresso das
+aulas originais continua nelas.
+
+**Validar:**
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia" | grep -o 'id="secao-[0-9a-z-]*"' | head
+```
+
 ## Custo
 
 Toda passada manual grava uma linha em `AiCall` com `via="manual"` e

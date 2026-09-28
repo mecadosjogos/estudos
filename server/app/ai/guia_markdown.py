@@ -5,6 +5,8 @@ cache, no mesmo formato de sempre (título, árvore, sumário, corpo, trechos
 incompletos), pra export/corpus.py, export/exam_export.py e a rota
 /guia.md continuarem funcionando sem mudança nenhuma."""
 
+from .guia_numeracao import indice_markdown, numerar_consolidado
+from .guia_numeracao import indice_markdown, numerar_consolidado
 from .guia_parser import GuiaArvoreNoOut, GuiaSecaoOut, GuiaTopicoOut
 
 
@@ -27,20 +29,33 @@ def build_guia_markdown(
     topicos: list[GuiaTopicoOut],
     secoes: list[GuiaSecaoOut],
     trechos_incompletos: list[str],
+    hierarquico: bool = False,
 ) -> str:
+    """`hierarquico=True` (aula de consolidação): no lugar do sumário plano,
+    o índice aninhado 8 / 8.1 / 8.1a, e os subtítulos saem numerados --
+    ver ai/guia_numeracao.py."""
     parts = [f"# {titulo}\n"]
 
     if arvore:
         parts.append("## Árvore de conhecimento\n")
         parts.append("\n".join(_render_arvore(arvore)) + "\n")
 
-    if topicos:
-        parts.append("## Sumário dos tópicos abordados\n")
-        parts.append("\n".join(f"{i}. {t.titulo}" for i, t in enumerate(topicos, start=1)) + "\n")
+    if hierarquico:
+        numeradas = numerar_consolidado([(s.titulo, s.corpo) for s in secoes], com_ancora=False)
+        if numeradas:
+            parts.append("## Índice\n")
+            parts.append(indice_markdown(numeradas) + "\n")
+        for s in numeradas:
+            parts.append(f"## {s.numero}. {s.titulo}\n")
+            parts.append(s.corpo.strip() + "\n")
+    else:
+        if topicos:
+            parts.append("## Sumário dos tópicos abordados\n")
+            parts.append("\n".join(f"{i}. {t.titulo}" for i, t in enumerate(topicos, start=1)) + "\n")
 
-    for i, secao in enumerate(secoes, start=1):
-        parts.append(f"## {i}. {secao.titulo}\n")
-        parts.append(secao.corpo.strip() + "\n")
+        for i, secao in enumerate(secoes, start=1):
+            parts.append(f"## {i}. {secao.titulo}\n")
+            parts.append(secao.corpo.strip() + "\n")
 
     if trechos_incompletos:
         parts.append("## Trechos incompletos/inaudíveis\n")

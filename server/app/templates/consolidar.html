@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Consolidar aulas — {{ subject.sigla }}{% endblock %}
+{% block content %}
+<p><a href="/subjects/{{ subject.id }}">← {{ subject.sigla }} — {{ subject.nome }}</a></p>
+<h1>Consolidar aulas</h1>
+<p class="muted">
+	Junta os guias das aulas escolhidas num guia único, sem repetição e com
+	índice numerado (8 · 8.1 · 8.1a). Cria uma aula de consolidação nesta
+	matéria, sem áudio nem transcrição; o guia é escrito depois pela skill
+	<code>/consolidar-guia</code>.
+</p>
+
+{% if erro %}<p class="guia-aviso-desatualizado">⚠️ {{ erro }}</p>{% endif %}
+
+{% if aulas|length < 2 %}
+<p class="muted">Precisa de pelo menos duas aulas com guia estruturado nesta matéria.</p>
+{% else %}
+<form method="post" action="/subjects/{{ subject.id }}/consolidar" class="card">
+	<p>Aulas:</p>
+	{% for aula in aulas %}
+	<label>
+		<input type="checkbox" name="aula_ids" value="{{ aula.id }}" data-data="{{ aula.data.strftime('%d/%m') }}" checked>
+		{{ aula.data.strftime("%d/%m/%Y") }} — {{ aula.titulo }}{% if aula.guia_titulo %} <span class="muted">— {{ aula.guia_titulo }}</span>{% endif %}
+	</label><br>
+	{% endfor %}
+	<p><label>Título<br><input type="text" name="titulo" id="consolidar-titulo" value="{{ titulo }}" style="width:100%" required></label></p>
+	<button type="submit">Criar consolidação</button>
+</form>
+
+<script>
+	// Título acompanha a seleção (primeira e última data marcada) até alguém
+	// editá-lo à mão -- depois disso, fica como a pessoa escreveu.
+	(function () {
+		const titulo = document.getElementById("consolidar-titulo");
+		const caixas = Array.from(document.querySelectorAll("input[name=aula_ids]"));
+		let editado = false;
+		titulo.addEventListener("input", () => { editado = true; });
+		caixas.forEach((c) => c.addEventListener("change", () => {
+			if (editado) return;
+			const datas = caixas.filter((x) => x.checked).map((x) => x.dataset.data);
+			if (datas.length) titulo.value = `Consolidação aulas ${datas[0]} até ${datas[datas.length - 1]}`;
+		}));
+	})();
+</script>
+{% endif %}
+{% endblock %}

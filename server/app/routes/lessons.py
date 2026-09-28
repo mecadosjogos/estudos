@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import config, db
@@ -105,8 +105,20 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
             "criar_doc_url": criar_doc_url,
             "pode_editar_audio": _pode_editar_audio(lesson, latest_job),
             "tem_exercicios_de_guia": _tem_exercicios_de_guia(session, lesson_id),
+            **_contexto_consolidacao(session, lesson),
         },
     )
+
+
+def _contexto_consolidacao(session: Session, lesson: Lesson) -> dict:
+    if lesson.tipo != "consolidacao":
+        return {}
+    from ..ai.consolidacao import aulas_consolidaveis, fontes_de
+
+    return {
+        "consolidacao_fontes": fontes_de(session, lesson),
+        "consolidaveis": aulas_consolidaveis(session, lesson.subject_id),
+    }
 
 
 @router.post("/{lesson_id}/audio/{segment_id}/mover")
@@ -540,17 +552,36 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
         .order_by(GuiaTopico.ordem)
     ).all()
 
+    # Consolidação: subtítulos numerados (8.1, 8.1a) e índice aninhado no
+    # lugar do sumário plano -- gerados aqui a cada request, pela posição
+    # (ai/guia_numeracao.py). Aula normal segue com o corpo cru.
+    if lesson.tipo == "consolidacao":
+        from ..ai.consolidacao import fontes_de
+        from ..ai.guia_numeracao import numerar_consolidado
+
+        numeradas = numerar_consolidado([(s.titulo, s.corpo) for s in secoes])
+        corpos = [n.corpo for n in numeradas]
+        indice = [
+            {"numero": str(n.numero), "titulo": n.titulo, "anchor": f"secao-{n.numero}", "filhos": n.indice}
+            for n in numeradas
+        ]
+        fontes = fontes_de(session, lesson)
+    else:
+        corpos = [s.corpo for s in secoes]
+        indice = None
+        fontes = []
+
     secoes_view = [
         {
             "id": s.id,
             "numero": i,
             "titulo": s.titulo,
             "corpo": s.corpo,
-            "html": render_markdown(s.corpo),
+            "html": render_markdown(corpo),
             "audio_start_s": s.audio_start_s,
             "audio_end_s": s.audio_end_s,
         }
-        for i, s in enumerate(secoes, start=1)
+        for i, (s, corpo) in enumerate(zip(secoes, corpos), start=1)
     ]
 
     accepted_slugs = set(
@@ -604,6 +635,8 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "arvore": arvore,
             "topicos": topicos,
             "topicos_perdidos": topicos_perdidos,
+            "indice": indice,
+            "consolidacao_fontes": fontes,
             "secoes": secoes_view,
             "trechos_incompletos": trechos_incompletos,
             "audio_pronto": audio_pronto,
@@ -697,6 +730,7 @@ def _rebuild_guia_md(session: Session, lesson: Lesson) -> None:
         topicos=[GuiaTopicoOut(titulo=t.titulo) for t in topicos],
         secoes=[GuiaSecaoOut(titulo=s.titulo, corpo=s.corpo) for s in secoes],
         trechos_incompletos=json.loads(lesson.guia_trechos_incompletos_json or "[]"),
+        hierarquico=lesson.tipo == "consolidacao",
     )
 
 
@@ -740,7 +774,17 @@ def edit_guia_secao(
     session.commit()
 
 
-    return {"ok": True, "html": render_markdown(secao.corpo)}
+    corpo_render = secao.corpo
+    if lesson.tipo == "consolidacao":
+        from ..ai.guia_numeracao import numerar_secao
+
+        numero = session.scalar(
+            select(func.count()).select_from(GuiaSecao).where(
+                GuiaSecao.lesson_id == lesson_id, GuiaSecao.ordem < secao.ordem
+            )
+        ) + 1
+        corpo_render = numerar_secao(numero, secao.titulo, secao.corpo).corpo
+    return {"ok": True, "html": render_markdown(corpo_render)}
 
 
 @router.get("/{lesson_id}/mapa")

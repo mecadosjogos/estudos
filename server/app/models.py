@@ -51,6 +51,15 @@ class Lesson(Base):
     titulo: Mapped[str] = mapped_column(String, nullable=False)
     data: Mapped[date] = mapped_column(Date, nullable=False)
 
+    # "aula" (normal) ou "consolidacao": aula especial que junta os guias
+    # de várias aulas da matéria num guia único, sem áudio nem transcrição
+    # (ai/consolidacao.py, skill /consolidar-guia). `data` de uma
+    # consolidação é a da última aula-fonte, pra ela aparecer logo depois
+    # das aulas que cobre. Fontes = ids em ordem cronológica, lista simples
+    # em JSON -- feita uma vez com a matéria fechada, não precisa de tabela.
+    tipo: Mapped[str] = mapped_column(String, nullable=False, default="aula", server_default="aula")
+    consolidacao_fontes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Sync de verdade (sincronizar conteúdo, vincular material) entra na fase 9.
     # Aqui é só o link para abrir a cópia no Google Docs.
     google_doc_url: Mapped[str | None] = mapped_column(String, nullable=True)

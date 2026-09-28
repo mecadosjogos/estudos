@@ -5,15 +5,28 @@
 	{% if no.filhos %}<ul>{% for filho in no.filhos %}{{ render_arvore_no(filho) }}{% endfor %}</ul>{% endif %}
 </li>
 {% endmacro %}
+{% macro render_indice_no(no) %}
+<li><a href="#{{ no.anchor }}"><span class="guia-indice-numero">{{ no.numero }}</span> {{ no.titulo }}</a>
+	{% if no.filhos %}<ul>{% for filho in no.filhos %}{{ render_indice_no(filho) }}{% endfor %}</ul>{% endif %}
+</li>
+{% endmacro %}
 {% extends "base.html" %}
 {% block title %}Guia de aula — {{ lesson.titulo }}{% endblock %}
 {% block content %}
 <p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
 <h1>{{ lesson.guia_titulo }}</h1>
+{% if indice is not none %}
+<p class="muted">
+	Guia consolidado a partir dos guias das aulas{% if consolidacao_fontes %} de
+	{{ consolidacao_fontes[0].data.strftime("%d/%m") }} a {{ consolidacao_fontes[-1].data.strftime("%d/%m") }}{% endif %}.
+	Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}.
+</p>
+{% else %}
 <p class="muted">
 	Material de leitura organizado a partir da transcrição — não é fonte, a
 	transcrição bruta é. Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}.
 </p>
+{% endif %}
 
 <div class="button-row" style="margin-bottom: var(--space-4)">
 	<a class="button" href="/lessons/{{ lesson.id }}/guia.md">Baixar guia (.md)</a>
@@ -58,6 +71,12 @@
 </ul>
 {% endif %}
 
+{% if indice is not none %}
+<h2>Índice</h2>
+<ul class="guia-indice">
+	{% for no in indice %}{{ render_indice_no(no) }}{% endfor %}
+</ul>
+{% else %}
 <h2>Sumário</h2>
 <ol class="guia-sumario">
 	{% for topico in topicos %}
@@ -71,8 +90,9 @@
 	</li>
 	{% endfor %}
 </ol>
+{% endif %}
 
-{% if topicos_perdidos %}
+{% if topicos_perdidos and indice is none %}
 <h2>Correções não encontradas mais</h2>
 <p class="muted">
 	Uma correção de sumário anterior não achou mais o tópico correspondente

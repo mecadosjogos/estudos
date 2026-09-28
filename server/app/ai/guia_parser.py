@@ -62,7 +62,9 @@ def _classify(header_text: str) -> str:
     normalized = _strip_accents(header_text).strip().lower()
     if normalized.startswith("arvore de conhecimento"):
         return "arvore"
-    if normalized.startswith("sumario"):
+    # "Índice" é o nome do sumário no guia de consolidação (guia_markdown.py,
+    # hierarquico=True) -- se voltar colado, não pode virar seção.
+    if normalized.startswith("sumario") or normalized == "indice":
         return "sumario"
     if normalized.startswith("trechos incompletos"):
         return "trechos"

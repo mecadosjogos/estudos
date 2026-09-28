@@ -9,6 +9,7 @@ from .routes import (
     ai,
     admin,
     assuntos,
+    consolidacao,
     destaques,
     dissertativas,
     exams,
@@ -89,6 +90,7 @@ app.include_router(glossary.router)
 app.include_router(feynman.router)
 app.include_router(dissertativas.router)
 app.include_router(guia_exercicios.router)
+app.include_router(consolidacao.router)
 app.include_router(exams.router)
 app.include_router(export.router)
 app.include_router(destaques.router)

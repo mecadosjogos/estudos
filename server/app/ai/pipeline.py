@@ -32,7 +32,7 @@ from .bridge import build_prompt
 from .budget import check_budget_or_raise
 from .deriv_key import compute_deriv_key
 from .guia_markdown import build_guia_markdown
-from .guia_parser import parse_guia_markdown
+from .guia_parser import ParsedGuia, parse_guia_markdown
 from .parse import parse_pasted_response
 from .pricing import estimate_cost_usd
 from .reconcile import reconcile
@@ -149,35 +149,12 @@ def ingest_manual_response(session: Session, lesson: Lesson, pasted_text: str) -
     )
 
 
-def _ingest(
-    session: Session,
-    lesson: Lesson,
-    *,
-    parsed_dict: dict,
-    model: str,
-    via: str,
-    input_tokens: int,
-    output_tokens: int,
-    cache_read_input_tokens: int,
-) -> AiCall:
-    try:
-        output = LessonProcessingOutput.model_validate(parsed_dict)
-    except ValidationError as exc:
-        raise ProcessingError(f"resposta não bate com o formato esperado: {exc}") from exc
-
-    lesson.resumo = output.resumo
-    # Mapa de taxonomia (fase 15): mesmo motivo do guia -- documento único,
-    # regenerado por inteiro, sem deriv_key.
-    lesson.mapa_mermaid = output.mapa_mermaid
-    transcript_segments = lesson.transcript.segments if lesson.transcript else []
-
-    # Guia de aula: a IA escreve `guia_md` como markdown corrido só (ver
-    # ai/bridge.py); um parser em código (ai/guia_parser.py, zero chamada de
-    # IA extra) deriva os mesmos pedaços estruturados que o app persiste --
-    # título/árvore/seções/sumário/trechos incompletos -- a partir dos
-    # cabeçalhos que a IA já usa naturalmente.
-    parsed_guia = parse_guia_markdown(output.guia_md)
-
+def persistir_guia(session: Session, lesson: Lesson, parsed_guia: ParsedGuia) -> None:
+    """Grava o guia já parseado (título/árvore/trechos, GuiaSecao,
+    GuiaTopico), remonta o cache `guia_md`, carimba `guia_gerado_em` e
+    enfileira a narração. Compartilhado entre o processamento da aula
+    (`_ingest`) e a aula de consolidação (ai/consolidacao.py), que não tem
+    transcrição mas tem o mesmo guia estruturado. Não faz commit."""
     # Título/árvore regeneram por inteiro (sem deriv_key, mesmo motivo do
     # resumo/mapa_mermaid -- nada aqui é editável à mão).
     lesson.guia_titulo = parsed_guia.titulo
@@ -216,6 +193,7 @@ def _ingest(
         topicos=parsed_guia.topicos,
         secoes=parsed_guia.secoes,
         trechos_incompletos=parsed_guia.trechos_incompletos,
+        hierarquico=lesson.tipo == "consolidacao",
     )
     lesson.guia_gerado_em = datetime.now(timezone.utc)
 
@@ -225,6 +203,36 @@ def _ingest(
     # ensure_pending_job é idempotente, não duplica se já houver um job
     # tts_guia pendente/em andamento pra esta aula.
     ensure_pending_job(session, lesson.id, target="tts_guia")
+
+
+def _ingest(
+    session: Session,
+    lesson: Lesson,
+    *,
+    parsed_dict: dict,
+    model: str,
+    via: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_input_tokens: int,
+) -> AiCall:
+    try:
+        output = LessonProcessingOutput.model_validate(parsed_dict)
+    except ValidationError as exc:
+        raise ProcessingError(f"resposta não bate com o formato esperado: {exc}") from exc
+
+    lesson.resumo = output.resumo
+    # Mapa de taxonomia (fase 15): mesmo motivo do guia -- documento único,
+    # regenerado por inteiro, sem deriv_key.
+    lesson.mapa_mermaid = output.mapa_mermaid
+    transcript_segments = lesson.transcript.segments if lesson.transcript else []
+
+    # Guia de aula: a IA escreve `guia_md` como markdown corrido só (ver
+    # ai/bridge.py); um parser em código (ai/guia_parser.py, zero chamada de
+    # IA extra) deriva os mesmos pedaços estruturados que o app persiste --
+    # título/árvore/seções/sumário/trechos incompletos -- a partir dos
+    # cabeçalhos que a IA já usa naturalmente.
+    persistir_guia(session, lesson, parse_guia_markdown(output.guia_md))
 
     block_counts: dict[tuple, int] = {}
     block_items = []

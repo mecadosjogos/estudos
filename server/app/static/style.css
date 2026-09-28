@@ -764,6 +764,39 @@ textarea {
 	width: 3.5ch;
 }
 
+/* Índice do guia consolidado: 8 / 8.1 / 8.1a aninhados, sem marcador --
+   o número já é o marcador. */
+.guia-indice, .guia-indice ul {
+	list-style: none;
+	padding-left: 0;
+	margin: 0 0 var(--space-4);
+}
+
+.guia-indice ul {
+	padding-left: 1.6rem;
+	margin: var(--space-1) 0 var(--space-2);
+}
+
+.guia-indice > li {
+	margin-bottom: var(--space-2);
+	font-weight: 600;
+}
+
+.guia-indice ul li {
+	margin-bottom: var(--space-1);
+	font-weight: normal;
+}
+
+.guia-indice-numero {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+	margin-right: 0.3em;
+}
+
+.guia-secao [id^="secao-"] {
+	scroll-margin-top: calc(var(--nav-height) + var(--space-2));
+}
+
 .guia-aviso-desatualizado {
 	color: var(--danger);
 	font-size: 0.85em;

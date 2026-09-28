@@ -4,6 +4,48 @@
 <p><a href="/subjects/{{ lesson.subject_id }}">← {{ lesson.subject.sigla }}</a></p>
 <h1>{{ lesson.titulo }}</h1>
 
+{% if lesson.tipo == "consolidacao" %}
+<div class="card">
+	<h2>Consolidação</h2>
+	<p class="muted">Junta os guias das aulas abaixo num guia único, sem repetição e com índice numerado. Não tem áudio nem transcrição: o guia sai dos guias destas aulas.</p>
+	<ul class="timeline">
+		{% for f in consolidacao_fontes %}
+		<li><time>{{ f.data.strftime("%d/%m/%Y") }}</time> <a href="/lessons/{{ f.id }}/guia">{{ f.titulo }}</a>{% if f.guia_titulo %} <span class="muted">— {{ f.guia_titulo }}</span>{% endif %}</li>
+		{% endfor %}
+	</ul>
+	{% if lesson.guia_secoes %}
+	<p><span class="badge">consolidado ✓</span> <span class="muted">em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}</span></p>
+	<div class="button-row">
+		<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia consolidado</a>
+		{% if tem_exercicios_de_guia %}<a class="button" href="/lessons/{{ lesson.id }}/guia/praticar">Praticar guia (memorização)</a>{% endif %}
+		<a class="button" href="/lessons/{{ lesson.id }}/dissertativas">Treinar dissertativas →</a>
+	</div>
+	{% else %}
+	<p><span class="badge muted">aguardando consolidação</span></p>
+	{% endif %}
+	{% if request.state.user and request.state.user.papel == "admin" %}
+	{% if request.query_params.get("erro_fontes") %}<p class="error">{{ request.query_params.get("erro_fontes") }}</p>{% endif %}
+	<details>
+		<summary class="muted">Trocar as aulas desta consolidação</summary>
+		{% set ids_atuais = consolidacao_fontes | map(attribute="id") | list %}
+		<form method="post" action="/lessons/{{ lesson.id }}/consolidacao/fontes">
+			{% for aula in consolidaveis %}
+			<label><input type="checkbox" name="aula_ids" value="{{ aula.id }}" {% if aula.id in ids_atuais %}checked{% endif %}> {{ aula.data.strftime("%d/%m/%Y") }} — {{ aula.titulo }}</label><br>
+			{% endfor %}
+			<button type="submit">Salvar seleção</button>
+		</form>
+		<p class="muted">O guia atual fica até <code>/consolidar-guia</code> rodar de novo.</p>
+	</details>
+	{% endif %}
+	<p class="muted">
+		Quem escreve o guia é uma conversa do Claude Code no repositório: rode
+		<code>/consolidar-guia {{ lesson.id }}</code> (RUNBOOK.md, "Consolidação de
+		guias"). Rodar de novo reescreve o guia inteiro. Depois, os exercícios saem
+		com <code>/dominar-guia {{ lesson.id }}</code> e
+		<code>/gerar-dissertativas {{ lesson.id }}</code>.
+	</p>
+</div>
+{% else %}
 <div class="card">
 	<h2>Áudio</h2>
 	{% if lesson.audio_segments %}
@@ -149,6 +191,7 @@
 	<p class="muted">As dissertativas saem do guia da aula — aparecem aqui depois que a aula for processada e tiver guia.</p>
 	{% endif %}
 </div>
+{% endif %}
 {% endif %}
 
 <div class="card">

@@ -13,13 +13,17 @@
 		<li>
 			<time>{{ lesson.data.strftime("%d/%m/%Y") }}</time>
 			<a href="/lessons/{{ lesson.id }}">{{ lesson.titulo }}</a>
-			{% if not lesson.audio_segments %}<span class="badge muted">sem áudio</span>{% endif %}
+			{% if lesson.tipo == "consolidacao" %}<span class="badge">consolidação</span>
+			{% elif not lesson.audio_segments %}<span class="badge muted">sem áudio</span>{% endif %}
 			{% if lesson.google_doc_url %}<a class="button" href="{{ lesson.google_doc_url }}" target="_blank">Abrir no Docs</a>{% endif %}
 		</li>
 		{% else %}
 		<li class="muted">Nenhuma aula ainda.</li>
 		{% endfor %}
 	</ul>
+	{% if request.state.user and request.state.user.papel == "admin" %}
+	<p class="button-row"><a class="button button-ghost" href="/subjects/{{ subject.id }}/consolidar">Consolidar aulas</a></p>
+	{% endif %}
 </div>
 
 <div class="card">
