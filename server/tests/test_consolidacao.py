@@ -115,7 +115,7 @@ def test_criar_consolidacao_pelo_formulario(app_env):
         assert lesson.data == date(2026, 9, 28)
 
     pagina = client.get(f"/lessons/{lesson_id}")
-    assert "/consolidar-guia" in pagina.text
+    assert "aguardando consolidação" in pagina.text
     assert "Subir áudio" not in pagina.text
 
 
