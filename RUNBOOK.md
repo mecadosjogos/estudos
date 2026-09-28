@@ -58,6 +58,22 @@ curl -s -c "$COOKIEJAR" -b "$COOKIEJAR" -X POST "$SERVER_URL/login" \
 # use -b "$COOKIEJAR" em todo curl daqui pra frente
 ```
 
+**O `.env` tem quebra de linha do Windows (CRLF).** Todo valor lido dele
+vem com um `\r` no fim, e aí a URL/usuário/senha saem errados em silêncio
+(o curl devolve `000`, sem mensagem). Sempre limpe ao ler:
+
+```bash
+SERVER_URL=$(grep -E '^SERVER_URL=' .env | cut -d= -f2- | tr -d '\r')
+LOGIN_USER=$(grep -E '^BACKUP_ADMIN_USERNAME=' .env | cut -d= -f2- | tr -d '\r')
+LOGIN_SENHA=$(grep -E '^BACKUP_ADMIN_PASSWORD=' .env | cut -d= -f2- | tr -d '\r')
+```
+
+Contra produção, escreva a URL por extenso nos `curl`
+(`https://drwyver.mecadosjogos.app.br/...`): a regra de permissão local
+libera `curl` pelo domínio escrito no comando. E o Python do Windows não
+enxerga o `/tmp` do Git Bash — arquivo que um script Python vá ler fica no
+scratchpad da sessão, não em `/tmp`.
+
 ## Fluxos por fase
 
 ### Fase 6 — Processar aula (resumo, aula editada, índice, artigos, datas, cards)

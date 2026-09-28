@@ -56,6 +56,14 @@ Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
    - não sobrou meta-fala de aula ("retomada", "na aula passada") nem
      indicação de aula de origem;
    - não há números nos títulos nem sumário/índice (o sistema gera).
+
+   Complemente com uma conferência automática, num script Python local
+   (no scratchpad): para cada frase dos guias-fonte (pulando árvore,
+   sumário e trechos incompletos), normalize (caixa, acento, marcação
+   markdown, espaços) e procure no guia consolidado normalizado. Liste as
+   que não aparecem e revise uma a uma — cada uma tem que ser meta-fala
+   removida de propósito, conteúdo que virou tabela ou repetição cortada.
+   Se for conteúdo perdido, volte e coloque.
 6. **Envie** com `curl -X POST $SERVER_URL/lessons/{id}/consolidacao/colar-resposta`
    e `--data-urlencode "resposta@${WINPATH}"` (`WINPATH=$(cygpath -w guia.md)`)
    — nunca texto inline. A resposta é um JSON com `secoes`, `subtitulos`,
