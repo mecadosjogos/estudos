@@ -1,5 +1,13 @@
 """Numeração hierárquica e índice do guia de uma aula de consolidação
-(PLANO.md, "Aula de consolidação"): `##` = 8, `###` = 8.1, `####` = 8.1a.
+(PLANO.md, "Aula de consolidação"): numeração progressiva decimal, no
+padrão da ABNT NBR 6024 -- `##` = 8, `###` = 8.1, `####` = 8.1.1,
+`#####` = 8.1.1.1, `######` = 8.1.1.1.1 (cinco níveis, o máximo da norma
+e o máximo de título que o markdown tem).
+
+A profundidade é do conteúdo, não do formato: cada ramo desce quantos
+níveis a matéria pede, e um título pendura no título mais próximo acima
+dele que for mais raso -- pular nível (`#####` logo depois de `###`) não
+gera número com zero, vira filho direto.
 
 Gerada por código a cada renderização, nunca escrita pela IA -- a skill
 /consolidar-guia escreve só os títulos, sem número. Numeração pela
@@ -9,31 +17,21 @@ de dissertativas leem o corpo cru); o número só entra na tela e no cache
 `guia_md`.
 
 Âncoras: `secao-8` é o contrato que já existe (dissertativas apontam pra
-seção pelo número inteiro); `secao-8-1` e `secao-8-1a` descem daí.
-`#####` em diante fica sem número -- três níveis bastam para localizar.
+seção pelo número inteiro); `secao-8-1`, `secao-8-1-1` descem daí.
 """
 
 import re
 from typing import NamedTuple
 
 _FENCE_RE = re.compile(r"^ *(```|~~~)")
-_SUB_RE = re.compile(r"^(#{3,4})[ \t]+(.+?)[ \t#]*$")
+_SUB_RE = re.compile(r"^(#{3,6})[ \t]+(.+?)[ \t#]*$")
 
 
 class SecaoNumerada(NamedTuple):
     numero: int
     titulo: str
-    corpo: str  # corpo com `###`/`####` numerados e ancorados
+    corpo: str  # corpo com `###`..`######` numerados e ancorados
     indice: list[dict]  # filhos da seção no índice: [{numero, titulo, anchor, filhos}]
-
-
-def letra(n: int) -> str:
-    """1 -> a, 26 -> z, 27 -> aa (nunca deve passar de z, mas não quebra)."""
-    s = ""
-    while n > 0:
-        n, r = divmod(n - 1, 26)
-        s = chr(ord("a") + r) + s
-    return s
 
 
 def ancora(numero: str) -> str:
@@ -44,9 +42,9 @@ def numerar_secao(numero: int, titulo: str, corpo: str, *, com_ancora: bool = Tr
     """`com_ancora=False` pro cache `guia_md` (download/PDF), onde o
     `{#id}` do attr_list seria só ruído."""
     linhas = []
-    filhos: list[dict] = []
-    sub = 0
-    conceito = 0
+    raiz: dict = {"numero": str(numero), "filhos": []}
+    # (nível do título, nó) -- o topo é o pai do próximo título mais fundo.
+    pilha: list[tuple[int, dict]] = [(2, raiz)]
     in_fence = False
     for line in corpo.split("\n"):
         if _FENCE_RE.match(line):
@@ -57,20 +55,16 @@ def numerar_secao(numero: int, titulo: str, corpo: str, *, com_ancora: bool = Tr
             continue
         nivel = len(m.group(1))
         texto = m.group(2).strip()
-        if nivel == 3:
-            sub += 1
-            conceito = 0
-            num = f"{numero}.{sub}"
-            filhos.append({"numero": num, "titulo": texto, "anchor": ancora(num), "filhos": []})
-        else:
-            conceito += 1
-            # `####` antes de qualquer `###` na seção: pendura direto na seção (8a).
-            num = f"{numero}.{sub}{letra(conceito)}" if sub else f"{numero}{letra(conceito)}"
-            no = {"numero": num, "titulo": texto, "anchor": ancora(num), "filhos": []}
-            (filhos[-1]["filhos"] if sub else filhos).append(no)
+        while pilha[-1][0] >= nivel:
+            pilha.pop()
+        pai = pilha[-1][1]
+        num = f"{pai['numero']}.{len(pai['filhos']) + 1}"
+        no = {"numero": num, "titulo": texto, "anchor": ancora(num), "filhos": []}
+        pai["filhos"].append(no)
+        pilha.append((nivel, no))
         sufixo = f" {{#{ancora(num)}}}" if com_ancora else ""
         linhas.append(f"{m.group(1)} {num} {texto}{sufixo}")
-    return SecaoNumerada(numero, titulo, "\n".join(linhas), filhos)
+    return SecaoNumerada(numero, titulo, "\n".join(linhas), raiz["filhos"])
 
 
 def numerar_consolidado(secoes: list[tuple[str, str]], *, com_ancora: bool = True) -> list[SecaoNumerada]:

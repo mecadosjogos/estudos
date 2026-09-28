@@ -552,7 +552,7 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
         .order_by(GuiaTopico.ordem)
     ).all()
 
-    # Consolidação: subtítulos numerados (8.1, 8.1a) e índice aninhado no
+    # Consolidação: subtítulos numerados (8.1, 8.1.1) e índice aninhado no
     # lugar do sumário plano -- gerados aqui a cada request, pela posição
     # (ai/guia_numeracao.py). Aula normal segue com o corpo cru.
     if lesson.tipo == "consolidacao":

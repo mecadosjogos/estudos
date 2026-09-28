@@ -730,7 +730,7 @@ curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/praticar" | grep -o "domi
 
 **Junta os guias de várias aulas de uma matéria num guia único.** O uso é
 quando a matéria fecha: o material vira um guia só, sem repetição e
-organizado para ensinar, com índice numerado 8 / 8.1 / 8.1a. Como "Dominar
+organizado para ensinar, com índice numerado 8 / 8.1 / 8.1.1. Como "Dominar
 o guia", **parte dos GUIAS, não da transcrição**: o guia já é material
 revisado e aceito para estudo. Ver `server/app/ai/consolidacao.py`.
 
@@ -758,11 +758,16 @@ O texto completo das regras mora em `INSTRUCTIONS`
 (`ai/consolidacao.py`), que é a fonte única. A skill só orquestra.
 
 **Numeração e índice são de código, nunca da IA.** A resposta traz só os
-títulos `##`/`###`/`####` sem número. `ai/guia_numeracao.py` numera pela
-posição a cada renderização (`##` = 8, `###` = 8.1, `####` = 8.1a) e
-monta o índice aninhado no lugar do sumário plano. As âncoras são
-`#secao-8`, `#secao-8-1` e `#secao-8-1a`; `#secao-N` é o mesmo contrato
-que as dissertativas já usam. `GuiaSecao.corpo` fica sem número, e o
+títulos (`##` até `######`) sem número. `ai/guia_numeracao.py` numera
+pela posição a cada renderização, em numeração decimal progressiva (ABNT
+NBR 6024): `##` = 8, `###` = 8.1, `####` = 8.1.1, até cinco níveis
+(8.1.1.1.1). Monta o índice aninhado no lugar do sumário plano. As
+âncoras são `#secao-8`, `#secao-8-1`, `#secao-8-1-1`...; `#secao-N` é o
+mesmo contrato que as dissertativas já usam. **Cinco níveis é o limite,
+não o molde** (decisão do usuário): a profundidade de cada ramo segue as
+classificações dadas em aula (gênero → espécie → subespécie), sem
+achatar espécie ao lado do gênero. As regras de montagem estão em
+`INSTRUCTIONS`, "Como montar o índice". `GuiaSecao.corpo` fica sem número, e o
 cache `guia_md` sai numerado. Aulas normais não mudam.
 
 **Pendência:** não há fila. Consolidar é uma decisão explícita do usuário

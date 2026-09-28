@@ -32,7 +32,7 @@ def build_guia_markdown(
     hierarquico: bool = False,
 ) -> str:
     """`hierarquico=True` (aula de consolidação): no lugar do sumário plano,
-    o índice aninhado 8 / 8.1 / 8.1a, e os subtítulos saem numerados --
+    o índice aninhado 8 / 8.1 / 8.1.1, e os subtítulos saem numerados --
     ver ai/guia_numeracao.py."""
     parts = [f"# {titulo}\n"]
 

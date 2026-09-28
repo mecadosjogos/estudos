@@ -1,5 +1,5 @@
 """Aula de consolidação (PLANO.md, "Aula de consolidação"): guias de várias
-aulas viram um guia único, com índice hierárquico 8 / 8.1 / 8.1a."""
+aulas viram um guia único, com índice hierárquico 8 / 8.1 / 8.1.1."""
 
 from datetime import date
 
@@ -227,13 +227,33 @@ def test_aula_normal_mantem_sumario_plano(app_env):
 def test_numeracao_hierarquica():
     from app.ai.guia_numeracao import numerar_consolidado
 
-    corpo = "#### solto\nx\n### A\n#### a1\n#### a2\n```\n### não é título\n```\n### B\n##### fundo"
+    corpo = (
+        "#### solto
+x
+### A
+#### a1
+##### a1x
+###### a1x1
+#### a2
+"
+        "```
+### não é título
+```
+### B
+##### pulou"
+    )
     [s] = numerar_consolidado([("Tema", corpo)])
-    assert s.corpo.split("\n")[0] == "#### 1a solto {#secao-1a}"
-    assert "### 1.1 A {#secao-1-1}" in s.corpo
-    assert "#### 1.1b a2 {#secao-1-1b}" in s.corpo
+    assert s.corpo.split("
+")[0] == "#### 1.1 solto {#secao-1-1}"
+    assert "### 1.2 A {#secao-1-2}" in s.corpo
+    assert "#### 1.2.1 a1 {#secao-1-2-1}" in s.corpo
+    assert "##### 1.2.1.1 a1x {#secao-1-2-1-1}" in s.corpo
+    assert "###### 1.2.1.1.1 a1x1 {#secao-1-2-1-1-1}" in s.corpo
+    assert "#### 1.2.2 a2 {#secao-1-2-2}" in s.corpo
     assert "### não é título" in s.corpo
-    assert "### 1.2 B {#secao-1-2}" in s.corpo
-    assert "##### fundo" in s.corpo
-    assert [n["numero"] for n in s.indice] == ["1a", "1.1", "1.2"]
-    assert [n["numero"] for n in s.indice[1]["filhos"]] == ["1.1a", "1.1b"]
+    assert "### 1.3 B {#secao-1-3}" in s.corpo
+    # nível pulado vira filho direto, sem zero no número
+    assert "##### 1.3.1 pulou {#secao-1-3-1}" in s.corpo
+    assert [n["numero"] for n in s.indice] == ["1.1", "1.2", "1.3"]
+    assert [n["numero"] for n in s.indice[1]["filhos"]] == ["1.2.1", "1.2.2"]
+    assert s.indice[1]["filhos"][0]["filhos"][0]["filhos"][0]["numero"] == "1.2.1.1.1"

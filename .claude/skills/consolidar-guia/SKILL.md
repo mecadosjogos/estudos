@@ -39,11 +39,16 @@ Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
    checklist do "nada se perde". Os guias passam fácil de 100 mil
    caracteres juntos — trabalhe guia por guia, não tente segurar tudo de
    cabeça.
-3. **Esqueleto temático:** monte a árvore `##` (tema) / `###`
-   (subtítulo) / `####` (conceito) na ordem que ensina melhor — não na
+3. **Esqueleto temático:** monte a árvore de títulos (`##` até
+   `######`, cinco níveis no máximo) na ordem que ensina melhor — não na
    ordem das aulas — e aponte cada item do inventário para um lugar. O
-   que aparece em mais de uma aula vai para o MESMO lugar. Cada conceito
-   que alguém procuraria no índice merece o seu `####`.
+   que aparece em mais de uma aula vai para o MESMO lugar. A profundidade
+   segue as classificações dadas em aula (gênero → espécie →
+   subespécie), não um molde fixo: cada ramo desce só o que precisa, e
+   nada de achatar uma espécie ao lado do seu gênero. As regras de
+   montagem estão no pacote ("Como montar o índice"). Antes de redigir,
+   releia o esqueleto e pergunte de cada título: "ele é espécie de algum
+   irmão?" — se for, desça um nível.
 4. **Redija seção por seção** no arquivo de saída (um `##` por vez,
    acrescentando ao arquivo), copiando a redação dos guias. Juntar,
    mover, cortar a repetição, montar tabela ou lista: pode. Trocar a
@@ -99,10 +104,12 @@ Devolva ao usuário:
   ```
 - **o inventário final, compacto**: para cada aula-fonte, a lista dos
   conceitos dela com o número onde cada um foi parar no guia novo (ex.:
-  `Aula 3 — Kenbet → 2.3a · Kenbet att → 2.3b · punições → 2.2`). É o que
-  permite ao usuário conferir rápido que nada se perdeu, sem reler tudo.
-  Os números seguem a regra do sistema: `##` = N, `###` = N.M, `####` =
-  N.M + letra, contando pela ordem no guia.
+  `Aula 3 — Kenbet → 2.3.1 · Kenbet att → 2.3.1.2 · punições → 2.2`). É o
+  que permite ao usuário conferir rápido que nada se perdeu, sem reler
+  tudo. Os números seguem a regra do sistema (numeração decimal, pela
+  ordem no guia): `##` = N, `###` = N.M, `####` = N.M.K e assim por
+  diante — cada título é filho do título mais próximo acima dele que for
+  mais raso.
 - o que ficou no relatório, se sobrou algo, e por quê;
 - a sugestão do próximo passo: `/dominar-guia {id}` para os exercícios
   e, se o usuário quiser, `/gerar-dissertativas {id}`.

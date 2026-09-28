@@ -131,8 +131,8 @@ citação literal do material).
 ## Formato da resposta
 
 Markdown puro (pode vir dentro de um bloco ```markdown). NÃO numere nada
-e NÃO escreva sumário/índice -- o sistema numera (8 / 8.1 / 8.1a) e gera
-o índice a partir dos títulos.
+e NÃO escreva sumário/índice -- o sistema numera (8 / 8.1 / 8.1.1 /
+8.1.1.1 / 8.1.1.1.1) e gera o índice a partir dos títulos.
 
 ```
 # <título do guia consolidado>
@@ -141,18 +141,40 @@ o índice a partir dos títulos.
 - <conceito>
     - <subconceito>
 
-## <Título do tema>          (nível 1 -- vira 1, 2, 3...)
-### <Subtítulo>              (nível 2 -- vira 1.1, 1.2...)
-#### <Conceito>              (nível 3 -- vira 1.1a, 1.1b...)
+## <Tema>                    (nível 1 -- vira 1, 2, 3...)
+### <Subtema>                (nível 2 -- vira 1.1, 1.2...)
+#### <Espécie/conceito>      (nível 3 -- vira 1.1.1...)
+##### <Subespécie>           (nível 4 -- vira 1.1.1.1...)
+###### <Detalhe>             (nível 5 -- vira 1.1.1.1.1...)
 <texto>
 
 ## Trechos incompletos/inaudíveis     (opcional, só se houver)
 - <trecho>
 ```
 
-Use `##`, `###` e `####` como os três níveis de localização: cada
-conceito que alguém procuraria no índice merece um título. Níveis mais
-fundos (`#####`) são permitidos, mas ficam sem número.
+## Como montar o índice
+
+Os níveis acima são o LIMITE, não um molde. A profundidade segue a
+matéria, não o formato:
+
+- **Os níveis espelham as classificações dadas em aula** -- gênero ->
+  espécie -> subespécie. Se o professor disse que retroatividade e
+  ultratividade são espécies de extratividade, elas ficam DENTRO de
+  extratividade; se costumes e princípios são fontes formais mediatas,
+  ficam dentro de "fontes formais mediatas", não ao lado de "fontes
+  formais". Não achate uma classificação para caber em menos níveis.
+- **Cada ramo desce só o que precisa.** Um tema raso fica com dois
+  níveis; uma classificação com gênero, espécie e subespécie chega a
+  quatro ou cinco. Nada de forçar todos os ramos à mesma profundidade.
+- **Só abra um nível com pelo menos dois filhos.** Um filho único vira
+  texto do pai.
+- **Todo título que alguém procuraria no índice ganha título** -- e
+  ganha número, até o quinto nível. Exemplo que serve pra localizar
+  ("o caso do feminicídio", "a enchente") pode ser título, pendurado no
+  conceito que ilustra.
+- **Detalhe de apoio fica no texto, não no índice.** "Como se escreve e
+  como se pronuncia", observação curta, frase solta: dentro do conceito,
+  sem título próprio.
 """
 
 
