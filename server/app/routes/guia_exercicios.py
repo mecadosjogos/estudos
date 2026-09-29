@@ -31,6 +31,7 @@ from ..study.guia_locucao import (
     caminho_audio,
     gabarito_lines,
     itens_pendentes,
+    tem_audio_narrado,
     texto_pergunta,
     texto_resposta,
 )
@@ -235,6 +236,7 @@ def practice(
             "exercicio": exercicio,
             "gabarito_lines": gabarito_lines(exercicio.tipo, json.loads(exercicio.gabarito_json)) if exercicio else [],
             "locucao": _locucao_context(exercicio) if exercicio else None,
+            "narracao_disponivel": tem_audio_narrado(session, lesson_id),
             "estrelas": estrelas(session, exercicio, user.id) if exercicio else 0,
             "mastery_percent": mastery_percent(session, lesson_id, user.id),
             "pool": pool_status(session, lesson, user.id),

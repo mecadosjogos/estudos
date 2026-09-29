@@ -196,6 +196,26 @@ def audio_url(exercicio: GuiaExercicio, parte: str) -> str | None:
     )
 
 
+def tem_audio_narrado(session: Session, lesson_id: int) -> bool:
+    """Se alguma questão da aula já tem mp3 do Chatterbox -- o que libera
+    escolhê-lo nas configurações de locução da tela. Só olha o hash
+    guardado (uma consulta, sem abrir arquivo a cada carregamento da tela):
+    um áudio que ficou velho só faz aquela questão cair na voz do navegador."""
+    return (
+        session.scalar(
+            select(GuiaExercicio.id)
+            .where(
+                GuiaExercicio.lesson_id == lesson_id,
+                GuiaExercicio.status == "aceito",
+                GuiaExercicio.orfao_em.is_(None),
+                (GuiaExercicio.audio_pergunta_hash.is_not(None)) | (GuiaExercicio.audio_resposta_hash.is_not(None)),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def itens_pendentes(session: Session, lesson_id: int, limite: int | None = None) -> list[dict]:
     """Áudios que faltam (ou ficaram velhos) nas questões aceitas da aula.
     Questões que estão na mesa de alguém vêm primeiro, pela posição em que

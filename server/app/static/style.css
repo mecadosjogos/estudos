@@ -254,6 +254,22 @@ button, .button {
 	padding: var(--space-3) var(--space-4);
 }
 
+.locucao-config-grupo {
+	border: none;
+	padding: 0;
+	margin: 0 0 var(--space-3);
+}
+
+.locucao-config-grupo legend {
+	padding: 0;
+	margin-bottom: var(--space-2);
+}
+
+.locucao-config-grupo label {
+	display: block;
+	margin-bottom: var(--space-2);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.voz-indicador::before {
 		animation: none;

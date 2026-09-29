@@ -7,8 +7,9 @@
 //     página que já recebeu um toque, e página nova começa do zero) e
 //     reiniciava o microfone a cada questão.
 //   - locutor: lê a pergunta ao aparecer e a resposta ao revelar -- o mp3
-//     narrado pelo TTS local quando existe, a voz do navegador enquanto não.
-//     Avisa "locucao:inicio" e "locucao:fim".
+//     narrado pelo TTS local quando existe, a voz do navegador enquanto não
+//     (ou sempre, se escolhido em "Configurações de locução", onde também se
+//     escolhe qual voz do navegador). Avisa "locucao:inicio" e "locucao:fim".
 //   - comando de voz: pausa o microfone entre esses dois eventos, pra não
 //     captar a própria locução.
 (() => {
@@ -28,6 +29,23 @@
 			else localStorage.removeItem(chave);
 		} catch (erro) {
 			// sem armazenamento (aba anônima, dados bloqueados): só não lembra
+		}
+	}
+
+	function lerTexto(chave) {
+		try {
+			return localStorage.getItem(chave) || "";
+		} catch (erro) {
+			return "";
+		}
+	}
+
+	function gravarTexto(chave, valor) {
+		try {
+			if (valor) localStorage.setItem(chave, valor);
+			else localStorage.removeItem(chave);
+		} catch (erro) {
+			// sem armazenamento: vale só até recarregar
 		}
 	}
 
@@ -88,9 +106,56 @@
 			falar(parteBarrada || "pergunta");
 		});
 
+		// --- configurações (fim da página) ---
+		// Sem nada gravado, vale a narração do Chatterbox quando a aula tem
+		// áudio; a voz do navegador só é "sempre" se escolhida.
+		const CHAVE_MOTOR = "guia-praticar-locucao-motor";
+		const CHAVE_VOZ = "guia-praticar-locucao-voz";
+		const configEl = document.getElementById("locucao-config");
+		const narracaoDisponivel = configEl.dataset.narracaoDisponivel === "1";
+		const selectVoz = document.getElementById("locucao-voz");
+		const avisoVoz = document.getElementById("locucao-voz-aviso");
+
+		const prefereNavegador = () => lerTexto(CHAVE_MOTOR) === "navegador";
+		const usaNarracao = () => narracaoDisponivel && !prefereNavegador();
+
+		configEl.querySelectorAll('input[name="locucao-motor"]').forEach((radio) => {
+			radio.checked = radio.value === (usaNarracao() ? "chatterbox" : "navegador");
+			radio.addEventListener("change", () => {
+				if (radio.checked) gravarTexto(CHAVE_MOTOR, radio.value === "navegador" ? "navegador" : "");
+			});
+		});
+
+		const ehPortugues = (v) => v.lang.replace("_", "-").toLowerCase().startsWith("pt");
+
+		// O Chrome entrega a lista de vozes atrasada (vazia no primeiro
+		// getVoices, completa no `voiceschanged`): preenche de novo a cada aviso.
+		function preencherVozes() {
+			const vozes = sintese.getVoices().filter(ehPortugues);
+			const escolhida = lerTexto(CHAVE_VOZ);
+			while (selectVoz.options.length > 1) selectVoz.remove(1);
+			for (const voz of vozes) selectVoz.add(new Option(voz.name + " (" + voz.lang + ")", voz.voiceURI));
+			// Voz gravada que ainda não apareceu na lista não é apagada: só o
+			// `change` grava.
+			selectVoz.value = vozes.some((v) => v.voiceURI === escolhida) ? escolhida : "";
+			avisoVoz.hidden = vozes.length > 0;
+		}
+
+		if (sintese) {
+			preencherVozes();
+			sintese.addEventListener("voiceschanged", preencherVozes);
+			selectVoz.addEventListener("change", () => gravarTexto(CHAVE_VOZ, selectVoz.value));
+		} else {
+			selectVoz.disabled = true;
+			avisoVoz.hidden = false;
+			avisoVoz.textContent = "Este navegador não tem voz sintética.";
+		}
+
 		function vozPortugues() {
 			const vozes = sintese.getVoices();
+			const escolhida = lerTexto(CHAVE_VOZ);
 			return (
+				(escolhida && vozes.find((v) => v.voiceURI === escolhida)) ||
 				vozes.find((v) => v.lang === "pt-BR") ||
 				vozes.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith("pt")) ||
 				null
@@ -157,7 +222,7 @@
 			parar();
 			const minha = geracao;
 			tocarWrap.hidden = true;
-			const url = alvo.dataset[parte + "Url"];
+			const url = usaNarracao() ? alvo.dataset[parte + "Url"] : "";
 			const texto = alvo.dataset[parte + "Texto"];
 			if (!url) {
 				sintetizar(texto, parte, minha);
@@ -200,14 +265,15 @@
 		// Pede à VPS os áudios que faltam nesta aula (o worker com o
 		// tts-service de pé vai narrando e subindo um a um). Uma vez por
 		// carregamento de página basta: as próximas questões já chegam com o
-		// que ficou pronto no meio-tempo.
+		// que ficou pronto no meio-tempo. Pede mesmo com a voz do navegador
+		// escolhida -- sem áudio nenhum, a opção da narração nem abre.
 		function pedirGeracao() {
 			if (pedidoFeito) return;
 			pedidoFeito = true;
 			fetch("/lessons/" + lessonId + "/guia/locucao", { method: "POST", credentials: "same-origin" })
 				.then((resp) => (resp.ok ? resp.json() : null))
 				.then((dados) => {
-					if (!dados || !dados.pendentes) return;
+					if (!dados || !dados.pendentes || prefereNavegador()) return;
 					statusEl.hidden = false;
 					statusEl.textContent =
 						"🔊 " + dados.pendentes + " áudio(s) desta aula na fila de narração — enquanto isso, lê a voz do navegador.";

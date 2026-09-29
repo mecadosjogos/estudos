@@ -183,7 +183,7 @@
 <details class="card">
 	<summary><strong>Comando de voz e locução</strong></summary>
 	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" (ou "1") para revelar o gabarito, e depois "não lembrei" (ou "2"), "lembrei" (ou "3") ou "memorizei" (ou "4", o mesmo que "↑ já sei, espaçar mais") para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder, é só clicar no botão de novo.</p>
-	<p class="muted">O botão "🔊 Ativar locução" lê a pergunta em voz alta assim que ela aparece, e a resposta assim que o gabarito é revelado. Enquanto a leitura toca, o microfone fica pausado (não capta a própria locução) e volta a ouvir quando ela termina. A voz é a mesma da narração do guia, gerada no computador com GPU; enquanto uma questão ainda não tem esse áudio, quem lê é a voz do próprio navegador, e o pedido de gerar os áudios da aula vai pra fila sozinho.</p>
+	<p class="muted">O botão "🔊 Ativar locução" lê a pergunta em voz alta assim que ela aparece, e a resposta assim que o gabarito é revelado. Enquanto a leitura toca, o microfone fica pausado (não capta a própria locução) e volta a ouvir quando ela termina. A voz é a mesma da narração do guia, gerada no computador com GPU; enquanto uma questão ainda não tem esse áudio, quem lê é a voz do próprio navegador, e o pedido de gerar os áudios da aula vai pra fila sozinho. Em "Configurações de locução", no fim da página, dá pra usar sempre a voz do navegador e escolher qual.</p>
 	<dl>
 		<dt>"leia novamente" (ou "de novo", "repetir")</dt>
 		<dd>Antes de revelar, lê a pergunta de novo; com o gabarito aberto, lê só a resposta.</dd>
@@ -200,6 +200,35 @@
 	</form>
 </details>
 </div>
+
+{# Fora de #praticar-conteudo: não é trocada a cada questão, então não fecha
+   sozinha no meio da escolha. As escolhas ficam neste navegador (as vozes
+   disponíveis mudam de aparelho pra aparelho). #}
+<details class="card" id="locucao-config" data-narracao-disponivel="{{ '1' if narracao_disponivel else '0' }}">
+	<summary><strong>Configurações de locução</strong></summary>
+	<fieldset class="locucao-config-grupo">
+		<legend>Quem lê</legend>
+		<label>
+			<input type="radio" name="locucao-motor" value="chatterbox" {% if not narracao_disponivel %}disabled{% endif %}>
+			Voz da narração (Chatterbox, gerada no computador com GPU)
+		</label>
+		{% if not narracao_disponivel %}
+		<p class="muted">Ainda não há áudio narrado nesta aula. Fica disponível quando o computador com GPU narrar; ligar a locução já põe o pedido na fila.</p>
+		{% endif %}
+		<label>
+			<input type="radio" name="locucao-motor" value="navegador">
+			Voz do navegador
+		</label>
+	</fieldset>
+	<p>
+		<label for="locucao-voz">Voz do navegador:</label>
+		<select id="locucao-voz">
+			<option value="">Automática (primeira em português)</option>
+		</select>
+	</p>
+	<p class="muted" id="locucao-voz-aviso" hidden>Este navegador não oferece nenhuma voz em português.</p>
+	<p class="muted">A voz da narração é uma só (a do modelo). A do navegador depende do aparelho: no Windows costumam aparecer Maria (feminina), Daniel (masculina) e Google português do Brasil (feminina). Ela também lê as questões que ainda não têm o áudio da narração.</p>
+</details>
 
 <script src="/static/guia_praticar.js"></script>
 {% endblock %}

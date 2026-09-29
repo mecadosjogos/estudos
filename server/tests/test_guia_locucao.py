@@ -280,6 +280,9 @@ def test_pratica_so_entrega_url_de_audio_em_dia(app_env):
     assert 'data-pergunta-texto="O que é a figura 0?"' in page
     assert 'id="praticar-conteudo"' in page
     assert "/static/guia_praticar.js" in page
+    # Sem áudio nenhum na aula, a narração não dá pra escolher.
+    assert 'data-narracao-disponivel="0"' in page
+    assert 'value="chatterbox" disabled' in page
 
     client.post(f"/lessons/{lesson_id}/guia/locucao")
     claim = client.get("/api/jobs/next", params={"worker_name": "w", "target": "tts_exercicios"}).json()["job"]
@@ -293,6 +296,8 @@ def test_pratica_so_entrega_url_de_audio_em_dia(app_env):
     page = client.get(f"/lessons/{lesson_id}/guia/praticar").text
     assert f'data-pergunta-url="/lessons/{lesson_id}/guia/exercicios/{item["exercicio_id"]}/audio/pergunta.mp3?v={item["hash"]}"' in page
     assert 'data-resposta-url=""' in page
+    assert 'data-narracao-disponivel="1"' in page
+    assert 'value="chatterbox" disabled' not in page
 
 
 def test_rota_do_audio_rejeita_parte_desconhecida(app_env):
