@@ -83,9 +83,23 @@
 			document.dispatchEvent(new CustomEvent("locucao:fim"));
 		}
 
+		// Áudio que acabou (ou foi interrompido) é solto de vez, não só
+		// pausado: no celular, um <audio> pausado com o mp3 ainda carregado
+		// continua dono do foco de áudio do sistema (é o que mantém os
+		// controles na tela bloqueada), e o microfone religado nesse meio-tempo
+		// abria sem ouvir nada -- nem detectava voz. A voz do navegador não
+		// passa por <audio>, por isso só o Chatterbox travava o microfone.
+		function soltarPlayer() {
+			player.onended = player.onerror = player.onpause = player.onplaying = null;
+			if (!player.hasAttribute("src")) return;
+			player.pause();
+			player.removeAttribute("src");
+			player.load();
+		}
+
 		function parar() {
 			geracao++;
-			player.pause();
+			soltarPlayer();
 			if (sintese) sintese.cancel();
 			terminou();
 		}
@@ -227,7 +241,12 @@
 			const daVez = (fn) => () => {
 				if (minha === geracao) fn();
 			};
-			player.onended = daVez(terminou);
+			// Solta o player antes de avisar o fim: o microfone só volta
+			// depois que o foco de áudio já foi devolvido.
+			player.onended = daVez(() => {
+				soltarPlayer();
+				terminou();
+			});
 			player.onerror = daVez(terminou);
 			// Pausa vinda de fora (controle de mídia da tela bloqueada): sem
 			// isso o microfone ficaria parado esperando um fim que não vem.
@@ -357,6 +376,9 @@
 			document.getElementById("recall-label").hidden = false;
 			document.getElementById("revelar-wrap").hidden = true;
 			gabaritoStep.hidden = false;
+			document.querySelectorAll("#praticar-rodape [data-apos-revelar]").forEach((btn) => {
+				btn.disabled = false;
+			});
 			// Rolar até o gabarito (que fica mais abaixo) empurrava a pergunta e
 			// a resposta escrita pra fora da tela -- rola até o início do card
 			// pra manter tudo visível.
@@ -364,7 +386,7 @@
 			locutor.aoRevelar();
 		});
 
-		exercicioCard.querySelectorAll(".quality-btn").forEach((btn) => {
+		document.querySelectorAll("#praticar-rodape .quality-btn").forEach((btn) => {
 			btn.addEventListener("click", (ev) => {
 				ev.preventDefault();
 				// Escurece antes de enviar: o botão fica marcado durante a
@@ -376,7 +398,31 @@
 		});
 	}
 
+	// Folga no fim da página do tamanho do rodapé fixo: rolando até o fim,
+	// o que fica lá embaixo (configurações de locução etc.) para acima dele
+	// em vez de ficar escondido atrás. Medido, não fixo no CSS: o rodapé
+	// cresce quando o indicador do microfone aparece.
+	const observadorRodape =
+		"ResizeObserver" in window ? new ResizeObserver(() => ajustarFolgaRodape()) : null;
+
+	function ajustarFolgaRodape() {
+		const rodape = document.getElementById("praticar-rodape");
+		document.body.style.paddingBottom = rodape ? rodape.offsetHeight + "px" : "";
+	}
+
+	function montarRodape() {
+		const rodape = document.getElementById("praticar-rodape");
+		if (observadorRodape) {
+			observadorRodape.disconnect();
+			if (rodape) observadorRodape.observe(rodape);
+		}
+		ajustarFolgaRodape();
+	}
+
+	window.addEventListener("resize", ajustarFolgaRodape);
+
 	function montarConteudo() {
+		montarRodape();
 		montarCard();
 
 		document.querySelectorAll("#praticar-conteudo form[data-trocar]").forEach((form) => {
@@ -407,7 +453,7 @@
 	}
 
 	// Mesma numeração dos rótulos e do comando de voz: 1 revela; com o
-	// gabarito aberto, 2 não lembrei, 3 lembrei, 4 espaçar mais. O número da
+	// gabarito aberto, 2 não lembrei, 3 lembrei, 4 espaçar mais, 5 dominei. O número da
 	// tecla não é o shortcut enviado ao servidor (1 = não lembrei, 2 = lembrei).
 	document.addEventListener("keydown", (ev) => {
 		if (!card() || ev.target.tagName === "TEXTAREA" || ev.target.tagName === "INPUT") return;
@@ -418,6 +464,8 @@
 			btn = document.querySelector('.quality-btn[data-shortcut="' + (ev.key - 1) + '"]');
 		} else if (ev.key === "4") {
 			btn = document.getElementById("espacar-btn");
+		} else if (ev.key === "5") {
+			btn = document.getElementById("dominei-btn");
 		}
 		if (btn) btn.click();
 	});
@@ -511,6 +559,7 @@
 				"2": 2, "dois": 2,
 				"3": 3, "três": 3, "tres": 3,
 				"4": 4, "quatro": 4,
+				"5": 5, "cinco": 5,
 			}[frase.replace(/[.,!?]/g, "").trim()];
 
 			if (!gabaritoAberto) {
@@ -519,6 +568,7 @@
 				if (numero === 1 || frase.includes("revelar") || frase.includes("gabarito")) return "revelar";
 				return null;
 			}
+			if (numero === 5 || frase.includes("dominei")) return "dominei";
 			if (numero === 4 || frase.includes("memorizei")) return "espacar";
 			if (numero === 2 || frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei")) return "1";
 			if (numero === 3 || frase.includes("lembrei") || frase.includes("acertei")) return "2";
@@ -557,7 +607,9 @@
 			const btn =
 				comando === "espacar"
 					? document.getElementById("espacar-btn")
-					: document.querySelector('.quality-btn[data-shortcut="' + comando + '"]');
+					: comando === "dominei"
+						? document.getElementById("dominei-btn")
+						: document.querySelector('.quality-btn[data-shortcut="' + comando + '"]');
 			// Escurece o botão e espera um instante antes de enviar, senão a
 			// questão troca antes de dar pra ver qual opção foi acionada. A
 			// classe também barra um segundo reconhecimento da mesma frase, que
@@ -567,6 +619,7 @@
 				setTimeout(() => btn.click(), 450);
 			}
 			if (comando === "espacar") return "já sei, espaçar mais";
+			if (comando === "dominei") return "dominei";
 			return comando === "1" ? "não lembrei" : "lembrei";
 		}
 
@@ -652,7 +705,7 @@
 			}
 			toggleBtn.textContent = "🔴 Desativar comando de voz";
 			statusEl.textContent =
-				'Diga "revelar" (ou "1"), "não lembrei" (ou "2"), "lembrei" (ou "3"), "memorizei" (ou "4") ou "leia novamente".';
+				'Diga "revelar" (ou "1"), "não lembrei" (ou "2"), "lembrei" (ou "3"), "memorizei" (ou "4"), "dominei" (ou "5") ou "leia novamente".';
 		}
 
 		function parar() {

@@ -40,6 +40,7 @@ from ..study.guia_scheduler import (
     estrelas,
     listar_removidos,
     manual_adjust,
+    marcar_dominei,
     marcar_ja_sei,
     mastery_percent,
     next_exercicio,
@@ -368,6 +369,18 @@ def adjust_exercicio(
         marcar_ja_sei(session, exercicio, user.id)
     else:
         manual_adjust(session, exercicio, user.id, delta)
+    return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/guia/exercicios/{exercicio_id}/dominei")
+def dominei_exercicio(
+    lesson_id: int,
+    exercicio_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_session),
+):
+    exercicio = _get_exercicio_or_404(session, lesson_id, exercicio_id)
+    marcar_dominei(session, exercicio, user.id)
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/praticar", status_code=303)
 
 

@@ -538,6 +538,23 @@ def marcar_ja_sei(session: Session, exercicio: GuiaExercicio, user_id: int) -> N
             return
 
 
+def marcar_dominei(session: Session, exercicio: GuiaExercicio, user_id: int) -> None:
+    """Botão "Dominei": gradua a questão na hora, qualquer que seja a caixa
+    -- pedido do usuário. Grava um "Lembrei" de verdade (entra no histórico
+    e conta pra mesa como acerto) e, se ele sozinho não bastou pra graduar,
+    força a graduação e abre a vaga na mesa."""
+    submit_attempt(session, exercicio, user_id, resposta_texto=None, grau_acerto=1.0)
+    progresso = _get_or_create_exercicio_progresso(session, exercicio.id, user_id)
+    if progresso.dominado_em is not None:
+        return
+    progresso.caixa = CAIXA_GRADUADO
+    progresso.posicao_alvo = None
+    progresso.dominado_em = _now()
+    progresso.na_mesa = False
+    session.flush()
+    ensure_mesa_filled(session, exercicio.lesson, user_id)
+
+
 def manual_adjust(session: Session, exercicio: GuiaExercicio, user_id: int, delta: int) -> None:
     """Botão "reforçar mais" (delta=-1) / "já sei, espaçar mais" (delta=+1)
     -- reagenda `posicao_alvo` sem gravar tentativa nem mudar a caixa.

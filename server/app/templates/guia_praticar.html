@@ -68,37 +68,40 @@
 			<li>{{ linha }}</li>
 			{% endfor %}
 		</ul>
-		<p class="muted">Como foi? (isso decide quando este exercício volta a aparecer — ver "Como funcionam os botões" no fim da página)</p>
+		<p class="muted">Como foi? Responda pelos botões do rodapé (isso decide quando este exercício volta a aparecer — ver "Como funcionam os botões" no fim da página).</p>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form" data-trocar>
 			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
 			<input type="hidden" name="shortcut" id="shortcut-field">
-			<div class="button-row" style="align-items:center">
-				<button type="submit" class="quality-btn" data-shortcut="1">2 · Não lembrei</button>
-				<button type="submit" class="quality-btn" data-shortcut="2">3 · Lembrei</button>
-				<span class="voz-indicador" hidden></span>
-			</div>
 		</form>
-		<div class="button-row">
-			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline" data-trocar>
-				<input type="hidden" name="delta" value="-1">
-				<button type="submit">↓ quero ver de novo mais cedo</button>
-			</form>
-			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline" data-trocar>
-				<input type="hidden" name="delta" value="1">
-				<button type="submit" id="espacar-btn">4 · ↑ já sei, espaçar mais</button>
-			</form>
-		</div>
 	</div>
-
-	<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" class="button-row" style="margin-top: var(--space-3)" data-trocar>
-		<button type="submit" class="button-ghost">✕ remover questão{% if admin %} para todos{% endif %}</button>
-	</form>
-	{% if admin %}
-	<p class="muted">Como admin, remover descarta a questão <strong>para todos os usuários</strong> — some da fila de cada um, inclusive no memorizador. Dá pra trazer de volta (para todos) em "Questões removidas", abaixo.</p>
-	{% else %}
-	<p class="muted">Some da sua fila (só da sua — não afeta outros usuários) e continua fora mesmo depois de limpar o progresso. Dá pra trazer de volta em "Questões removidas", abaixo.</p>
-	{% endif %}
 </div>
+
+{# Rodapé fixo com as respostas, sempre à mão sem rolar. Os de resposta só
+   acendem depois de revelar o gabarito (mesma regra do teclado e da voz);
+   remover vale a qualquer hora. A página ganha uma folga embaixo do tamanho
+   do rodapé (static/guia_praticar.js), pra ele nunca cobrir o fim dela. #}
+<nav class="praticar-rodape" id="praticar-rodape" aria-label="Responder a questão">
+	<span class="voz-indicador" hidden></span>
+	<div class="praticar-rodape-botoes">
+		<button type="submit" form="answer-form" class="quality-btn rodape-btn" data-shortcut="1" data-apos-revelar disabled
+			title="2 · Não lembrei" aria-label="2 · Não lembrei"><span aria-hidden="true">✗</span><span class="rodape-num" aria-hidden="true">2</span></button>
+		<button type="submit" form="answer-form" class="quality-btn rodape-btn" data-shortcut="2" data-apos-revelar disabled
+			title="3 · Lembrei" aria-label="3 · Lembrei"><span aria-hidden="true">✓</span><span class="rodape-num" aria-hidden="true">3</span></button>
+		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" data-trocar>
+			<input type="hidden" name="delta" value="1">
+			<button type="submit" id="espacar-btn" class="rodape-btn" data-apos-revelar disabled
+				title="4 · Já sei, espaçar mais" aria-label="4 · Já sei, espaçar mais"><span aria-hidden="true">↑</span><span class="rodape-num" aria-hidden="true">4</span></button>
+		</form>
+		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/dominei" data-trocar>
+			<button type="submit" id="dominei-btn" class="rodape-btn" data-apos-revelar disabled
+				title="5 · Dominei" aria-label="5 · Dominei"><span aria-hidden="true">★</span><span class="rodape-num" aria-hidden="true">5</span></button>
+		</form>
+		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" data-trocar>
+			<button type="submit" class="rodape-btn button-ghost"
+				title="Remover questão{% if admin %} para todos{% endif %}" aria-label="Remover questão{% if admin %} para todos{% endif %}"><span aria-hidden="true">🗑</span></button>
+		</form>
+	</div>
+</nav>
 
 {% else %}
 <div class="card">
@@ -142,7 +145,7 @@
 <details class="card">
 	<summary><strong>Questões removidas ({{ removidos | length }})</strong></summary>
 	{% if not removidos %}
-	<p class="muted">Nenhuma questão removida nesta aula. O botão "✕ remover questão" tira uma questão da sua fila (só da sua); ela aparece aqui, com gabarito e um "desfazer" pra voltar.</p>
+	<p class="muted">Nenhuma questão removida nesta aula. O botão 🗑 do rodapé (remover questão) tira uma questão da sua fila (só da sua); ela aparece aqui, com gabarito e um "desfazer" pra voltar.</p>
 	{% else %}
 	<p class="muted">Fora da sua fila — não contam no % dominado nem na mesa. Continuam removidas mesmo depois de "limpar progresso"; só voltam pelo "desfazer" aqui. O progresso que elas tinham foi guardado: se voltarem, voltam na caixa em que estavam.</p>
 	{% for item in removidos %}
@@ -166,22 +169,28 @@
 
 <details class="card">
 	<summary><strong>Como funcionam os botões</strong></summary>
-	<p class="muted">O número antes de cada botão o aciona sem mouse: falado, com o comando de voz ligado (ver "Comando de voz e locução", abaixo), ou apertado no teclado. O "1" revela o gabarito.</p>
+	<p class="muted">As respostas ficam no rodapé fixo, em símbolos, e só acendem depois de revelar o gabarito. O número de cada botão o aciona sem mouse: falado, com o comando de voz ligado (ver "Comando de voz e locução", abaixo), ou apertado no teclado. O "1" revela o gabarito.</p>
 	<dl>
-		<dt>2 · Não lembrei</dt>
+		<dt>✗ 2 · Não lembrei</dt>
 		<dd>Reseta a caixa pra 0 — volta a aparecer quase já. Errado emendado (em qualquer exercício desta aula) fecha vaga na mesa mais rápido a cada vez seguida, pra aliviar a carga.</dd>
-		<dt>3 · Lembrei</dt>
+		<dt>✓ 3 · Lembrei</dt>
 		<dd>Sobe caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas). Emendado no mesmo exercício pula mais de uma caixa de uma vez (2º seguido pula 2, 3º pula 3...), até graduar e sair da roda ativa (conta pro % dominado). Cada acerto também abre uma vaga na mesa — matéria nova entra de uma em uma.</dd>
-		<dt>↓ quero ver de novo mais cedo</dt>
-		<dd>Ajuste manual: reagenda pra metade do intervalo normal da caixa atual, sem contar como resposta — não muda a caixa nem o histórico. O exercício sai da tela e volta logo, depois de alguns outros.</dd>
-		<dt>4 · ↑ já sei, espaçar mais</dt>
+		<dt>↑ 4 · Já sei, espaçar mais</dt>
 		<dd>Vale dois "Lembrei" seguidos: sobe a caixa como se você tivesse acertado duas vezes emendado (e entra no histórico assim). Numa questão nova, mais um "Lembrei" depois já a deixa dominada.</dd>
+		<dt>★ 5 · Dominei</dt>
+		<dd>Domina a questão na hora, qualquer que seja a caixa: ela sai da roda ativa, conta pro % dominado e abre vaga na mesa. Entra no histórico como um "Lembrei".</dd>
+		<dt>🗑 Remover questão{% if admin %} para todos{% endif %}</dt>
+		{% if admin %}
+		<dd>Como admin, remover descarta a questão <strong>para todos os usuários</strong> — some da fila de cada um, inclusive no memorizador. Dá pra trazer de volta (para todos) em "Questões removidas", acima.</dd>
+		{% else %}
+		<dd>Some da sua fila (só da sua — não afeta outros usuários) e continua fora mesmo depois de limpar o progresso. Dá pra trazer de volta em "Questões removidas", acima.</dd>
+		{% endif %}
 	</dl>
 </details>
 
 <details class="card">
 	<summary><strong>Comando de voz e locução</strong></summary>
-	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" (ou "1") para revelar o gabarito, e depois "não lembrei" (ou "2"), "lembrei" (ou "3") ou "memorizei" (ou "4", o mesmo que "↑ já sei, espaçar mais") para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder, é só clicar no botão de novo.</p>
+	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" (ou "1") para revelar o gabarito, e depois "não lembrei" (ou "2"), "lembrei" (ou "3"), "memorizei" (ou "4", o mesmo que "↑ já sei, espaçar mais") ou "dominei" (ou "5") para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder, é só clicar no botão de novo.</p>
 	<p class="muted">O botão "🔊 Ativar locução" lê a pergunta em voz alta assim que ela aparece, e a resposta assim que o gabarito é revelado. Enquanto a leitura toca, o microfone fica pausado (não capta a própria locução) e volta a ouvir quando ela termina. Nas aulas cuja narração foi pedida, a voz é a mesma da narração do guia, gerada no computador com GPU; nas outras (e nas questões que ainda não têm esse áudio), quem lê é a voz do próprio navegador. Ligar a locução não pede narração nenhuma: ela só é gerada para a aula em que for pedida à parte. Em "Configurações de locução", no fim da página, dá pra usar sempre a voz do navegador e escolher qual.</p>
 	<dl>
 		<dt>"leia novamente" (ou "de novo", "repetir")</dt>

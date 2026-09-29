@@ -67,6 +67,35 @@ def test_ja_sei_para_na_primeira_se_ja_graduar(app_env):
         assert _tentativas(session, exercicio_id) == 3  # o 2º "lembrei" do botão não foi gravado
 
 
+def test_dominei_gradua_na_hora_e_abre_vaga(app_env):
+    from app.db import holder
+    from app.models import GuiaExercicio
+
+    client = _authed_client()
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_com_exercicios(session, ["definicao"] * 8)
+        exercicio_id = session.query(GuiaExercicio.id).filter_by(lesson_id=lesson_id).first()[0]
+
+    client.get(f"/lessons/{lesson_id}/guia/praticar")  # enche a mesa (5)
+    assert client.post(f"/lessons/{lesson_id}/guia/exercicios/{exercicio_id}/dominei").status_code == 200
+
+    with holder.SessionLocal() as session:
+        progresso = _progresso(session, exercicio_id)
+        # questão nova, caixa 0: um "Lembrei" só não graduaria -- o botão força
+        assert progresso.dominado_em is not None
+        assert (progresso.na_mesa, progresso.caixa, progresso.posicao_alvo) == (False, 5, None)
+        assert _tentativas(session, exercicio_id) == 1
+
+    html = client.get(f"/lessons/{lesson_id}/guia/praticar").text
+    assert "1 dominado(s)" in html
+    assert 'id="dominei-btn"' in html
+    assert "quero ver de novo mais cedo" not in html
+    # As respostas moram no rodapé fixo e começam apagadas (acendem ao revelar).
+    rodape = html.split('id="praticar-rodape"', 1)[1].split("</nav>", 1)[0]
+    assert rodape.count("data-apos-revelar disabled") == 4
+    assert "/remover" in rodape
+
+
 def test_mais_cedo_continua_so_reagendando(app_env):
     from app.db import holder
     from app.models import GuiaExercicio

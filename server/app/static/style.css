@@ -254,6 +254,56 @@ button, .button {
 	padding: var(--space-3) var(--space-4);
 }
 
+/* Rodapé fixo da prática do guia: as respostas em símbolos, sempre à mão.
+   A folga no fim da página (padding do body, medido em guia_praticar.js)
+   é o que impede o rodapé de cobrir o que fica lá embaixo. */
+.praticar-rodape {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 18;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-1);
+	padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom));
+	background: var(--bg);
+	border-top: 1px solid var(--border);
+	box-shadow: 0 -2px 8px rgb(0 0 0 / 0.08);
+}
+
+.praticar-rodape .voz-indicador[hidden] {
+	display: none;
+}
+
+.praticar-rodape-botoes {
+	display: flex;
+	justify-content: center;
+	gap: var(--space-2);
+	width: 100%;
+	max-width: 36rem;
+}
+
+.praticar-rodape-botoes form {
+	display: contents;
+}
+
+.rodape-btn {
+	flex: 1 1 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.3em;
+	font-size: 1.35rem;
+	line-height: 1;
+}
+
+.rodape-num {
+	font-size: 0.7rem;
+	opacity: 0.8;
+}
+
 .locucao-config-grupo {
 	border: none;
 	padding: 0;
