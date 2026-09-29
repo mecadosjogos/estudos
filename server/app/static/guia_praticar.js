@@ -362,12 +362,20 @@
 		locutor.aoCarregarCard();
 	}
 
+	// Mesma numeração dos rótulos e do comando de voz: 1 revela; com o
+	// gabarito aberto, 2 não lembrei, 3 lembrei, 4 espaçar mais. O número da
+	// tecla não é o shortcut enviado ao servidor (1 = não lembrei, 2 = lembrei).
 	document.addEventListener("keydown", (ev) => {
-		if (!gabaritoVisivel() || ev.target.tagName === "TEXTAREA" || ev.target.tagName === "INPUT") return;
-		if (["1", "2"].includes(ev.key)) {
-			const btn = document.querySelector('.quality-btn[data-shortcut="' + ev.key + '"]');
-			if (btn) btn.click();
+		if (!card() || ev.target.tagName === "TEXTAREA" || ev.target.tagName === "INPUT") return;
+		let btn = null;
+		if (!gabaritoVisivel()) {
+			if (ev.key === "1") btn = document.getElementById("revelar-btn");
+		} else if (ev.key === "2" || ev.key === "3") {
+			btn = document.querySelector('.quality-btn[data-shortcut="' + (ev.key - 1) + '"]');
+		} else if (ev.key === "4") {
+			btn = document.getElementById("espacar-btn");
 		}
+		if (btn) btn.click();
 	});
 
 	// O navegador restaura sozinho a rolagem da página anterior, e fazia

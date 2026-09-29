@@ -57,7 +57,7 @@
 		<p class="muted" id="recall-label" hidden><strong>Sua resposta:</strong></p>
 		<textarea id="resposta-texto" rows="4" style="width:100%"></textarea>
 		<p id="revelar-wrap" class="button-row" style="align-items:center">
-			<button type="button" id="revelar-btn">Revelar gabarito</button>
+			<button type="button" id="revelar-btn">1 · Revelar gabarito</button>
 			<span class="voz-indicador" hidden></span>
 		</p>
 	</div>
@@ -74,8 +74,8 @@
 			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
 			<input type="hidden" name="shortcut" id="shortcut-field">
 			<div class="button-row" style="align-items:center">
-				<button type="submit" class="quality-btn" data-shortcut="1">1 · Não lembrei</button>
-				<button type="submit" class="quality-btn" data-shortcut="2">2 · Lembrei</button>
+				<button type="submit" class="quality-btn" data-shortcut="1">2 · Não lembrei</button>
+				<button type="submit" class="quality-btn" data-shortcut="2">3 · Lembrei</button>
 				<span class="voz-indicador" hidden></span>
 			</div>
 		</form>
@@ -86,7 +86,7 @@
 			</form>
 			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline" data-trocar>
 				<input type="hidden" name="delta" value="1">
-				<button type="submit" id="espacar-btn">↑ já sei, espaçar mais</button>
+				<button type="submit" id="espacar-btn">4 · ↑ já sei, espaçar mais</button>
 			</form>
 		</div>
 	</div>
@@ -167,14 +167,15 @@
 
 <details class="card">
 	<summary><strong>Como funcionam os botões</strong></summary>
+	<p class="muted">O número antes de cada botão o aciona sem mouse: falado, com o comando de voz ligado (ver "Comando de voz e locução", abaixo), ou apertado no teclado. O "1" revela o gabarito.</p>
 	<dl>
-		<dt>1 · Não lembrei</dt>
+		<dt>2 · Não lembrei</dt>
 		<dd>Reseta a caixa pra 0 — volta a aparecer quase já. Errado emendado (em qualquer exercício desta aula) fecha vaga na mesa mais rápido a cada vez seguida, pra aliviar a carga.</dd>
-		<dt>2 · Lembrei</dt>
+		<dt>3 · Lembrei</dt>
 		<dd>Sobe caixa — o intervalo até reaparecer cresce a cada acerto seguido (1, 2, 4, 7, 12 respostas). Emendado no mesmo exercício pula mais de uma caixa de uma vez (2º seguido pula 2, 3º pula 3...), até graduar e sair da roda ativa (conta pro % dominado). Cada acerto também abre uma vaga na mesa — matéria nova entra de uma em uma.</dd>
 		<dt>↓ quero ver de novo mais cedo</dt>
 		<dd>Ajuste manual: reagenda pra metade do intervalo normal da caixa atual, sem contar como resposta — não muda a caixa nem o histórico. O exercício sai da tela e volta logo, depois de alguns outros.</dd>
-		<dt>↑ já sei, espaçar mais</dt>
+		<dt>4 · ↑ já sei, espaçar mais</dt>
 		<dd>Vale dois "Lembrei" seguidos: sobe a caixa como se você tivesse acertado duas vezes emendado (e entra no histórico assim). Numa questão nova, mais um "Lembrei" depois já a deixa dominada.</dd>
 	</dl>
 </details>
