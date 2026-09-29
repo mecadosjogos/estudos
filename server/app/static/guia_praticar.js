@@ -13,8 +13,6 @@
 //   - comando de voz: pausa o microfone entre esses dois eventos, pra não
 //     captar a própria locução.
 (() => {
-	const lessonId = document.getElementById("praticar-conteudo").dataset.lessonId;
-
 	function lerPreferencia(chave) {
 		try {
 			return localStorage.getItem(chave) === "1";
@@ -63,12 +61,10 @@
 		const toggleBtn = document.getElementById("locucao-toggle-btn");
 		const tocarWrap = document.getElementById("locucao-tocar-wrap");
 		const tocarBtn = document.getElementById("locucao-tocar-btn");
-		const statusEl = document.getElementById("locucao-status");
 		const sintese = window.speechSynthesis || null;
 
 		let ativa = false;
 		let falando = false;
-		let pedidoFeito = false;
 		// Cada fala nova invalida os callbacks da anterior: parar uma fala
 		// dispara o erro/fim dela depois, já com a próxima tocando, e isso
 		// não pode soltar o microfone no meio da fala nova.
@@ -262,30 +258,13 @@
 			});
 		}
 
-		// Pede à VPS os áudios que faltam nesta aula (o worker com o
-		// tts-service de pé vai narrando e subindo um a um). Uma vez por
-		// carregamento de página basta: as próximas questões já chegam com o
-		// que ficou pronto no meio-tempo. Pede mesmo com a voz do navegador
-		// escolhida -- sem áudio nenhum, a opção da narração nem abre.
-		function pedirGeracao() {
-			if (pedidoFeito) return;
-			pedidoFeito = true;
-			fetch("/lessons/" + lessonId + "/guia/locucao", { method: "POST", credentials: "same-origin" })
-				.then((resp) => (resp.ok ? resp.json() : null))
-				.then((dados) => {
-					if (!dados || !dados.pendentes || prefereNavegador()) return;
-					statusEl.hidden = false;
-					statusEl.textContent =
-						"🔊 " + dados.pendentes + " áudio(s) desta aula na fila de narração — enquanto isso, lê a voz do navegador.";
-				})
-				.catch(() => {});
-		}
-
+		// Ligar a locução não pede narração nenhuma à VPS: pedia, e cada aula
+		// aberta virava centenas de mp3 lá sem ninguém ter pedido. A narração
+		// de uma aula é pedida à parte (POST /lessons/{id}/guia/locucao).
 		function ligar(lerAgora) {
 			ativa = true;
 			gravarPreferencia(CHAVE, true);
 			toggleBtn.textContent = "🔇 Desativar locução";
-			pedirGeracao();
 			if (lerAgora && card()) falar(gabaritoVisivel() ? "resposta" : "pergunta");
 		}
 
@@ -294,7 +273,6 @@
 			gravarPreferencia(CHAVE, false);
 			toggleBtn.textContent = "🔊 Ativar locução";
 			tocarWrap.hidden = true;
-			statusEl.hidden = true;
 			parar();
 		}
 

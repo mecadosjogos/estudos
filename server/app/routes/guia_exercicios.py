@@ -23,7 +23,7 @@ from ..ai.guia_exercicios import (
 )
 from ..auth import require_session
 from ..db import get_session
-from ..models import GuiaExercicio, Lesson, Subject, User
+from ..models import GuiaExercicio, Lesson, Subject, TranscriptionJob, User
 from ..study.guia_locucao import (
     PARTES,
     audio_em_dia,
@@ -280,15 +280,40 @@ def answer_exercicio(
 
 @router.post("/lessons/{lesson_id}/guia/locucao")
 def request_locucao(lesson_id: int, session: Session = Depends(get_session)):
-    """Pedido da tela de prática quando a locução é ligada: se falta áudio
-    em alguma questão da aula, garante um job `tts_exercicios` na fila (o
-    worker com o tts-service de pé narra e sobe um a um). Idempotente --
-    a tela chama a cada carregamento, e nada pendente não cria job."""
+    """Pedido explícito de narrar as questões da aula: se falta áudio em
+    alguma, garante um job `tts_exercicios` na fila (o worker com o
+    tts-service de pé narra e sobe um a um). A tela de prática NÃO chama
+    isto sozinha -- chamava ao ligar a locução, e cada aula aberta virava
+    centenas de mp3 na VPS sem ninguém ter pedido. Idempotente: nada
+    pendente não cria job."""
     _get_lesson_or_404(session, lesson_id)
     pendentes = len(itens_pendentes(session, lesson_id))
     if pendentes:
         ensure_pending_job(session, lesson_id, target="tts_exercicios")
     return JSONResponse({"pendentes": pendentes})
+
+
+@router.post("/lessons/{lesson_id}/guia/locucao/cancelar")
+def cancel_locucao(lesson_id: int, session: Session = Depends(get_session)):
+    """Tira da fila a narração das questões desta aula (pendente ou em
+    andamento). Um worker que esteja no meio do lote passa a levar 409 a
+    cada áudio que tenta subir e não reenfileira o resto. Os mp3 já
+    narrados ficam -- a tela continua tocando esses."""
+    _get_lesson_or_404(session, lesson_id)
+    jobs = session.scalars(
+        select(TranscriptionJob).where(
+            TranscriptionJob.lesson_id == lesson_id,
+            TranscriptionJob.target == "tts_exercicios",
+            TranscriptionJob.status.in_(["pending", "claimed"]),
+        )
+    ).all()
+    for job in jobs:
+        # "cancelled", não "failed": a página da aula mostra o último job de
+        # qualquer alvo, e "failed" apareceria lá como falha de transcrição.
+        job.status = "cancelled"
+        job.error = "narração cancelada"
+    session.commit()
+    return JSONResponse({"cancelados": len(jobs)})
 
 
 @router.get("/lessons/{lesson_id}/guia/exercicios/{exercicio_id}/audio/{parte}.mp3")

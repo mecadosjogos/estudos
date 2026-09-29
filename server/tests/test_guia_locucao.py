@@ -142,6 +142,50 @@ def test_pedido_da_tela_enfileira_uma_vez_e_nada_pendente_nao_cria_job(app_env):
     assert pendentes == 0
 
 
+def test_cancelar_tira_a_narracao_da_fila_e_o_lote_em_andamento_nao_reenfileira(app_env):
+    from sqlalchemy import func, select
+
+    from app.db import holder
+    from app.models import TranscriptionJob
+
+    client = _authed_client()
+    with holder.SessionLocal() as session:
+        lesson_id = _lesson_com_exercicios(session, n=1)
+        outra_id = _lesson_com_exercicios(session, n=1)
+
+    client.post(f"/lessons/{lesson_id}/guia/locucao")
+    client.post(f"/lessons/{outra_id}/guia/locucao")
+    claim = client.get(
+        "/api/jobs/next", params={"worker_name": "w", "target": "tts_exercicios", "lesson_id": lesson_id}
+    ).json()["job"]
+
+    assert client.post(f"/lessons/{lesson_id}/guia/locucao/cancelar").json() == {"cancelados": 1}
+
+    # O worker que estava no lote cancelado não consegue mais subir nem concluir.
+    item = claim["exercicios_audio"][0]
+    resp = client.post(
+        f"/api/jobs/{claim['id']}/tts-exercicio",
+        data={"claim_token": claim["claim_token"], "exercicio_id": item["exercicio_id"], "parte": item["parte"], "hash": item["hash"]},
+        files={"audio": ("a.mp3", b"mp3")},
+    )
+    assert resp.status_code == 409
+    concluir = client.post(
+        f"/api/jobs/{claim['id']}/tts-exercicios-concluir",
+        json={"claim_token": claim["claim_token"], "narrados": 1, "falhas": []},
+    )
+    assert concluir.status_code == 409
+
+    with holder.SessionLocal() as session:
+        ativos = session.scalars(
+            select(TranscriptionJob.lesson_id).where(
+                TranscriptionJob.target == "tts_exercicios", TranscriptionJob.status.in_(["pending", "claimed"])
+            )
+        ).all()
+        assert ativos == [outra_id]  # a outra aula não é tocada
+        assert session.get(TranscriptionJob, claim["id"]).status == "cancelled"
+        assert session.scalar(select(func.count(TranscriptionJob.id)).where(TranscriptionJob.lesson_id == lesson_id)) == 1
+
+
 def test_claim_lista_o_que_falta_e_upload_grava_arquivo_e_hash(app_env):
     from app import config
     from app.db import holder

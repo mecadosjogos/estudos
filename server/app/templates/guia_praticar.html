@@ -17,7 +17,6 @@
 	<button type="button" id="locucao-tocar-btn" class="locucao-tocar">▶ Toque para ouvir</button>
 	<span class="muted">O navegador só deixa tocar som depois de um toque na tela — daí em diante segue sozinho.</span>
 </p>
-<p class="muted" id="locucao-status" hidden></p>
 <audio id="locucao-player" preload="auto"></audio>
 
 {# Tudo daqui até o fim do bloco é trocado no lugar, sem recarregar a página,
@@ -183,7 +182,7 @@
 <details class="card">
 	<summary><strong>Comando de voz e locução</strong></summary>
 	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" (ou "1") para revelar o gabarito, e depois "não lembrei" (ou "2"), "lembrei" (ou "3") ou "memorizei" (ou "4", o mesmo que "↑ já sei, espaçar mais") para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder, é só clicar no botão de novo.</p>
-	<p class="muted">O botão "🔊 Ativar locução" lê a pergunta em voz alta assim que ela aparece, e a resposta assim que o gabarito é revelado. Enquanto a leitura toca, o microfone fica pausado (não capta a própria locução) e volta a ouvir quando ela termina. A voz é a mesma da narração do guia, gerada no computador com GPU; enquanto uma questão ainda não tem esse áudio, quem lê é a voz do próprio navegador, e o pedido de gerar os áudios da aula vai pra fila sozinho. Em "Configurações de locução", no fim da página, dá pra usar sempre a voz do navegador e escolher qual.</p>
+	<p class="muted">O botão "🔊 Ativar locução" lê a pergunta em voz alta assim que ela aparece, e a resposta assim que o gabarito é revelado. Enquanto a leitura toca, o microfone fica pausado (não capta a própria locução) e volta a ouvir quando ela termina. Nas aulas cuja narração foi pedida, a voz é a mesma da narração do guia, gerada no computador com GPU; nas outras (e nas questões que ainda não têm esse áudio), quem lê é a voz do próprio navegador. Ligar a locução não pede narração nenhuma: ela só é gerada para a aula em que for pedida à parte. Em "Configurações de locução", no fim da página, dá pra usar sempre a voz do navegador e escolher qual.</p>
 	<dl>
 		<dt>"leia novamente" (ou "de novo", "repetir")</dt>
 		<dd>Antes de revelar, lê a pergunta de novo; com o gabarito aberto, lê só a resposta.</dd>
@@ -213,7 +212,7 @@
 			Voz da narração (Chatterbox, gerada no computador com GPU)
 		</label>
 		{% if not narracao_disponivel %}
-		<p class="muted">Ainda não há áudio narrado nesta aula. Fica disponível quando o computador com GPU narrar; ligar a locução já põe o pedido na fila.</p>
+		<p class="muted">Ainda não há áudio narrado nesta aula. Fica disponível depois que a narração desta aula for pedida e o computador com GPU narrar.</p>
 		{% endif %}
 		<label>
 			<input type="radio" name="locucao-motor" value="navegador">
