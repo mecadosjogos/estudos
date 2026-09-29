@@ -246,6 +246,12 @@
 			<option value="">Automática (primeira em português)</option>
 		</select>
 	</p>
+	<p>
+		<label for="locucao-volume">Volume da narração:</label>
+		<input type="range" id="locucao-volume" min="1" max="4" step="0.25">
+		<span id="locucao-volume-valor" class="muted"></span>
+	</p>
+	<p class="muted">Amplifica a voz da narração (Chatterbox), que no celular sai baixa enquanto o comando de voz está ligado. Muda na hora, até no meio de uma leitura. Se ainda ficar baixo, aperte o volume do aparelho <strong>durante</strong> uma leitura: com o microfone aberto, o Android usa o volume de chamada, não o de mídia.</p>
 	<p class="muted" id="locucao-voz-aviso" hidden>Este navegador não oferece nenhuma voz em português.</p>
 	<p class="muted">A voz da narração é uma só (a do modelo). A do navegador depende do aparelho: no Windows costumam aparecer Maria (feminina), Daniel (masculina) e Google português do Brasil (feminina). Ela também lê as questões que ainda não têm o áudio da narração.</p>
 </details>

@@ -94,10 +94,57 @@
 		let contexto = null;
 		let fonteAtual = null;
 
+		// Volume da narração: com o microfone aberto, o Android toca no modo
+		// de chamada, bem mais baixo que o de mídia -- o mp3 em si tem nível
+		// normal (média -19 dB). A cadeia amplifica sem estourar: compressor
+		// (achata os picos), ganho (o volume escolhido nas configurações) e um
+		// limitador no fim, pra nada passar do teto e distorcer.
+		const CHAVE_VOLUME = "guia-praticar-locucao-volume";
+		const VOLUME_PADRAO = 2.5;
+		let ganho = null;
+
+		function volumeEscolhido() {
+			const valor = parseFloat(lerTexto(CHAVE_VOLUME));
+			return valor >= 1 && valor <= 4 ? valor : VOLUME_PADRAO;
+		}
+
 		function obterContexto() {
-			if (!contexto && AudioCtx) contexto = new AudioCtx();
+			if (!contexto && AudioCtx) {
+				contexto = new AudioCtx();
+				const compressor = contexto.createDynamicsCompressor();
+				compressor.threshold.value = -24;
+				compressor.knee.value = 12;
+				compressor.ratio.value = 4;
+				compressor.attack.value = 0.003;
+				compressor.release.value = 0.25;
+				ganho = contexto.createGain();
+				ganho.gain.value = volumeEscolhido();
+				const limitador = contexto.createDynamicsCompressor();
+				limitador.threshold.value = -1;
+				limitador.knee.value = 0;
+				limitador.ratio.value = 20;
+				limitador.attack.value = 0.001;
+				limitador.release.value = 0.1;
+				compressor.connect(ganho);
+				ganho.connect(limitador);
+				limitador.connect(contexto.destination);
+				contexto.entrada = compressor;
+			}
 			return contexto;
 		}
+
+		const volumeInput = document.getElementById("locucao-volume");
+		const volumeValor = document.getElementById("locucao-volume-valor");
+		function mostrarVolume() {
+			volumeValor.textContent = "×" + Number(volumeInput.value).toLocaleString("pt-BR");
+		}
+		volumeInput.value = volumeEscolhido();
+		mostrarVolume();
+		volumeInput.addEventListener("input", () => {
+			mostrarVolume();
+			gravarTexto(CHAVE_VOLUME, volumeInput.value);
+			if (ganho) ganho.gain.value = parseFloat(volumeInput.value);
+		});
 
 		// Dentro de um toque (botões da locução): é o toque que libera o som.
 		function destravarAudio() {
@@ -294,7 +341,7 @@
 				}
 				const fonte = ctx.createBufferSource();
 				fonte.buffer = audio;
-				fonte.connect(ctx.destination);
+				fonte.connect(ctx.entrada);
 				fonte.onended = () => {
 					if (fonteAtual === fonte) fonteAtual = null;
 					if (minha !== geracao) return;
