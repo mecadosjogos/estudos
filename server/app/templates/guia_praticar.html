@@ -86,7 +86,7 @@
 			</form>
 			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline" data-trocar>
 				<input type="hidden" name="delta" value="1">
-				<button type="submit">↑ já sei, espaçar mais</button>
+				<button type="submit" id="espacar-btn">↑ já sei, espaçar mais</button>
 			</form>
 		</div>
 	</div>
@@ -181,7 +181,7 @@
 
 <details class="card">
 	<summary><strong>Comando de voz e locução</strong></summary>
-	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" para revelar o gabarito, e depois "lembrei" ou "não lembrei" para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder, é só clicar no botão de novo.</p>
+	<p class="muted">O botão "🎙️ Ativar comando de voz" no topo liga o microfone (Chrome ou Edge, pede permissão na primeira vez) e escuta continuamente. Diga "revelar" (ou "1") para revelar o gabarito, e depois "não lembrei" (ou "2"), "lembrei" (ou "3") ou "memorizei" (ou "4", o mesmo que "↑ já sei, espaçar mais") para responder — sem precisar tocar no mouse ou teclado. Fica ligado entre uma questão e outra (a preferência é lembrada neste navegador); se o microfone parar de responder, é só clicar no botão de novo.</p>
 	<p class="muted">O botão "🔊 Ativar locução" lê a pergunta em voz alta assim que ela aparece, e a resposta assim que o gabarito é revelado. Enquanto a leitura toca, o microfone fica pausado (não capta a própria locução) e volta a ouvir quando ela termina. A voz é a mesma da narração do guia, gerada no computador com GPU; enquanto uma questão ainda não tem esse áudio, quem lê é a voz do próprio navegador, e o pedido de gerar os áudios da aula vai pra fila sozinho.</p>
 	<dl>
 		<dt>"leia novamente" (ou "de novo", "repetir")</dt>

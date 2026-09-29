@@ -451,14 +451,25 @@
 			if (gabaritoAberto && frase.includes("resposta") && (denovo || leia)) return "reler";
 			if (denovo) return "reler";
 
+			// Número falado sozinho: 1 revela, 2/3/4 respondem. A fala inteira
+			// tem de ser o número (o motor escreve ora "3", ora "três"), senão
+			// um "um" no meio de outra frase viraria comando.
+			const numero = {
+				"1": 1, "um": 1,
+				"2": 2, "dois": 2,
+				"3": 3, "três": 3, "tres": 3,
+				"4": 4, "quatro": 4,
+			}[frase.replace(/[.,!?]/g, "").trim()];
+
 			if (!gabaritoAberto) {
 				// "revelar", "revelar gabarito" e só "gabarito" -- o motor corta
 				// palavra curta com frequência, então vale aceitar as duas metades.
-				if (frase.includes("revelar") || frase.includes("gabarito")) return "revelar";
+				if (numero === 1 || frase.includes("revelar") || frase.includes("gabarito")) return "revelar";
 				return null;
 			}
-			if (frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei")) return "1";
-			if (frase.includes("lembrei") || frase.includes("acertei")) return "2";
+			if (numero === 4 || frase.includes("memorizei")) return "espacar";
+			if (numero === 2 || frase.includes("não lembrei") || frase.includes("nao lembrei") || frase.includes("errei")) return "1";
+			if (numero === 3 || frase.includes("lembrei") || frase.includes("acertei")) return "2";
 			return null;
 		}
 
@@ -491,7 +502,10 @@
 				document.getElementById("revelar-btn").click();
 				return "revelar gabarito";
 			}
-			const btn = document.querySelector('.quality-btn[data-shortcut="' + comando + '"]');
+			const btn =
+				comando === "espacar"
+					? document.getElementById("espacar-btn")
+					: document.querySelector('.quality-btn[data-shortcut="' + comando + '"]');
 			// Escurece o botão e espera um instante antes de enviar, senão a
 			// questão troca antes de dar pra ver qual opção foi acionada. A
 			// classe também barra um segundo reconhecimento da mesma frase, que
@@ -500,6 +514,7 @@
 				btn.classList.add("botao-acionado");
 				setTimeout(() => btn.click(), 450);
 			}
+			if (comando === "espacar") return "já sei, espaçar mais";
 			return comando === "1" ? "não lembrei" : "lembrei";
 		}
 
@@ -584,7 +599,8 @@
 				estado("aguardando", "aguardando comando");
 			}
 			toggleBtn.textContent = "🔴 Desativar comando de voz";
-			statusEl.textContent = 'Diga "revelar", "lembrei", "não lembrei" ou "leia novamente".';
+			statusEl.textContent =
+				'Diga "revelar" (ou "1"), "não lembrei" (ou "2"), "lembrei" (ou "3"), "memorizei" (ou "4") ou "leia novamente".';
 		}
 
 		function parar() {
