@@ -57,7 +57,6 @@
 
 	const locutor = (() => {
 		const CHAVE = "guia-praticar-locucao-ativa";
-		const player = document.getElementById("locucao-player");
 		const toggleBtn = document.getElementById("locucao-toggle-btn");
 		const tocarWrap = document.getElementById("locucao-tocar-wrap");
 		const tocarBtn = document.getElementById("locucao-tocar-btn");
@@ -83,23 +82,48 @@
 			document.dispatchEvent(new CustomEvent("locucao:fim"));
 		}
 
-		// Áudio que acabou (ou foi interrompido) é solto de vez, não só
-		// pausado: no celular, um <audio> pausado com o mp3 ainda carregado
-		// continua dono do foco de áudio do sistema (é o que mantém os
-		// controles na tela bloqueada), e o microfone religado nesse meio-tempo
-		// abria sem ouvir nada -- nem detectava voz. A voz do navegador não
-		// passa por <audio>, por isso só o Chatterbox travava o microfone.
-		function soltarPlayer() {
-			player.onended = player.onerror = player.onpause = player.onplaying = null;
-			if (!player.hasAttribute("src")) return;
-			player.pause();
-			player.removeAttribute("src");
-			player.load();
+		// O mp3 do Chatterbox toca pela Web Audio, não por um <audio>: no
+		// Android, todo <audio> que toca vira uma sessão de mídia do Chrome e
+		// disputa o foco de áudio do sistema com o reconhecimento de voz -- com
+		// a locução ligada, o microfone ficava aberto sem ouvir nada (soltar o
+		// <audio> ao fim de cada fala não bastou). A Web Audio toca sem sessão
+		// de mídia, como a voz do navegador, que nunca teve o problema. Entre
+		// uma fala e outra o contexto fica suspenso: nada de áudio aberto
+		// enquanto o microfone escuta.
+		const AudioCtx = window.AudioContext || window.webkitAudioContext || null;
+		let contexto = null;
+		let fonteAtual = null;
+
+		function obterContexto() {
+			if (!contexto && AudioCtx) contexto = new AudioCtx();
+			return contexto;
+		}
+
+		// Dentro de um toque (botões da locução): é o toque que libera o som.
+		function destravarAudio() {
+			const ctx = obterContexto();
+			if (ctx && ctx.state !== "running") ctx.resume().catch(() => {});
+		}
+
+		function suspenderContexto() {
+			if (contexto && contexto.state === "running") contexto.suspend().catch(() => {});
+		}
+
+		function pararFonte() {
+			if (!fonteAtual) return;
+			fonteAtual.onended = null;
+			try {
+				fonteAtual.stop();
+			} catch (erro) {
+				// já tinha parado
+			}
+			fonteAtual = null;
 		}
 
 		function parar() {
 			geracao++;
-			soltarPlayer();
+			pararFonte();
+			suspenderContexto();
 			if (sintese) sintese.cancel();
 			terminou();
 		}
@@ -112,6 +136,7 @@
 		}
 
 		tocarBtn.addEventListener("click", () => {
+			destravarAudio();
 			tocarWrap.hidden = true;
 			falar(parteBarrada || "pergunta");
 		});
@@ -238,43 +263,53 @@
 				sintetizar(texto, parte, minha);
 				return;
 			}
-			const daVez = (fn) => () => {
-				if (minha === geracao) fn();
-			};
-			// Solta o player antes de avisar o fim: o microfone só volta
-			// depois que o foco de áudio já foi devolvido.
-			player.onended = daVez(() => {
-				soltarPlayer();
-				terminou();
-			});
-			player.onerror = daVez(terminou);
-			// Pausa vinda de fora (controle de mídia da tela bloqueada): sem
-			// isso o microfone ficaria parado esperando um fim que não vem.
-			// Só vale depois que ESTE áudio começa: o `pause` do áudio anterior,
-			// parado pelo `parar()` acima, chega atrasado e soltava o microfone
-			// no meio da resposta.
-			player.onpause = null;
-			player.onplaying = daVez(() => {
-				player.onpause = daVez(() => {
-					if (!player.ended) terminou();
-				});
-			});
-			player.src = url;
+			tocarNarracao(url, texto, parte, minha);
+		}
+
+		const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+		async function tocarNarracao(url, texto, parte, minha) {
+			const ctx = obterContexto();
+			if (!ctx) {
+				sintetizar(texto, parte, minha);
+				return;
+			}
 			// Avisa antes do som sair: o microfone precisa parar antes, não
 			// depois do primeiro pedaço da fala já ter entrado nele.
 			comecou();
-			player.play().catch((erro) => {
+			try {
+				const resp = await fetch(url, { credentials: "same-origin" });
+				if (!resp.ok) throw new Error("HTTP " + resp.status);
+				const audio = await ctx.decodeAudioData(await resp.arrayBuffer());
 				if (minha !== geracao) return;
-				terminou();
-				if (erro.name === "NotAllowedError") {
+				// Sem nenhum toque na página ainda, o navegador não deixa o
+				// contexto rodar (e o resume() pode nem responder): aí o botão
+				// "Toque para ouvir".
+				if (ctx.state !== "running") await Promise.race([ctx.resume(), esperar(800)]);
+				if (minha !== geracao) return;
+				if (ctx.state !== "running") {
+					terminou();
 					pedirToque(parte);
 					return;
 				}
-				// mp3 sumiu/falhou: lê pelo navegador, numa geração nova pra o
-				// erro atrasado do player não encerrar essa fala.
+				const fonte = ctx.createBufferSource();
+				fonte.buffer = audio;
+				fonte.connect(ctx.destination);
+				fonte.onended = () => {
+					if (fonteAtual === fonte) fonteAtual = null;
+					if (minha !== geracao) return;
+					suspenderContexto();
+					terminou();
+				};
+				fonteAtual = fonte;
+				fonte.start();
+			} catch (erro) {
+				if (minha !== geracao) return;
+				// mp3 sumiu/falhou: lê pelo navegador, numa geração nova.
+				terminou();
 				geracao++;
 				sintetizar(texto, parte, geracao);
-			});
+			}
 		}
 
 		// Ligar a locução não pede narração nenhuma à VPS: pedia, e cada aula
@@ -295,9 +330,16 @@
 			parar();
 		}
 
-		toggleBtn.addEventListener("click", () => (ativa ? desligar() : ligar(true)));
+		toggleBtn.addEventListener("click", () => {
+			if (ativa) {
+				desligar();
+				return;
+			}
+			destravarAudio();
+			ligar(true);
+		});
 
-		if (!sintese && !player.canPlayType("audio/mpeg")) {
+		if (!sintese && !AudioCtx) {
 			toggleBtn.disabled = true;
 			toggleBtn.title = "Este navegador não toca áudio nem tem voz sintética.";
 		}
@@ -379,6 +421,9 @@
 			document.querySelectorAll("#praticar-rodape [data-apos-revelar]").forEach((btn) => {
 				btn.disabled = false;
 			});
+			document.querySelectorAll("#praticar-rodape [data-antes-revelar]").forEach((btn) => {
+				btn.disabled = true;
+			});
 			// Rolar até o gabarito (que fica mais abaixo) empurrava a pergunta e
 			// a resposta escrita pra fora da tela -- rola até o início do card
 			// pra manter tudo visível.
@@ -386,7 +431,13 @@
 			locutor.aoRevelar();
 		});
 
-		document.querySelectorAll("#praticar-rodape .quality-btn").forEach((btn) => {
+		// O 📖 do rodapé é o mesmo "revelar" do card, só mais à mão.
+		document.getElementById("rodape-revelar-btn").addEventListener("click", () => {
+			document.getElementById("revelar-btn").click();
+		});
+
+		// Os do card e os do rodapé: mesmo formulário, mesmo envio.
+		document.querySelectorAll("#praticar-conteudo .quality-btn").forEach((btn) => {
 			btn.addEventListener("click", (ev) => {
 				ev.preventDefault();
 				// Escurece antes de enviar: o botão fica marcado durante a
