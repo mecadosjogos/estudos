@@ -421,9 +421,7 @@
 			document.querySelectorAll("#praticar-rodape [data-apos-revelar]").forEach((btn) => {
 				btn.disabled = false;
 			});
-			document.querySelectorAll("#praticar-rodape [data-antes-revelar]").forEach((btn) => {
-				btn.disabled = true;
-			});
+			document.getElementById("remover-card").hidden = true;
 			// Rolar até o gabarito (que fica mais abaixo) empurrava a pergunta e
 			// a resposta escrita pra fora da tela -- rola até o início do card
 			// pra manter tudo visível.
@@ -431,13 +429,7 @@
 			locutor.aoRevelar();
 		});
 
-		// O 📖 do rodapé é o mesmo "revelar" do card, só mais à mão.
-		document.getElementById("rodape-revelar-btn").addEventListener("click", () => {
-			document.getElementById("revelar-btn").click();
-		});
-
-		// Os do card e os do rodapé: mesmo formulário, mesmo envio.
-		document.querySelectorAll("#praticar-conteudo .quality-btn").forEach((btn) => {
+		document.querySelectorAll("#praticar-rodape .quality-btn").forEach((btn) => {
 			btn.addEventListener("click", (ev) => {
 				ev.preventDefault();
 				// Escurece antes de enviar: o botão fica marcado durante a

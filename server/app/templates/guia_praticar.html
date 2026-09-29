@@ -67,58 +67,45 @@
 			<li>{{ linha }}</li>
 			{% endfor %}
 		</ul>
-		<p class="muted">Como foi? (isso decide quando este exercício volta a aparecer — ver "Como funcionam os botões" no fim da página)</p>
+		<p class="muted">Como foi? Responda pelos botões do rodapé (isso decide quando este exercício volta a aparecer — ver "Como funcionam os botões" no fim da página).</p>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/responder" id="answer-form" data-trocar>
 			<input type="hidden" name="resposta_texto" id="resposta-texto-field">
 			<input type="hidden" name="shortcut" id="shortcut-field">
-			<div class="button-row" style="align-items:center">
-				<button type="submit" class="quality-btn" data-shortcut="1">2 · ✗ Não lembrei</button>
-				<button type="submit" class="quality-btn" data-shortcut="2">3 · ✓ Lembrei</button>
-				<span class="voz-indicador" hidden></span>
-			</div>
 		</form>
-		<div class="button-row">
-			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" style="display:inline" data-trocar>
-				<input type="hidden" name="delta" value="1">
-				<button type="submit" id="espacar-btn">4 · ✓✓ já sei, espaçar mais</button>
-			</form>
-			<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/dominei" style="display:inline" data-trocar>
-				<button type="submit" id="dominei-btn">5 · ★ Dominei</button>
-			</form>
-		</div>
 	</div>
 
-	<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" class="button-row" style="margin-top: var(--space-3)" data-trocar>
-		<button type="submit" class="button-ghost">🗑 remover questão{% if admin %} para todos{% endif %}</button>
-	</form>
-	{% if admin %}
-	<p class="muted">Como admin, remover descarta a questão <strong>para todos os usuários</strong> — some da fila de cada um, inclusive no memorizador. Dá pra trazer de volta (para todos) em "Questões removidas", abaixo.</p>
-	{% else %}
-	<p class="muted">Some da sua fila (só da sua — não afeta outros usuários) e continua fora mesmo depois de limpar o progresso. Dá pra trazer de volta em "Questões removidas", abaixo.</p>
-	{% endif %}
+	{# Só na pergunta: revelado o gabarito, remover fica no rodapé. #}
+	<div id="remover-card">
+		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" class="button-row" style="margin-top: var(--space-3)" data-trocar>
+			<button type="submit" class="button-ghost">🗑 remover questão{% if admin %} para todos{% endif %}</button>
+		</form>
+		{% if admin %}
+		<p class="muted">Como admin, remover descarta a questão <strong>para todos os usuários</strong> — some da fila de cada um, inclusive no memorizador. Dá pra trazer de volta (para todos) em "Questões removidas", abaixo.</p>
+		{% else %}
+		<p class="muted">Some da sua fila (só da sua — não afeta outros usuários) e continua fora mesmo depois de limpar o progresso. Dá pra trazer de volta em "Questões removidas", abaixo.</p>
+		{% endif %}
+	</div>
 </div>
 
-{# Rodapé fixo, a mais dos botões do card (que continuam lá): os mesmos
-   comandos em símbolos, sempre à mão sem rolar. O 📖 (revelar) só
-   vale na pergunta e os de resposta só depois de revelar o gabarito (mesma
-   regra do teclado e da voz); remover vale a qualquer hora. A página ganha uma folga embaixo do tamanho
-   do rodapé (static/guia_praticar.js), pra ele nunca cobrir o fim dela. #}
+{# Rodapé fixo com as respostas em símbolos, sempre à mão sem rolar -- é
+   o único lugar delas (o card só tem o "revelar"). Só acendem depois de
+   revelar o gabarito (mesma regra do teclado e da voz); remover vale a
+   qualquer hora. A página ganha uma folga embaixo do tamanho do rodapé
+   (static/guia_praticar.js), pra ele nunca cobrir o fim dela. #}
 <nav class="praticar-rodape" id="praticar-rodape" aria-label="Responder a questão">
 	<span class="voz-indicador" hidden></span>
 	<div class="praticar-rodape-botoes">
-		<button type="button" id="rodape-revelar-btn" class="rodape-btn" data-antes-revelar
-			title="1 · Revelar gabarito" aria-label="1 · Revelar gabarito"><span aria-hidden="true">📖</span><span class="rodape-num" aria-hidden="true">1</span></button>
 		<button type="submit" form="answer-form" class="quality-btn rodape-btn" data-shortcut="1" data-apos-revelar disabled
 			title="2 · Não lembrei" aria-label="2 · Não lembrei"><span aria-hidden="true">✗</span><span class="rodape-num" aria-hidden="true">2</span></button>
 		<button type="submit" form="answer-form" class="quality-btn rodape-btn" data-shortcut="2" data-apos-revelar disabled
 			title="3 · Lembrei" aria-label="3 · Lembrei"><span aria-hidden="true">✓</span><span class="rodape-num" aria-hidden="true">3</span></button>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/ajustar" data-trocar>
 			<input type="hidden" name="delta" value="1">
-			<button type="submit" class="rodape-btn" data-apos-revelar disabled
+			<button type="submit" id="espacar-btn" class="rodape-btn" data-apos-revelar disabled
 				title="4 · Já sei, espaçar mais" aria-label="4 · Já sei, espaçar mais"><span aria-hidden="true">✓✓</span><span class="rodape-num" aria-hidden="true">4</span></button>
 		</form>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/dominei" data-trocar>
-			<button type="submit" class="rodape-btn" data-apos-revelar disabled
+			<button type="submit" id="dominei-btn" class="rodape-btn" data-apos-revelar disabled
 				title="5 · Dominei" aria-label="5 · Dominei"><span aria-hidden="true">★</span><span class="rodape-num" aria-hidden="true">5</span></button>
 		</form>
 		<form method="post" action="/lessons/{{ lesson.id }}/guia/exercicios/{{ exercicio.id }}/remover" data-trocar>
@@ -194,7 +181,7 @@
 
 <details class="card">
 	<summary><strong>Como funcionam os botões</strong></summary>
-	<p class="muted">Os mesmos botões do card ficam também numa barra fixa no rodapé, só com o símbolo e o número, sempre à mão: lá, o 📖 (revelar) vale só na pergunta, e os de resposta só acendem depois de revelar. O número de cada botão o aciona sem mouse: falado, com o comando de voz ligado (ver "Comando de voz e locução", abaixo), ou apertado no teclado. O "1" revela o gabarito.</p>
+	<p class="muted">Na pergunta, o card tem o "1 · Revelar gabarito". As respostas ficam numa barra fixa no rodapé, em símbolos com o número, e só acendem depois de revelar. O número de cada botão o aciona sem mouse: falado, com o comando de voz ligado (ver "Comando de voz e locução", abaixo), ou apertado no teclado. O "1" revela o gabarito.</p>
 	<dl>
 		<dt>✗ 2 · Não lembrei</dt>
 		<dd>Reseta a caixa pra 0 — volta a aparecer quase já. Errado emendado (em qualquer exercício desta aula) fecha vaga na mesa mais rápido a cada vez seguida, pra aliviar a carga.</dd>
