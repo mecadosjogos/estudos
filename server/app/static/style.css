@@ -826,8 +826,11 @@ textarea {
 	gap: var(--space-1);
 }
 
-.guia-sumario-input {
-	width: 3.5ch;
+/* "input." na frente: sem ele a regra geral input[type="number"] (width: 100%)
+   ganha na especificidade e o campo ocupa a linha toda. */
+input.guia-sumario-input {
+	width: 4.5rem;
+	flex: none;
 }
 
 /* Índice do guia consolidado: 8 / 8.1 / 8.1a aninhados, sem marcador --
