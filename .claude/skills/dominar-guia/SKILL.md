@@ -53,6 +53,11 @@ esperar o usuário copiar/colar nada.
    já ganharia. Motivo: o usuário filtra `/praticar` só por "Definição" e
    espera ver todas as definições do guia ali. Confira a lista contra o
    JSON e complete o que faltar antes do POST.
+   **Ordem do JSON = ordem do guia**, seção por seção, tipos misturados
+   — nunca agrupado por tipo (a lista de definições acima é só uma
+   conferência, não a ordem de escrita). O servidor reordena pelo índice
+   do guia de qualquer jeito, mas a ordem do lote desempata dentro do
+   mesmo trecho.
 3. Escreva a resposta num arquivo (nunca argumento inline — acento
    corrompe silenciosamente, mesmo bug documentado em `/processar-aula`).
 4. `curl -X POST $SERVER_URL/lessons/{id}/guia/exercicios-colar-resposta`

@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import AiCall, GuiaExercicio, Lesson
+from ..study.guia_ordem import reordenar_exercicios
 from .budget import check_budget_or_raise
 from .client import AIClient
 from .deriv_key import compute_deriv_key
@@ -84,6 +85,11 @@ uma tem o seu exercício definicao.
 
 `secao_titulo` deve ser o título da seção do guia de onde o exercício
 veio (use o texto exato do cabeçalho "## ...").
+
+Liste os exercícios NA ORDEM DO GUIA: seção por seção, do começo ao fim,
+com os tipos misturados conforme o conteúdo aparece -- nunca agrupados por
+tipo (todas as definições primeiro, depois todas as lacunas...). Essa é a
+ordem em que o usuário vai estudar.
 
 Devolva JSON válido no formato do schema abaixo -- nada além do JSON."""
 
@@ -185,6 +191,11 @@ def _ingest_exercicios(
         select(GuiaExercicio).where(GuiaExercicio.lesson_id == lesson.id, GuiaExercicio.status == "pendente")
     ):
         row.status = "aceito"
+
+    # A fila segue o índice do guia, não a ordem em que o lote veio (que já
+    # veio agrupada por tipo uma vez). Reordena a aula inteira: o lote novo
+    # se intercala com o que já existia, em vez de ir pro fim.
+    reordenar_exercicios(session, lesson)
 
     cost = (
         estimate_cost_usd(model, input_tokens, output_tokens, cache_read_input_tokens)

@@ -547,6 +547,12 @@ class GuiaExercicio(Base):
     audio_pergunta_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     audio_resposta_hash: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Posição na ordem do conteúdo do guia (study/guia_ordem.py) -- a ordem
+    # em que o backlog entra na mesa. Calculada pelo índice do guia, nunca
+    # pela ordem em que a IA listou o lote (que pode vir agrupada por
+    # tipo). Nula só em exercício que ainda não passou pela ordenação.
+    ordem: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     progressos: Mapped[list["GuiaExercicioProgresso"]] = relationship(
         back_populates="exercicio", cascade="all, delete-orphan"
     )

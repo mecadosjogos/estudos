@@ -35,6 +35,7 @@ from ..study.guia_locucao import (
     texto_pergunta,
     texto_resposta,
 )
+from ..study.guia_ordem import reordenar_exercicios
 from ..study.guia_scheduler import (
     contagem_por_tipo,
     estrelas,
@@ -175,6 +176,18 @@ def paste_exercicios_submit(lesson_id: int, resposta: str = Form(...), session: 
             url=f"/lessons/{lesson_id}/guia/exercicios-colar-resposta?erro={_url_escape(str(exc))}", status_code=303
         )
     return RedirectResponse(url=f"/lessons/{lesson_id}/guia/exercicios-aprovacao", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/guia/exercicios-reordenar")
+def reorder_exercicios(lesson_id: int, session: Session = Depends(get_session)):
+    """Recalcula a ordem dos exercícios da aula pelo índice do guia
+    (study/guia_ordem.py) -- pra aula cujo lote entrou fora de ordem antes
+    da importação passar a ordenar sozinha. Não mexe no progresso de
+    ninguém: muda só a ordem em que o backlog entra na mesa."""
+    lesson = _get_lesson_or_404(session, lesson_id)
+    ordenados = reordenar_exercicios(session, lesson)
+    session.commit()
+    return JSONResponse({"lesson_id": lesson_id, "ordenados": ordenados})
 
 
 # --- aprovação ------------------------------------------------------------------

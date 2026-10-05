@@ -401,7 +401,10 @@ def ensure_mesa_filled(session: Session, lesson: Lesson, user_id: int) -> None:
                 ),
                 *([filtro_tipo] if filtro_tipo is not None else []),
             )
-            .order_by(GuiaExercicio.criado_em)
+            # ordem do conteúdo do guia (study/guia_ordem.py), não a do
+            # lote da IA -- que numa aula veio agrupada por tipo e fez a
+            # fila inteira sair "todas as definições, depois as lacunas".
+            .order_by(GuiaExercicio.ordem.asc().nulls_last(), GuiaExercicio.criado_em, GuiaExercicio.id)
             .limit(1)
         ).first()
         if backlog_item is None:
@@ -447,7 +450,9 @@ def next_exercicio(session: Session, lesson: Lesson, user_id: int) -> GuiaExerci
             GuiaExercicioProgresso.na_mesa.is_(True),
             GuiaExercicioProgresso.dominado_em.is_(None),
         )
-        .order_by(GuiaExercicioProgresso.posicao_alvo, GuiaExercicio.id)
+        # Mesma posicao_alvo é comum (a mesa inicial entra toda de uma vez):
+        # desempata pela ordem do guia, não pelo id.
+        .order_by(GuiaExercicioProgresso.posicao_alvo, GuiaExercicio.ordem.asc().nulls_last(), GuiaExercicio.id)
     )
     if filtro_tipo is not None:
         stmt = stmt.where(filtro_tipo)

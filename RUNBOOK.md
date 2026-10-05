@@ -674,6 +674,25 @@ todas as definições da aula. A regra está no prompt
 de definições do guia contra o JSON antes do POST. Vale só para guias
 dominados daqui pra frente — os já gerados não são reprocessados.
 
+**A fila segue o índice do guia, não a ordem do lote.** O agente deve
+listar os exercícios na ordem do guia, com os tipos misturados, mas a
+ordem não depende disso: ao importar, o servidor calcula
+`GuiaExercicio.ordem` pelo guia (`server/app/study/guia_ordem.py`) —
+seção por seção pelo `secao_titulo` e, dentro dela, pelo parágrafo de
+onde a questão saiu; recordação livre fecha a seção. Motivo: na aula 35
+o lote veio agrupado por tipo (todas as definições, depois todas as
+lacunas) e a prática saiu nessa ordem. Aula importada antes disso fica
+com `ordem` nula (a fila cai no `criado_em` de antes) até ser
+reordenada — não mexe no progresso de ninguém, só na ordem em que o
+backlog entra na mesa:
+
+```bash
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/guia/exercicios-reordenar"
+# ou, de dentro do container, uma aula ou todas:
+docker compose exec server python scripts/reordenar_exercicios_guia.py {id}
+docker compose exec server python scripts/reordenar_exercicios_guia.py --todas
+```
+
 **Aprovação é automática aqui, ao contrário de cards/anúncios/assuntos.**
 Decisão do usuário: o guia já é material revisado e aceito, não uma
 alegação nova extraída da fala do professor — um exercício sobre ele não

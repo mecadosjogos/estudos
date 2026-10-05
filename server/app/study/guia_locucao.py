@@ -219,7 +219,8 @@ def tem_audio_narrado(session: Session, lesson_id: int) -> bool:
 def itens_pendentes(session: Session, lesson_id: int, limite: int | None = None) -> list[dict]:
     """Áudios que faltam (ou ficaram velhos) nas questões aceitas da aula.
     Questões que estão na mesa de alguém vêm primeiro, pela posição em que
-    voltam -- a questão da tela e as próximas ficam prontas antes do resto."""
+    voltam -- a questão da tela e as próximas ficam prontas antes do resto;
+    depois, o backlog na ordem do guia, que é a ordem em que ele entra."""
     proxima_posicao = (
         select(
             GuiaExercicioProgresso.exercicio_id,
@@ -237,7 +238,12 @@ def itens_pendentes(session: Session, lesson_id: int, limite: int | None = None)
             GuiaExercicio.status == "aceito",
             GuiaExercicio.orfao_em.is_(None),
         )
-        .order_by(proxima_posicao.c.posicao.is_(None), proxima_posicao.c.posicao, GuiaExercicio.id)
+        .order_by(
+            proxima_posicao.c.posicao.is_(None),
+            proxima_posicao.c.posicao,
+            GuiaExercicio.ordem.asc().nulls_last(),
+            GuiaExercicio.id,
+        )
     ).all()
 
     itens: list[dict] = []
