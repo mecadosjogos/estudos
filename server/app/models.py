@@ -61,9 +61,11 @@ class Lesson(Base):
     consolidacao_fontes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Guia "Focado": consolidação com foco (uma prova, um tema). Com
-    # `foco_orientacao` preenchida a consolidação é focada -- o guia
-    # continua inteiro (nada se perde), mas abre com o bloco "Foco deste
-    # guia" e os temas do foco ganham selo no índice. `foco_orientacao` é o
+    # `foco_orientacao` preenchida a consolidação é focada -- o guia traz
+    # SÓ o conteúdo do foco (nada do foco se perde; o resto da matéria
+    # fica de fora) e abre com o bloco "Foco deste guia". O selo de
+    # título (`{foco}`) segue suportado, mas o pacote não o pede mais: o
+    # guia inteiro já é o foco. `foco_orientacao` é o
     # que o usuário passou, literal (fala da professora, observações);
     # `foco_md` é o bloco escrito pela skill a partir dela, guardado fora
     # das seções pra não ser numerado nem narrado; `foco_marcas_json` são os

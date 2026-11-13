@@ -649,6 +649,7 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "indice": indice,
             "consolidacao_fontes": fontes,
             "foco_html": render_markdown(lesson.foco_md) if lesson.focado and lesson.foco_md else None,
+            "foco_tem_marcas": bool(json.loads(lesson.foco_marcas_json or "[]")),
             "secoes": secoes_view,
             "trechos_incompletos": trechos_incompletos,
             "audio_pronto": audio_pronto,

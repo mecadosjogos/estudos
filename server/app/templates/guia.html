@@ -68,7 +68,7 @@
 <div class="card guia-foco markdown-body" id="foco">
 	<h2>Foco deste guia</h2>
 	{{ foco_html | safe }}
-	<p class="muted"><span class="selo-foco">★ foco</span> marca no índice e no texto os temas do foco. O guia traz a matéria inteira; o selo só aponta onde concentrar.</p>
+	{% if foco_tem_marcas %}<p class="muted"><span class="selo-foco">★ foco</span> marca no índice e no texto os temas do foco.</p>{% endif %}
 </div>
 {% endif %}
 

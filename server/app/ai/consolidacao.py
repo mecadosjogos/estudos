@@ -230,14 +230,37 @@ matéria, não o formato:
 
 FOCO_INSTRUCTIONS = """# Este guia é FOCADO
 
-Além de tudo o que está acima, este guia tem um FOCO: uma prova ou um
-tema, descrito na ORIENTAÇÃO abaixo (o que o usuário passou: fala do
-professor em aula, observações dele). O guia continua INTEIRO -- todas
-as regras acima valem, inclusive "não perder conteúdo". O foco não corta
-nada: ele avisa, no topo, em que o guia está concentrado e marca no
-corpo os temas do foco.
+Este guia tem um FOCO: uma prova ou um tema, descrito na ORIENTAÇÃO
+abaixo (o que o usuário passou: fala do professor em aula, observações
+dele). **O guia traz SÓ o conteúdo do foco** -- quem o pega quer
+estudar exatamente o que cai, sem o resto da matéria no caminho. Esta
+parte muda duas regras de cima; as demais (não parafrasear conceito,
+nada externo, sem aula de origem, sem meta-fala, como montar o índice)
+continuam valendo.
 
-## 1. Bloco "Foco deste guia"
+## 1. O que entra -- e a regra "perder conteúdo" muda
+
+- **Entra todo o conteúdo dos guias que pertence aos temas do foco**, de
+  qualquer aula. O critério é o TEMA, não a aula: se o foco é Direito
+  romano e a Lei das Doze Tábuas foi dada numa aula sobre outro
+  assunto, ela entra; se uma aula sobre Direito romano começou retomando
+  outro tema, a retomada não entra.
+- **Fica de fora o que não pertence ao foco** -- outros povos, sistemas,
+  códigos e teorias, avisos de outras provas, leituras/filmes que não
+  sejam do tema do foco.
+- **Dentro do foco, nada se perde.** A regra "Perder conteúdo" de cima
+  vale inteira para o conteúdo do foco: tudo o que os guias trazem
+  sobre os temas do foco tem que estar aqui.
+- **Fronteira:** um conceito de fora entra só do jeito que foi ensinado
+  DENTRO de um tema do foco (ex.: "o fundamento jusnaturalista do direito
+  romano arcaico" entra com o romano; a teoria geral do jusnaturalismo,
+  dada noutro contexto, não). Na dúvida, deixe de fora e liste no
+  relatório final para o usuário decidir.
+- A organização é a que ensina melhor, como em qualquer consolidação --
+  só que do conteúdo do foco. A árvore de conhecimento também cobre só
+  o foco.
+
+## 2. Bloco "Foco deste guia"
 
 Logo depois do título (`#`), antes da árvore, uma seção
 `## Foco deste guia`, curta, em lista. Diz a quem pega o guia em que ele
@@ -247,8 +270,13 @@ está focado:
   qual tema;
 - **o que cai / o que o foco cobre**, com as palavras do professor;
 - **formato da prova**, se a orientação disser;
-- outras orientações dadas (o que é mais fácil, o que priorizar, o que
-  não precisa estudar).
+- outras orientações dadas sobre ESTA prova (o que é mais fácil, o que
+  priorizar, o que levar). Orientação sobre esta prova que esteja num
+  guia-fonte (ex.: uma seção "Orientações para a prova") vem para cá,
+  com a redação do guia;
+- **ficou de fora**: uma linha com os grandes temas da matéria que este
+  guia não traz (ex.: "Direito egípcio, Código de Hamurabi, direito
+  hebraico"), pra ninguém achar que esqueceu.
 
 Regras do bloco:
 - **Fala do professor vai entre aspas, literal**, como está na
@@ -258,36 +286,21 @@ Regras do bloco:
   da transcrição", "'Direito de comando' é Direito Romano"). Dedução
   entra marcada como tal, em itálico e com "(observação)" -- nunca entre
   aspas, nunca como se fosse do professor.
-- **Nada além da orientação.** O bloco não traz conteúdo da matéria;
-  quem ensina é o resto do guia.
+- **Nada além da orientação.** O bloco não ensina a matéria; quem ensina
+  é o resto do guia.
 - **Item do foco sem conteúdo nos guias**: se a orientação cita um tema
   que nenhum guia abaixo traz, NÃO invente o conteúdo -- registre no
   bloco: "Citado no foco, sem conteúdo nos guias: <tema>".
-- NÃO explique o selo dos títulos -- o sistema põe a legenda.
 
-## 2. Marca nos títulos: `{foco}`
+## 3. Sem marca nos títulos
 
-No fim do título de cada tema do foco, em qualquer nível (`##` a
-`######`), escreva ` {foco}`:
+O guia inteiro é o foco: NÃO escreva `{foco}` nos títulos.
 
-```
-## Direito romano {foco}
-### Fase pós-clássica
-```
-
-- **Marque o título mais alto que está INTEIRO no foco** -- e não repita
-  a marca nos filhos: o selo do pai vale pro ramo todo.
-- Se só parte de um tema está no foco, marque só os subtítulos que
-  estão.
-- A ORGANIZAÇÃO NÃO MUDA por causa do foco: a ordem continua a que
-  ensina melhor (as regras de índice acima). Não traga o foco pra
-  frente, não separe "o que cai" do resto.
-
-## 3. Destaque de trecho: `**Atenção da professora:**`
+## 4. Destaque de trecho: `**Atenção da professora:**`
 
 Quando a orientação destaca um PONTO específico dentro de um tema ("quero
 chamar a atenção de vocês para dois crimes"), ponha junto do conteúdo
-correspondente, no corpo, um parágrafo próprio:
+correspondente, no corpo, um parágrafo próprio (linha em branco antes):
 
 ```
 **Atenção da professora:** "quero chamar a atenção de vocês para dois crimes cometidos durante esse período romano"

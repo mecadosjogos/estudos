@@ -126,6 +126,8 @@ def test_pacote_focado_traz_regras_e_orientacao(app_env):
 
     texto = client.get(f"/lessons/{focado}/consolidacao/pacote.md").text
     assert "Este guia é FOCADO" in texto
+    assert "O guia traz SÓ o conteúdo do foco" in texto
+    assert "Dentro do foco, nada se perde" in texto
     assert "<<<INÍCIO ORIENTAÇÃO>>>" in texto
     assert "Grego e romano. Grego e romano. Só." in texto
     assert "Nenhuma prova cadastrada" in texto
@@ -171,6 +173,28 @@ def test_colar_focado_separa_bloco_e_marcas(app_env):
     assert "Guia focado a partir" in guia.text
     assert guia.text.count('<span class="selo-foco">★ foco</span>') >= 3  # índice + título + legenda
     assert "guia-bloco--foco" in guia.text
+
+
+def test_focado_sem_marcas_nao_mostra_legenda_do_selo(app_env):
+    """O pacote não pede mais `{foco}` (o guia inteiro é o foco): sem
+    marca, a legenda do selo não aparece -- nem na tela nem no .md."""
+    client = _authed_client()
+    from app.db import holder
+    from app.models import Lesson
+
+    a, b = _duas_aulas(holder)
+    lesson_id = _focado(holder, a, b)
+    sem_marca = FOCADO.replace("## Direito grego {foco}", "## Direito grego")
+    resp = client.post(f"/lessons/{lesson_id}/consolidacao/colar-resposta", data={"resposta": sem_marca})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["foco"]["marcados"] == []
+    guia = client.get(f"/lessons/{lesson_id}/guia")
+    assert "Foco deste guia" in guia.text
+    assert "selo-foco" not in guia.text
+    with holder.SessionLocal() as session:
+        md = session.get(Lesson, lesson_id).guia_md
+        assert "## Foco deste guia" in md
+        assert "★" not in md
 
 
 def test_editar_secao_mantem_a_marca(app_env):

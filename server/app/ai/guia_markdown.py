@@ -41,7 +41,8 @@ def build_guia_markdown(
     if foco_md:
         parts.append("## Foco deste guia\n")
         parts.append(foco_md.strip() + "\n")
-        parts.append("*★ marca no índice e no texto os temas do foco.*\n")
+        if marcados:
+            parts.append("*★ marca no índice e no texto os temas do foco.*\n")
 
     if arvore:
         parts.append("## Árvore de conhecimento\n")
