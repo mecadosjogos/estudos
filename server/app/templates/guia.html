@@ -6,7 +6,7 @@
 </li>
 {% endmacro %}
 {% macro render_indice_no(no) %}
-<li><a href="#{{ no.anchor }}"><span class="guia-indice-numero">{{ no.numero }}</span> {{ no.titulo }}</a>
+<li><a href="#{{ no.anchor }}"><span class="guia-indice-numero">{{ no.numero }}</span> {{ no.titulo }}</a>{% if no.foco %}<span class="selo-foco">★ foco</span>{% endif %}
 	{% if no.filhos %}<ul>{% for filho in no.filhos %}{{ render_indice_no(filho) }}{% endfor %}</ul>{% endif %}
 </li>
 {% endmacro %}
@@ -17,7 +17,7 @@
 <h1>{{ lesson.guia_titulo }}</h1>
 {% if indice is not none %}
 <p class="muted">
-	Guia consolidado a partir dos guias das aulas{% if consolidacao_fontes %} de
+	Guia {{ "focado" if lesson.focado else "consolidado" }} a partir dos guias das aulas{% if consolidacao_fontes %} de
 	{{ consolidacao_fontes[0].data.strftime("%d/%m") }} a {{ consolidacao_fontes[-1].data.strftime("%d/%m") }}{% endif %}.
 	Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}.
 </p>
@@ -64,6 +64,14 @@
 {% endif %}
 {% endif %}
 
+{% if foco_html %}
+<div class="card guia-foco markdown-body" id="foco">
+	<h2>Foco deste guia</h2>
+	{{ foco_html | safe }}
+	<p class="muted"><span class="selo-foco">★ foco</span> marca no índice e no texto os temas do foco. O guia traz a matéria inteira; o selo só aponta onde concentrar.</p>
+</div>
+{% endif %}
+
 {% if arvore %}
 <h2>Árvore de conhecimento</h2>
 <ul class="guia-arvore">
@@ -107,7 +115,7 @@
 {% for secao in secoes %}
 <h2 id="secao-{{ secao.numero }}" class="guia-secao-titulo"
 	{% if secao.audio_start_s is not none %}data-audio-start="{{ secao.audio_start_s }}" data-audio-end="{{ secao.audio_end_s }}" data-audio-titulo="{{ secao.titulo }}"{% endif %}>
-	{{ secao.numero }}. {{ secao.titulo }}
+	{{ secao.numero }}. {{ secao.titulo }}{% if secao.foco %}<span class="selo-foco">★ foco</span>{% endif %}
 	{% if secao.audio_start_s is not none %}<button type="button" class="button-ghost guia-ouvir-secao">▸ ouvir esta seção</button>{% endif %}
 	{% if eh_admin %}<button type="button" class="button-ghost guia-editar-secao" data-secao-id="{{ secao.id }}">editar</button>{% endif %}
 </h2>

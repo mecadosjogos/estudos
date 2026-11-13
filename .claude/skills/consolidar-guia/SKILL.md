@@ -1,6 +1,6 @@
 ---
 name: Consolidar Guia
-description: Escreve o guia único de uma aula de consolidação juntando os guias das aulas-fonte (sem repetição, sem paráfrase de conceito, sem conteúdo externo), seguindo o RUNBOOK.md do projeto Estudos — só chamada explicitamente pelo usuário via /consolidar-guia.
+description: Escreve o guia único de uma aula de consolidação juntando os guias das aulas-fonte (sem repetição, sem paráfrase de conceito, sem conteúdo externo) — inclusive o guia Focado (consolidação com foco numa prova ou tema, bloco "Foco deste guia" e selo nos temas do foco) —, seguindo o RUNBOOK.md do projeto Estudos — só chamada explicitamente pelo usuário via /consolidar-guia.
 argument-hint: [id-da-consolidação]
 disable-model-invocation: false
 context: fork
@@ -28,6 +28,13 @@ der 404, a aula não é uma consolidação: pare e diga isso.
 
 Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
 
+**Guia Focado.** Se o pacote trouxer a parte "Este guia é FOCADO", a
+consolidação tem foco (uma prova ou um tema, criada em "Criar guia
+focado"). Tudo o que está abaixo vale igual — o guia continua inteiro —,
+mais os passos marcados **(focado)**. As regras do foco (bloco "Foco
+deste guia", marca `{foco}` nos títulos, `**Atenção da professora:**`)
+estão no pacote.
+
 ## Como fazer (você mesmo faz o ciclo, sem pedir nada pro usuário colar)
 
 1. **Baixe o pacote** para um arquivo no scratchpad
@@ -39,6 +46,16 @@ Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
    checklist do "nada se perde". Os guias passam fácil de 100 mil
    caracteres juntos — trabalhe guia por guia, não tente segurar tudo de
    cabeça.
+
+   **(focado) Itens do foco**, num segundo arquivo interno: leia a
+   ORIENTAÇÃO do pacote e liste cada item — tema que cai, formato da
+   prova, ponto destacado pelo professor, outra orientação —, separando
+   **fala literal** (entre aspas na orientação) de **dedução** (de quem
+   reuniu a orientação). Se a orientação disser de que aula veio a fala
+   ("transcrição 51", "aula de 05/11"), confira cada aspa na transcrição
+   dessa aula (`GET $SERVER_URL/lessons/{n}/transcricao.txt`): aspa que
+   não bate com a transcrição não vai entre aspas no guia — vira
+   observação, e você avisa o usuário no fim.
 3. **Esqueleto temático:** monte a árvore de títulos (`##` até
    `######`, cinco níveis no máximo) na ordem que ensina melhor — não na
    ordem das aulas — e aponte cada item do inventário para um lugar. O
@@ -49,6 +66,14 @@ Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
    montagem estão no pacote ("Como montar o índice"). Antes de redigir,
    releia o esqueleto e pergunte de cada título: "ele é espécie de algum
    irmão?" — se for, desça um nível.
+
+   **(focado)** O foco NÃO muda o esqueleto: monte-o como se não
+   houvesse foco. Só depois aponte cada tema do foco para o título mais
+   alto que ele cobre inteiro (é ali que vai o `{foco}`) e cada ponto
+   destacado para o trecho onde o bloco `**Atenção da professora:**`
+   entra. Tema do foco sem lugar no esqueleto = sem conteúdo nos guias:
+   vai para o bloco de foco como "Citado no foco, sem conteúdo nos
+   guias".
 4. **Redija seção por seção** no arquivo de saída (um `##` por vez,
    acrescentando ao arquivo), copiando a redação dos guias. Juntar,
    mover, cortar a repetição, montar tabela ou lista: pode. Trocar a
@@ -61,6 +86,12 @@ Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
    - não sobrou meta-fala de aula ("retomada", "na aula passada") nem
      indicação de aula de origem;
    - não há números nos títulos nem sumário/índice (o sistema gera).
+   - **(focado)** o bloco `## Foco deste guia` vem logo depois do `#`;
+     toda aspa nele e nos blocos de atenção é literal da orientação (e
+     conferida na transcrição, quando dá); dedução está marcada como
+     "(observação)"; nenhum conteúdo da matéria entrou no bloco; todo
+     tema do foco tem `{foco}` num título ou está listado como sem
+     conteúdo; nenhum filho repete a marca do pai.
 
    Complemente com uma conferência automática, num script Python local
    (no scratchpad): para cada frase dos guias-fonte (pulando árvore,
@@ -80,6 +111,10 @@ Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
    - `relatorio.externos`: termos em negrito do consolidado que não estão
      em nenhuma fonte. Quase sempre é conteúdo externo ou paráfrase —
      corrija e reenvie. Só fica se for título/rótulo de organização.
+   - **(focado)** `foco.marcados`: os títulos que ficaram com selo, já
+     numerados ("3 Direito grego"); `foco.atencao`: quantos blocos de
+     atenção do professor entraram. Confira contra os itens do foco. Se
+     o guia focado vier sem o bloco de foco, o POST recusa (400).
    Reenviar é seguro: cada envio substitui o guia inteiro.
 7. **Confira o encoding** no banco (`repr()` de um trecho acentuado de
    `lesson.guia_md`, mesmo procedimento do RUNBOOK para `/processar-aula`).
@@ -110,6 +145,10 @@ Devolva ao usuário:
   ordem no guia): `##` = N, `###` = N.M, `####` = N.M.K e assim por
   diante — cada título é filho do título mais próximo acima dele que for
   mais raso.
+- **(focado) o mapa do foco**: cada item do foco → os números onde ele
+  ficou marcado (`Direito romano → 4 · "dois crimes" → atenção em
+  4.2.3`); os itens **sem conteúdo nos guias** (lacunas — pode faltar
+  aula ou guia); e as aspas que não bateram com a transcrição;
 - o que ficou no relatório, se sobrou algo, e por quê;
 - a sugestão do próximo passo: `/dominar-guia {id}` para os exercícios
   e, se o usuário quiser, `/gerar-dissertativas {id}`.

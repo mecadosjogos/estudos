@@ -19,7 +19,8 @@ import unicodedata
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import AiCall, Lesson
+from ..models import AiCall, Exam, Lesson
+from .guia_numeracao import extrair_marcas, numerar_consolidado, titulos_marcados
 from .guia_parser import parse_guia_markdown
 from .pipeline import ProcessingError, persistir_guia
 
@@ -29,6 +30,26 @@ TIPO = "consolidacao"
 def titulo_padrao(fontes: list[Lesson]) -> str:
     datas = sorted(f.data for f in fontes)
     return f"Consolidação aulas {datas[0]:%d/%m} até {datas[-1]:%d/%m}"
+
+
+def titulo_padrao_focado(exam: Exam | None = None) -> str:
+    """Título proposto: "Focado — P1" com prova ligada, "Focado — Prova"
+    sem. Num foco de tema o usuário troca o fim ao criar ("Focado —
+    Direito romano")."""
+    return f"Focado — {exam.titulo if exam else 'Prova'}"
+
+
+def provas_da_materia(session: Session, subject_id: int) -> list[Exam]:
+    return list(session.scalars(select(Exam).where(Exam.subject_id == subject_id).order_by(Exam.data)))
+
+
+def _validar_exam(session: Session, subject_id: int, exam_id: int | None) -> int | None:
+    if not exam_id:
+        return None
+    exam = session.get(Exam, exam_id)
+    if exam is None or exam.subject_id != subject_id:
+        raise ProcessingError("prova não encontrada nesta matéria")
+    return exam.id
 
 
 def aulas_consolidaveis(session: Session, subject_id: int) -> list[Lesson]:
@@ -60,18 +81,47 @@ def _validar_fontes(session: Session, subject_id: int, fonte_ids: list[int]) -> 
     return sorted(fontes, key=lambda f: (f.data, f.id))
 
 
-def criar_consolidacao(session: Session, subject_id: int, fonte_ids: list[int], titulo: str) -> Lesson:
+def criar_consolidacao(
+    session: Session,
+    subject_id: int,
+    fonte_ids: list[int],
+    titulo: str,
+    *,
+    foco_orientacao: str | None = None,
+    exam_id: int | None = None,
+) -> Lesson:
+    """Com `foco_orientacao`, nasce um guia Focado (models.py::Lesson)."""
     fontes = _validar_fontes(session, subject_id, fonte_ids)
+    foco = (foco_orientacao or "").strip() or None
+    exam_id = _validar_exam(session, subject_id, exam_id) if foco else None
+    if foco:
+        padrao = titulo_padrao_focado(session.get(Exam, exam_id) if exam_id else None)
+    else:
+        padrao = titulo_padrao(fontes)
     lesson = Lesson(
         subject_id=subject_id,
         tipo=TIPO,
-        titulo=titulo.strip() or titulo_padrao(fontes),
+        titulo=titulo.strip() or padrao,
         data=fontes[-1].data,
         consolidacao_fontes_json=json.dumps([f.id for f in fontes]),
+        foco_orientacao=foco,
+        exam_id=exam_id,
     )
     session.add(lesson)
     session.commit()
     return lesson
+
+
+def trocar_foco(session: Session, lesson: Lesson, foco_orientacao: str, exam_id: int | None) -> None:
+    """Corrige a orientação/prova de um guia Focado. Como `trocar_fontes`:
+    o guia atual (bloco de foco e marcas incluídos) fica até a skill rodar
+    de novo."""
+    foco = (foco_orientacao or "").strip()
+    if not foco:
+        raise ProcessingError("a orientação do foco não pode ficar vazia")
+    lesson.foco_orientacao = foco
+    lesson.exam_id = _validar_exam(session, lesson.subject_id, exam_id)
+    session.commit()
 
 
 def trocar_fontes(session: Session, lesson: Lesson, fonte_ids: list[int]) -> None:
@@ -178,6 +228,88 @@ matéria, não o formato:
 """
 
 
+FOCO_INSTRUCTIONS = """# Este guia é FOCADO
+
+Além de tudo o que está acima, este guia tem um FOCO: uma prova ou um
+tema, descrito na ORIENTAÇÃO abaixo (o que o usuário passou: fala do
+professor em aula, observações dele). O guia continua INTEIRO -- todas
+as regras acima valem, inclusive "não perder conteúdo". O foco não corta
+nada: ele avisa, no topo, em que o guia está concentrado e marca no
+corpo os temas do foco.
+
+## 1. Bloco "Foco deste guia"
+
+Logo depois do título (`#`), antes da árvore, uma seção
+`## Foco deste guia`, curta, em lista. Diz a quem pega o guia em que ele
+está focado:
+
+- **o foco**: qual prova (e a data, se houver prova ligada abaixo) ou
+  qual tema;
+- **o que cai / o que o foco cobre**, com as palavras do professor;
+- **formato da prova**, se a orientação disser;
+- outras orientações dadas (o que é mais fácil, o que priorizar, o que
+  não precisa estudar).
+
+Regras do bloco:
+- **Fala do professor vai entre aspas, literal**, como está na
+  orientação. Sem retocar.
+- **Dedução não se passa por fala.** A orientação pode misturar o que o
+  professor disse com o que quem a reuniu deduziu ("o 'ou' deve ser erro
+  da transcrição", "'Direito de comando' é Direito Romano"). Dedução
+  entra marcada como tal, em itálico e com "(observação)" -- nunca entre
+  aspas, nunca como se fosse do professor.
+- **Nada além da orientação.** O bloco não traz conteúdo da matéria;
+  quem ensina é o resto do guia.
+- **Item do foco sem conteúdo nos guias**: se a orientação cita um tema
+  que nenhum guia abaixo traz, NÃO invente o conteúdo -- registre no
+  bloco: "Citado no foco, sem conteúdo nos guias: <tema>".
+- NÃO explique o selo dos títulos -- o sistema põe a legenda.
+
+## 2. Marca nos títulos: `{foco}`
+
+No fim do título de cada tema do foco, em qualquer nível (`##` a
+`######`), escreva ` {foco}`:
+
+```
+## Direito romano {foco}
+### Fase pós-clássica
+```
+
+- **Marque o título mais alto que está INTEIRO no foco** -- e não repita
+  a marca nos filhos: o selo do pai vale pro ramo todo.
+- Se só parte de um tema está no foco, marque só os subtítulos que
+  estão.
+- A ORGANIZAÇÃO NÃO MUDA por causa do foco: a ordem continua a que
+  ensina melhor (as regras de índice acima). Não traga o foco pra
+  frente, não separe "o que cai" do resto.
+
+## 3. Destaque de trecho: `**Atenção da professora:**`
+
+Quando a orientação destaca um PONTO específico dentro de um tema ("quero
+chamar a atenção de vocês para dois crimes"), ponha junto do conteúdo
+correspondente, no corpo, um parágrafo próprio:
+
+```
+**Atenção da professora:** "quero chamar a atenção de vocês para dois crimes cometidos durante esse período romano"
+```
+
+(`**Atenção do professor:**` se for professor.) Só com fala literal da
+orientação, entre aspas -- dedução não vira destaque. É um rótulo novo,
+não substitui o conteúdo: o conteúdo continua com a redação do guia.
+"""
+
+
+def _bloco_foco(lesson: Lesson) -> str:
+    parts = [FOCO_INSTRUCTIONS]
+    if lesson.exam is not None:
+        parts.append(f"Prova ligada a este guia: **{lesson.exam.titulo}**, em {lesson.exam.data:%d/%m/%Y}.\n")
+    else:
+        parts.append("Nenhuma prova cadastrada ligada a este guia -- o foco é o que a orientação disser.\n")
+    parts.append("## ORIENTAÇÃO (como o usuário passou)\n")
+    parts.append("<<<INÍCIO ORIENTAÇÃO>>>\n" + (lesson.foco_orientacao or "").strip() + "\n<<<FIM ORIENTAÇÃO>>>\n")
+    return "\n".join(parts)
+
+
 def build_pacote(session: Session, lesson: Lesson) -> str:
     if lesson.tipo != TIPO:
         raise ProcessingError("esta aula não é uma consolidação")
@@ -187,6 +319,10 @@ def build_pacote(session: Session, lesson: Lesson) -> str:
     parts = [
         f"# Consolidar guias — {lesson.subject.nome} — {lesson.titulo}\n",
         INSTRUCTIONS,
+    ]
+    if lesson.focado:
+        parts.append(_bloco_foco(lesson))
+    parts += [
         f"# Guias das aulas ({len(fontes)})\n",
         "Cada guia vem entre `<<<INÍCIO GUIA ...>>>` e `<<<FIM GUIA>>>`. "
         "A numeração das seções dentro deles é da aula original -- ignore.\n",
@@ -217,7 +353,17 @@ def extrair_markdown(texto: str) -> str:
 
 _NEGRITO_RE = re.compile(r"\*\*(.+?)\*\*")
 # Rótulos de bloco (markdown_render.py::_ROTULOS) -- estrutura, não conteúdo.
-_ROTULOS = {"lei", "definicao", "exemplo", "atencao", "pergunta de aluno", "aluno", "material da aula"}
+_ROTULOS = {
+    "lei",
+    "definicao",
+    "exemplo",
+    "atencao",
+    "atencao da professora",
+    "atencao do professor",
+    "pergunta de aluno",
+    "aluno",
+    "material da aula",
+}
 
 
 def _norm(texto: str) -> str:
@@ -254,12 +400,45 @@ def relatorio_termos(fontes_md: list[str], consolidado_md: str) -> dict:
     return {"perdidos": perdidos, "externos": externos}
 
 
+_FOCO_TITULO_RE = re.compile(r"^##[ \t]+foco deste guia[ \t#]*$", re.IGNORECASE)
+_SECAO_RE = re.compile(r"^##[ \t]")
+
+
+def separar_bloco_foco(md: str) -> tuple[str, str | None]:
+    """Tira a seção `## Foco deste guia` do markdown (vai pra
+    `Lesson.foco_md`, fora das seções: não é numerada nem narrada) e
+    devolve (resto, corpo do bloco ou None)."""
+    linhas = md.split("\n")
+    inicio = next((i for i, line in enumerate(linhas) if _FOCO_TITULO_RE.match(line.strip())), None)
+    if inicio is None:
+        return md, None
+    fim = next((j for j in range(inicio + 1, len(linhas)) if _SECAO_RE.match(linhas[j])), len(linhas))
+    corpo = "\n".join(linhas[inicio + 1 : fim]).strip()
+    resto = "\n".join(linhas[:inicio] + linhas[fim:])
+    return resto, corpo or None
+
+
+# Só no começo de parágrafo -- a mesma regra que faz o rótulo virar bloco
+# na tela (markdown_render.py::wrap_labeled_blocks); fora disso o
+# relatório contaria um destaque que ninguém vê.
+_ATENCAO_RE = re.compile(r"(?:\A|\n[ \t]*\n)[ \t]*\*\*Aten[çc][ãa]o d[oa] professora?:\*\*", re.IGNORECASE)
+
+
 def ingest_consolidacao(session: Session, lesson: Lesson, texto: str) -> dict:
     if lesson.tipo != TIPO:
         raise ProcessingError("esta aula não é uma consolidação")
     md = extrair_markdown(texto)
     if not md.startswith("# "):
         raise ProcessingError("resposta sem título (# ...) -- não parece o guia consolidado")
+    md, foco_md = separar_bloco_foco(md)
+    md, marcados = extrair_marcas(md)
+    if lesson.focado:
+        if not foco_md:
+            raise ProcessingError("guia Focado sem a seção '## Foco deste guia'")
+    elif foco_md or marcados:
+        raise ProcessingError("esta consolidação não tem foco -- tire o bloco de foco e as marcas {foco}")
+    lesson.foco_md = foco_md
+    lesson.foco_marcas_json = json.dumps(marcados, ensure_ascii=False) if lesson.focado else None
     fontes = fontes_de(session, lesson)
     parsed = parse_guia_markdown(md)
     persistir_guia(session, lesson, parsed)
@@ -279,11 +458,20 @@ def ingest_consolidacao(session: Session, lesson: Lesson, texto: str) -> dict:
     session.commit()
 
     corpo_total = "\n".join(s.corpo for s in parsed.secoes)
-    return {
+    resultado = {
         "ok": True,
         "secoes": len(parsed.secoes),
         "subtitulos": len(re.findall(r"^### ", corpo_total, re.MULTILINE)),
         "conceitos": len(re.findall(r"^#### ", corpo_total, re.MULTILINE)),
         "relatorio": relatorio_termos([f.guia_md or "" for f in fontes], md),
     }
+    if lesson.focado:
+        numeradas = numerar_consolidado([(s.titulo, s.corpo) for s in parsed.secoes], marcados=frozenset(marcados))
+        # Aviso, não bloqueio (mesmo espírito do relatório de termos): a
+        # skill confere cada item da orientação contra esta lista.
+        resultado["foco"] = {
+            "marcados": titulos_marcados(numeradas),
+            "atencao": len(_ATENCAO_RE.findall(corpo_total)),
+        }
+    return resultado
 

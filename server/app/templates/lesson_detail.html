@@ -6,17 +6,26 @@
 
 {% if lesson.tipo == "consolidacao" %}
 <div class="card">
+	{% if lesson.focado %}
+	<h2>Guia focado</h2>
+	<p class="muted">Junta os guias das aulas abaixo num guia único, com a matéria inteira, focado em: {% if lesson.exam %}<a href="/exams/{{ lesson.exam.id }}">{{ lesson.exam.titulo }}</a> ({{ lesson.exam.data.strftime("%d/%m/%Y") }}){% else %}o tema descrito no foco{% endif %}. Os temas do foco ganham <span class="selo-foco">★ foco</span> no índice.</p>
+	<details>
+		<summary class="muted">Foco, como foi passado</summary>
+		<pre class="foco-orientacao">{{ lesson.foco_orientacao }}</pre>
+	</details>
+	{% else %}
 	<h2>Consolidação</h2>
 	<p class="muted">Junta os guias das aulas abaixo num guia único, sem repetição e com índice numerado. Não tem áudio nem transcrição: o guia sai dos guias destas aulas.</p>
+	{% endif %}
 	<ul class="timeline">
 		{% for f in consolidacao_fontes %}
 		<li><time>{{ f.data.strftime("%d/%m/%Y") }}</time> <a href="/lessons/{{ f.id }}/guia">{{ f.titulo }}</a>{% if f.guia_titulo %} <span class="muted">— {{ f.guia_titulo }}</span>{% endif %}</li>
 		{% endfor %}
 	</ul>
 	{% if lesson.guia_secoes %}
-	<p><span class="badge">consolidado ✓</span> <span class="muted">em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}</span></p>
+	<p><span class="badge">{{ "focado" if lesson.focado else "consolidado" }} ✓</span> <span class="muted">em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}</span></p>
 	<div class="button-row">
-		<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia consolidado</a>
+		<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia {{ "focado" if lesson.focado else "consolidado" }}</a>
 		{% if tem_exercicios_de_guia %}<a class="button" href="/lessons/{{ lesson.id }}/guia/praticar">Praticar guia (memorização)</a>{% endif %}
 		<a class="button" href="/lessons/{{ lesson.id }}/dissertativas">Treinar dissertativas →</a>
 	</div>
@@ -36,6 +45,25 @@
 		</form>
 		<p class="muted">O guia atual fica até <code>/consolidar-guia</code> rodar de novo.</p>
 	</details>
+	{% if lesson.focado %}
+	{% if request.query_params.get("erro_foco") %}<p class="error">{{ request.query_params.get("erro_foco") }}</p>{% endif %}
+	<details>
+		<summary class="muted">Corrigir o foco</summary>
+		<form method="post" action="/lessons/{{ lesson.id }}/foco">
+			<p><label>Foco<br><textarea name="foco_orientacao" rows="10" style="width:100%" required>{{ lesson.foco_orientacao }}</textarea></label></p>
+			<p><label>Prova<br>
+				<select name="exam_id">
+					<option value="">nenhuma (foco num tema)</option>
+					{% for prova in provas %}
+					<option value="{{ prova.id }}" {% if prova.id == lesson.exam_id %}selected{% endif %}>{{ prova.titulo }} — {{ prova.data.strftime("%d/%m/%Y") }}</option>
+					{% endfor %}
+				</select>
+			</label></p>
+			<button type="submit">Salvar foco</button>
+		</form>
+		<p class="muted">O guia atual fica até <code>/consolidar-guia</code> rodar de novo.</p>
+	</details>
+	{% endif %}
 	{% endif %}
 </div>
 {% else %}

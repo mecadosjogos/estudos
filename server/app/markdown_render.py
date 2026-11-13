@@ -33,6 +33,8 @@ _ROTULOS = [
     ("lei", r"Lei"),
     ("definicao", r"Defini[çc][ãa]o"),
     ("exemplo", r"Exemplo(?: [^:*\n]{1,30}?)?"),  # "Exemplo invertido:"
+    # Guia Focado: ponto que o professor destacou (ai/consolidacao.py).
+    ("foco", r"Aten[çc][ãa]o d[oa] professora?"),
     ("atencao", r"Aten[çc][ãa]o"),
     ("aluno", r"Pergunta de aluno|Aluno"),
     ("material", r"Material da aula"),

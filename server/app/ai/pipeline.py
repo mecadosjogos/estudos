@@ -194,6 +194,8 @@ def persistir_guia(session: Session, lesson: Lesson, parsed_guia: ParsedGuia) ->
         secoes=parsed_guia.secoes,
         trechos_incompletos=parsed_guia.trechos_incompletos,
         hierarquico=lesson.tipo == "consolidacao",
+        foco_md=lesson.foco_md,
+        marcados=frozenset(json.loads(lesson.foco_marcas_json or "[]")),
     )
     lesson.guia_gerado_em = datetime.now(timezone.utc)
 

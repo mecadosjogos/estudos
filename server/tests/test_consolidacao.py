@@ -182,7 +182,7 @@ def test_colar_consolidado_grava_guia_e_relatorio(app_env):
         # cache numerado pro .md/PDF
         assert "## Índice" in lesson.guia_md
         assert "### 1.1 O processo" in lesson.guia_md
-        assert "#### 1.1b Códigos" in lesson.guia_md
+        assert "#### 1.1.2 Códigos" in lesson.guia_md
         assert "{#" not in lesson.guia_md
         # narração ligada, como nas aulas normais
         assert session.query(TranscriptionJob).filter_by(lesson_id=lesson_id, target="tts_guia").count() == 1
@@ -190,9 +190,9 @@ def test_colar_consolidado_grava_guia_e_relatorio(app_env):
     guia = client.get(f"/lessons/{lesson_id}/guia")
     assert guia.status_code == 200
     assert "Índice" in guia.text
-    assert 'href="#secao-1-1a"' in guia.text
-    assert 'id="secao-1-1a"' in guia.text
-    assert "1.1a Representação" in guia.text
+    assert 'href="#secao-1-1-1"' in guia.text
+    assert 'id="secao-1-1-1"' in guia.text
+    assert "1.1.1 Representação" in guia.text
     assert "Sumário" not in guia.text
 
 
@@ -228,23 +228,11 @@ def test_numeracao_hierarquica():
     from app.ai.guia_numeracao import numerar_consolidado
 
     corpo = (
-        "#### solto
-x
-### A
-#### a1
-##### a1x
-###### a1x1
-#### a2
-"
-        "```
-### não é título
-```
-### B
-##### pulou"
+        "#### solto\nx\n### A\n#### a1\n##### a1x\n###### a1x1\n#### a2\n"
+        "```\n### não é título\n```\n### B\n##### pulou"
     )
     [s] = numerar_consolidado([("Tema", corpo)])
-    assert s.corpo.split("
-")[0] == "#### 1.1 solto {#secao-1-1}"
+    assert s.corpo.split("\n")[0] == "#### 1.1 solto {#secao-1-1}"
     assert "### 1.2 A {#secao-1-2}" in s.corpo
     assert "#### 1.2.1 a1 {#secao-1-2-1}" in s.corpo
     assert "##### 1.2.1.1 a1x {#secao-1-2-1-1}" in s.corpo

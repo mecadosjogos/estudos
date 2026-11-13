@@ -15,7 +15,10 @@ from ..ai.consolidacao import (
     build_pacote,
     criar_consolidacao,
     ingest_consolidacao,
+    provas_da_materia,
     titulo_padrao,
+    titulo_padrao_focado,
+    trocar_foco,
     trocar_fontes,
 )
 from ..ai.pipeline import ProcessingError
@@ -66,6 +69,59 @@ def consolidar_submit(
     return RedirectResponse(url=f"/lessons/{lesson.id}", status_code=303)
 
 
+@router.get("/subjects/{subject_id}/focado")
+def focado_form(
+    request: Request,
+    subject_id: int,
+    erro: str | None = None,
+    session: Session = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Guia Focado: a mesma escolha de aulas da consolidação, mais o foco
+    (orientação literal e, opcional, a prova)."""
+    subject = session.get(Subject, subject_id)
+    if subject is None:
+        raise HTTPException(status_code=404, detail="matéria não encontrada")
+    return templates.TemplateResponse(
+        request,
+        "consolidar.html",
+        {
+            "subject": subject,
+            "aulas": aulas_consolidaveis(session, subject_id),
+            "titulo": titulo_padrao_focado(),
+            "erro": erro,
+            "focado": True,
+            "provas": provas_da_materia(session, subject_id),
+        },
+    )
+
+
+@router.post("/subjects/{subject_id}/focado")
+def focado_submit(
+    subject_id: int,
+    titulo: str = Form(""),
+    foco_orientacao: str = Form(""),
+    exam_id: str = Form(""),
+    aula_ids: list[int] = Form(default=[]),
+    session: Session = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    try:
+        if not foco_orientacao.strip():
+            raise ProcessingError("escreva o foco do guia")
+        lesson = criar_consolidacao(
+            session,
+            subject_id,
+            aula_ids,
+            titulo,
+            foco_orientacao=foco_orientacao,
+            exam_id=int(exam_id) if exam_id.strip() else None,
+        )
+    except ProcessingError as exc:
+        return RedirectResponse(url=f"/subjects/{subject_id}/focado?erro={quote(str(exc))}", status_code=303)
+    return RedirectResponse(url=f"/lessons/{lesson.id}", status_code=303)
+
+
 def _consolidacao_or_404(session: Session, lesson_id: int) -> Lesson:
     lesson = session.get(Lesson, lesson_id)
     if lesson is None or lesson.tipo != "consolidacao":
@@ -85,6 +141,24 @@ def consolidacao_fontes(
         trocar_fontes(session, lesson, aula_ids)
     except ProcessingError as exc:
         return RedirectResponse(url=f"/lessons/{lesson_id}?erro_fontes={quote(str(exc))}", status_code=303)
+    return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
+
+
+@router.post("/lessons/{lesson_id}/foco")
+def consolidacao_foco(
+    lesson_id: int,
+    foco_orientacao: str = Form(""),
+    exam_id: str = Form(""),
+    session: Session = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    lesson = _consolidacao_or_404(session, lesson_id)
+    if not lesson.focado:
+        raise HTTPException(status_code=404, detail="este guia não é focado")
+    try:
+        trocar_foco(session, lesson, foco_orientacao, int(exam_id) if exam_id.strip() else None)
+    except ProcessingError as exc:
+        return RedirectResponse(url=f"/lessons/{lesson_id}?erro_foco={quote(str(exc))}", status_code=303)
     return RedirectResponse(url=f"/lessons/{lesson_id}", status_code=303)
 
 

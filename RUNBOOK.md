@@ -829,6 +829,56 @@ aulas originais continua nelas.
 curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia" | grep -o 'id="secao-[0-9a-z-]*"' | head
 ```
 
+### Guia Focado (consolidação com foco numa prova ou tema)
+
+**Uma consolidação com foco.** O guia junta as aulas como qualquer
+consolidação e continua **inteiro** (nada se perde, a organização é a que
+ensina melhor). Ele abre com o bloco **"Foco deste guia"**, que diz em
+que o guia está concentrado, e os temas do foco ganham o selo
+**★ foco** no índice e no título. Serve a qualquer matéria: o foco pode
+ser uma prova ("o que cai na P1") ou um tema ("Direito romano").
+
+**Criar:** na tela da matéria, "Criar guia focado". Mesma escolha de
+aulas, mais:
+- **Foco** (obrigatório): o que o usuário passa, literal. Pode ser a fala
+  do professor, observações, formato da prova. Fica em
+  `Lesson.foco_orientacao`.
+- **Prova** (opcional): liga a uma prova cadastrada (`Lesson.exam_id`).
+  Sem prova, o foco é um tema.
+- **Título** proposto: "Focado — Prova" ou "Focado — <título da prova>".
+  Num foco de tema, troque o fim ("Focado — Direito romano").
+
+Corrigir depois: "Corrigir o foco" na página da aula. O guia atual fica
+até a skill rodar de novo.
+
+**Escrever:** a mesma `/consolidar-guia <id>`. O pacote ganha a parte
+"Este guia é FOCADO" (`FOCO_INSTRUCTIONS` em `ai/consolidacao.py`, fonte
+única das regras) com a orientação literal. A resposta traz três coisas
+a mais:
+- `## Foco deste guia` logo depois do `#`. Fala do professor entre
+  aspas, literal; dedução marcada "(observação)"; tema do foco sem
+  conteúdo nos guias listado como tal. Na ingestão sai das seções e vai
+  para `Lesson.foco_md`: não é numerado nem narrado, e o código o mostra
+  no topo da tela e do `guia.md`/PDF, com a legenda do selo.
+- `{foco}` no fim dos títulos do foco (qualquer nível, o mais alto que
+  o tema cobre inteiro). Na ingestão o marcador **sai do texto** e os
+  títulos marcados vão para `Lesson.foco_marcas_json`, normalizados.
+  Narração, exercícios e dissertativas nunca o veem. A marca é por
+  título, então editar o corpo de uma seção não a perde.
+- `**Atenção da professora:**` (ou "do professor") junto do trecho que
+  o professor destacou, com a fala literal. É um rótulo do guia, como
+  "Atenção:", com cor própria.
+
+**Resposta do POST:** além do de sempre, `foco.marcados` (títulos com
+selo, numerados) e `foco.atencao` (blocos de atenção). Guia focado sem o
+bloco de foco é recusado (400); consolidação comum com bloco ou marca de
+foco também.
+
+**Aspas:** quando a orientação diz de que aula veio a fala, a skill
+confere cada aspa em `/lessons/{n}/transcricao.txt`. A transcrição é a
+fonte, e a orientação pode ter sido reunida por outro chat. Aspa que não
+bate vira observação e é avisada no fim.
+
 ## Custo
 
 Toda passada manual grava uma linha em `AiCall` com `via="manual"` e

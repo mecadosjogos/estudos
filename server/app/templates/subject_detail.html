@@ -13,7 +13,8 @@
 		<li>
 			<time>{{ lesson.data.strftime("%d/%m/%Y") }}</time>
 			<a href="/lessons/{{ lesson.id }}">{{ lesson.titulo }}</a>
-			{% if lesson.tipo == "consolidacao" %}<span class="badge">consolidação</span>
+			{% if lesson.focado %}<span class="badge">focado</span>
+			{% elif lesson.tipo == "consolidacao" %}<span class="badge">consolidação</span>
 			{% elif not lesson.audio_segments %}<span class="badge muted">sem áudio</span>{% endif %}
 			{% if lesson.google_doc_url %}<a class="button" href="{{ lesson.google_doc_url }}" target="_blank">Abrir no Docs</a>{% endif %}
 		</li>
@@ -22,7 +23,10 @@
 		{% endfor %}
 	</ul>
 	{% if request.state.user and request.state.user.papel == "admin" %}
-	<p class="button-row"><a class="button button-ghost" href="/subjects/{{ subject.id }}/consolidar">Consolidar aulas</a></p>
+	<p class="button-row">
+		<a class="button button-ghost" href="/subjects/{{ subject.id }}/consolidar">Consolidar aulas</a>
+		<a class="button button-ghost" href="/subjects/{{ subject.id }}/focado">Criar guia focado</a>
+	</p>
 	{% endif %}
 </div>
 

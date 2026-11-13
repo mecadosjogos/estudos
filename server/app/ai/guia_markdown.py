@@ -6,7 +6,6 @@ incompletos), pra export/corpus.py, export/exam_export.py e a rota
 /guia.md continuarem funcionando sem mudança nenhuma."""
 
 from .guia_numeracao import indice_markdown, numerar_consolidado
-from .guia_numeracao import indice_markdown, numerar_consolidado
 from .guia_parser import GuiaArvoreNoOut, GuiaSecaoOut, GuiaTopicoOut
 
 
@@ -30,23 +29,33 @@ def build_guia_markdown(
     secoes: list[GuiaSecaoOut],
     trechos_incompletos: list[str],
     hierarquico: bool = False,
+    foco_md: str | None = None,
+    marcados: frozenset[str] = frozenset(),
 ) -> str:
     """`hierarquico=True` (aula de consolidação): no lugar do sumário plano,
     o índice aninhado 8 / 8.1 / 8.1.1, e os subtítulos saem numerados --
-    ver ai/guia_numeracao.py."""
+    ver ai/guia_numeracao.py. `foco_md`/`marcados` (guia Focado): o bloco
+    "Foco deste guia" logo depois do título e "★" nos títulos de foco."""
     parts = [f"# {titulo}\n"]
+
+    if foco_md:
+        parts.append("## Foco deste guia\n")
+        parts.append(foco_md.strip() + "\n")
+        parts.append("*★ marca no índice e no texto os temas do foco.*\n")
 
     if arvore:
         parts.append("## Árvore de conhecimento\n")
         parts.append("\n".join(_render_arvore(arvore)) + "\n")
 
     if hierarquico:
-        numeradas = numerar_consolidado([(s.titulo, s.corpo) for s in secoes], com_ancora=False)
+        numeradas = numerar_consolidado(
+            [(s.titulo, s.corpo) for s in secoes], com_ancora=False, marcados=marcados
+        )
         if numeradas:
             parts.append("## Índice\n")
             parts.append(indice_markdown(numeradas) + "\n")
         for s in numeradas:
-            parts.append(f"## {s.numero}. {s.titulo}\n")
+            parts.append(f"## {s.numero}. {s.titulo}" + (" ★" if s.foco else "") + "\n")
             parts.append(s.corpo.strip() + "\n")
     else:
         if topicos:

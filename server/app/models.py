@@ -60,6 +60,27 @@ class Lesson(Base):
     tipo: Mapped[str] = mapped_column(String, nullable=False, default="aula", server_default="aula")
     consolidacao_fontes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Guia "Focado": consolidação com foco (uma prova, um tema). Com
+    # `foco_orientacao` preenchida a consolidação é focada -- o guia
+    # continua inteiro (nada se perde), mas abre com o bloco "Foco deste
+    # guia" e os temas do foco ganham selo no índice. `foco_orientacao` é o
+    # que o usuário passou, literal (fala da professora, observações);
+    # `foco_md` é o bloco escrito pela skill a partir dela, guardado fora
+    # das seções pra não ser numerado nem narrado; `foco_marcas_json` são os
+    # títulos marcados, normalizados (ai/guia_numeracao.py::norm_titulo) --
+    # o marcador sai do texto na ingestão, então narração, exercícios e
+    # dissertativas nunca o veem. `exam_id` liga a uma prova cadastrada
+    # (opcional: o foco pode ser um tema, sem prova). Ver ai/consolidacao.py.
+    foco_orientacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    foco_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    foco_marcas_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exam_id: Mapped[int | None] = mapped_column(ForeignKey("exam.id"), nullable=True)
+    exam: Mapped["Exam | None"] = relationship()
+
+    @property
+    def focado(self) -> bool:
+        return self.tipo == "consolidacao" and bool(self.foco_orientacao)
+
     # Sync de verdade (sincronizar conteúdo, vincular material) entra na fase 9.
     # Aqui é só o link para abrir a cópia no Google Docs.
     google_doc_url: Mapped[str | None] = mapped_column(String, nullable=True)

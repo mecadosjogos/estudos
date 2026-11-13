@@ -18,29 +18,73 @@ de dissertativas leem o corpo cru); o número só entra na tela e no cache
 
 Âncoras: `secao-8` é o contrato que já existe (dissertativas apontam pra
 seção pelo número inteiro); `secao-8-1`, `secao-8-1-1` descem daí.
+
+Guia "Focado" (consolidação com foco): a skill marca um título com
+`{foco}` no fim; `extrair_marcas` tira o marcador na ingestão e devolve
+os títulos marcados, que ficam em `Lesson.foco_marcas_json`. Aqui o
+título marcado ganha a classe `foco` (selo pelo CSS) na tela e um "★" no
+cache `guia_md`; no índice, `foco=True` no nó. Marca por título
+normalizado, não por posição: editar o corpo de uma seção não a perde.
 """
 
 import re
+import unicodedata
 from typing import NamedTuple
 
 _FENCE_RE = re.compile(r"^ *(```|~~~)")
 _SUB_RE = re.compile(r"^(#{3,6})[ \t]+(.+?)[ \t#]*$")
+_MARCA_RE = re.compile(r"^(#{2,6}[ \t]+.*?)[ \t]*\{foco\}[ \t]*$")
+_TITULO_RE = re.compile(r"^#{2,6}[ \t]+(.+?)[ \t#]*$")
+
+
+def norm_titulo(titulo: str) -> str:
+    """Chave de um título marcado: sem acento, caixa, marcação nem
+    pontuação nas pontas, espaço simples."""
+    s = unicodedata.normalize("NFKD", titulo)
+    s = "".join(c for c in s if not unicodedata.combining(c)).casefold()
+    s = re.sub(r"[*_`]", "", s)
+    return re.sub(r"\s+", " ", s).strip(" .:;,")
+
+
+def extrair_marcas(md: str) -> tuple[str, list[str]]:
+    """Tira o `{foco}` do fim dos títulos (`##` a `######`) e devolve o
+    markdown limpo + os títulos marcados, normalizados e sem repetição,
+    na ordem em que aparecem."""
+    linhas, marcados = [], []
+    in_fence = False
+    for line in md.split("\n"):
+        if _FENCE_RE.match(line):
+            in_fence = not in_fence
+        m = None if in_fence else _MARCA_RE.match(line)
+        if m:
+            line = m.group(1).rstrip()
+            t = _TITULO_RE.match(line)
+            if t:
+                chave = norm_titulo(t.group(1))
+                if chave and chave not in marcados:
+                    marcados.append(chave)
+        linhas.append(line)
+    return "\n".join(linhas), marcados
 
 
 class SecaoNumerada(NamedTuple):
     numero: int
     titulo: str
     corpo: str  # corpo com `###`..`######` numerados e ancorados
-    indice: list[dict]  # filhos da seção no índice: [{numero, titulo, anchor, filhos}]
+    indice: list[dict]  # filhos da seção no índice: [{numero, titulo, anchor, foco, filhos}]
+    foco: bool = False  # o título da seção (`##`) é foco
 
 
 def ancora(numero: str) -> str:
     return "secao-" + numero.replace(".", "-")
 
 
-def numerar_secao(numero: int, titulo: str, corpo: str, *, com_ancora: bool = True) -> SecaoNumerada:
+def numerar_secao(
+    numero: int, titulo: str, corpo: str, *, com_ancora: bool = True, marcados: frozenset[str] = frozenset()
+) -> SecaoNumerada:
     """`com_ancora=False` pro cache `guia_md` (download/PDF), onde o
-    `{#id}` do attr_list seria só ruído."""
+    `{#id}` do attr_list seria só ruído. `marcados`: títulos de foco,
+    normalizados (`norm_titulo`)."""
     linhas = []
     raiz: dict = {"numero": str(numero), "filhos": []}
     # (nível do título, nó) -- o topo é o pai do próximo título mais fundo.
@@ -59,21 +103,47 @@ def numerar_secao(numero: int, titulo: str, corpo: str, *, com_ancora: bool = Tr
             pilha.pop()
         pai = pilha[-1][1]
         num = f"{pai['numero']}.{len(pai['filhos']) + 1}"
-        no = {"numero": num, "titulo": texto, "anchor": ancora(num), "filhos": []}
+        foco = norm_titulo(texto) in marcados
+        no = {"numero": num, "titulo": texto, "anchor": ancora(num), "foco": foco, "filhos": []}
         pai["filhos"].append(no)
         pilha.append((nivel, no))
-        sufixo = f" {{#{ancora(num)}}}" if com_ancora else ""
+        if com_ancora:
+            sufixo = f" {{#{ancora(num)}{' .foco' if foco else ''}}}"
+        else:
+            sufixo = " ★" if foco else ""
         linhas.append(f"{m.group(1)} {num} {texto}{sufixo}")
-    return SecaoNumerada(numero, titulo, "\n".join(linhas), raiz["filhos"])
+    return SecaoNumerada(numero, titulo, "\n".join(linhas), raiz["filhos"], norm_titulo(titulo) in marcados)
 
 
-def numerar_consolidado(secoes: list[tuple[str, str]], *, com_ancora: bool = True) -> list[SecaoNumerada]:
+def numerar_consolidado(
+    secoes: list[tuple[str, str]], *, com_ancora: bool = True, marcados: frozenset[str] = frozenset()
+) -> list[SecaoNumerada]:
     """`secoes` = [(titulo, corpo)] na ordem do guia; devolve cada uma
     numerada a partir de 1."""
     return [
-        numerar_secao(i, titulo, corpo, com_ancora=com_ancora)
+        numerar_secao(i, titulo, corpo, com_ancora=com_ancora, marcados=marcados)
         for i, (titulo, corpo) in enumerate(secoes, start=1)
     ]
+
+
+def titulos_marcados(numeradas: list[SecaoNumerada]) -> list[str]:
+    """Os títulos de foco na ordem do guia, com número ("3 Direito grego",
+    "4.2 Fase clássica") -- relatório da ingestão."""
+
+    def _desce(nos: list[dict]) -> list[str]:
+        out = []
+        for no in nos:
+            if no["foco"]:
+                out.append(f"{no['numero']} {no['titulo']}")
+            out.extend(_desce(no["filhos"]))
+        return out
+
+    out = []
+    for s in numeradas:
+        if s.foco:
+            out.append(f"{s.numero} {s.titulo}")
+        out.extend(_desce(s.indice))
+    return out
 
 
 def indice_markdown(numeradas: list[SecaoNumerada]) -> str:
@@ -83,12 +153,12 @@ def indice_markdown(numeradas: list[SecaoNumerada]) -> str:
     def _linhas(nos: list[dict], nivel: int) -> list[str]:
         out = []
         for no in nos:
-            out.append("    " * nivel + f"- {no['numero']} {no['titulo']}")
+            out.append("    " * nivel + f"- {no['numero']} {no['titulo']}" + (" ★" if no["foco"] else ""))
             out.extend(_linhas(no["filhos"], nivel + 1))
         return out
 
     linhas = []
     for s in numeradas:
-        linhas.append(f"- {s.numero} {s.titulo}")
+        linhas.append(f"- {s.numero} {s.titulo}" + (" ★" if s.foco else ""))
         linhas.extend(_linhas(s.indice, 1))
     return "\n".join(linhas)

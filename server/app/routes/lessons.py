@@ -113,11 +113,12 @@ def lesson_detail(request: Request, lesson_id: int, session: Session = Depends(g
 def _contexto_consolidacao(session: Session, lesson: Lesson) -> dict:
     if lesson.tipo != "consolidacao":
         return {}
-    from ..ai.consolidacao import aulas_consolidaveis, fontes_de
+    from ..ai.consolidacao import aulas_consolidaveis, fontes_de, provas_da_materia
 
     return {
         "consolidacao_fontes": fontes_de(session, lesson),
         "consolidaveis": aulas_consolidaveis(session, lesson.subject_id),
+        "provas": provas_da_materia(session, lesson.subject_id) if lesson.focado else [],
     }
 
 
@@ -559,15 +560,24 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
         from ..ai.consolidacao import fontes_de
         from ..ai.guia_numeracao import numerar_consolidado
 
-        numeradas = numerar_consolidado([(s.titulo, s.corpo) for s in secoes])
+        marcados = frozenset(json.loads(lesson.foco_marcas_json or "[]"))
+        numeradas = numerar_consolidado([(s.titulo, s.corpo) for s in secoes], marcados=marcados)
         corpos = [n.corpo for n in numeradas]
+        focos = [n.foco for n in numeradas]
         indice = [
-            {"numero": str(n.numero), "titulo": n.titulo, "anchor": f"secao-{n.numero}", "filhos": n.indice}
+            {
+                "numero": str(n.numero),
+                "titulo": n.titulo,
+                "anchor": f"secao-{n.numero}",
+                "foco": n.foco,
+                "filhos": n.indice,
+            }
             for n in numeradas
         ]
         fontes = fontes_de(session, lesson)
     else:
         corpos = [s.corpo for s in secoes]
+        focos = [False] * len(secoes)
         indice = None
         fontes = []
 
@@ -578,10 +588,11 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "titulo": s.titulo,
             "corpo": s.corpo,
             "html": render_markdown(corpo),
+            "foco": foco,
             "audio_start_s": s.audio_start_s,
             "audio_end_s": s.audio_end_s,
         }
-        for i, (s, corpo) in enumerate(zip(secoes, corpos), start=1)
+        for i, (s, corpo, foco) in enumerate(zip(secoes, corpos, focos), start=1)
     ]
 
     accepted_slugs = set(
@@ -637,6 +648,7 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
             "topicos_perdidos": topicos_perdidos,
             "indice": indice,
             "consolidacao_fontes": fontes,
+            "foco_html": render_markdown(lesson.foco_md) if lesson.focado and lesson.foco_md else None,
             "secoes": secoes_view,
             "trechos_incompletos": trechos_incompletos,
             "audio_pronto": audio_pronto,
@@ -731,6 +743,8 @@ def _rebuild_guia_md(session: Session, lesson: Lesson) -> None:
         secoes=[GuiaSecaoOut(titulo=s.titulo, corpo=s.corpo) for s in secoes],
         trechos_incompletos=json.loads(lesson.guia_trechos_incompletos_json or "[]"),
         hierarquico=lesson.tipo == "consolidacao",
+        foco_md=lesson.foco_md,
+        marcados=frozenset(json.loads(lesson.foco_marcas_json or "[]")),
     )
 
 
@@ -783,7 +797,8 @@ def edit_guia_secao(
                 GuiaSecao.lesson_id == lesson_id, GuiaSecao.ordem < secao.ordem
             )
         ) + 1
-        corpo_render = numerar_secao(numero, secao.titulo, secao.corpo).corpo
+        marcados = frozenset(json.loads(lesson.foco_marcas_json or "[]"))
+        corpo_render = numerar_secao(numero, secao.titulo, secao.corpo, marcados=marcados).corpo
     return {"ok": True, "html": render_markdown(corpo_render)}
 
 
