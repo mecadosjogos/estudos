@@ -492,6 +492,16 @@ input[type="text"], input[type="date"], input[type="search"], input[type="passwo
 	z-index: 10;
 }
 
+/* Transcrição: o player fica preso no rodapé da tela (vem depois do texto
+ * no HTML, então sticky-bottom o mantém visível enquanto se lê). */
+.player-card-bottom {
+	top: auto;
+	bottom: 0;
+	margin-bottom: 0;
+	padding: var(--space-2) var(--space-3);
+	box-shadow: 0 -4px 12px rgb(0 0 0 / 0.15);
+}
+
 .player-controls {
 	display: flex;
 	align-items: center;

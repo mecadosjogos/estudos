@@ -27,34 +27,6 @@
 	{% endif %}
 </div>
 
-{% if has_audio_file %}
-<div class="card player-card" id="player-card">
-	<audio id="player-audio" src="/lessons/{{ lesson.id }}/audio" preload="metadata"></audio>
-	<div class="player-controls">
-		<button type="button" id="player-back15">−15s</button>
-		<button type="button" id="player-playpause">▸ Tocar</button>
-		<button type="button" id="player-fwd15">+15s</button>
-		<button type="button" id="player-speed-down" title="Diminuir velocidade">−</button>
-		<select id="player-speed">
-			<option value="0.75">0.75×</option>
-			<option value="1" selected>1×</option>
-			<option value="1.25">1.25×</option>
-			<option value="1.5">1.5×</option>
-			<option value="2">2×</option>
-			<option value="2.5">2.5×</option>
-			<option value="3">3×</option>
-		</select>
-		<button type="button" id="player-speed-up" title="Aumentar velocidade">+</button>
-		<label><input type="checkbox" id="player-autoscroll" checked> Auto rolar</label>
-		<span id="player-time" class="muted">00:00 / 00:00</span>
-	</div>
-</div>
-{% else %}
-<div class="card">
-	<p class="muted">O áudio comprimido ainda não está disponível pra tocar (só a transcrição).</p>
-</div>
-{% endif %}
-
 <div class="card" id="transcript-body">
 	{% for segment in transcript.segments %}
 	<div class="segment{% if segment.id in low_confidence_ids %} segment-low-confidence{% endif %}"
@@ -68,6 +40,37 @@
 	</div>
 	{% endfor %}
 </div>
+
+{% if has_audio_file %}
+<div class="card player-card player-card-bottom" id="player-card">
+	<audio id="player-audio" src="/lessons/{{ lesson.id }}/audio" preload="metadata"></audio>
+	<div class="player-controls">
+		<button type="button" id="player-back15">−15s</button>
+		<button type="button" id="player-playpause">▸ Tocar</button>
+		<button type="button" id="player-fwd15">+15s</button>
+		<button type="button" id="player-speed-down" title="Diminuir velocidade">−</button>
+		<select id="player-speed">
+			<option value="0.75">0.75×</option>
+			<option value="1" selected>1×</option>
+			<option value="1.25">1.25×</option>
+			<option value="1.5">1.5×</option>
+			<option value="1.75">1.75×</option>
+			<option value="2">2×</option>
+			<option value="2.25">2.25×</option>
+			<option value="2.5">2.5×</option>
+			<option value="2.75">2.75×</option>
+			<option value="3">3×</option>
+		</select>
+		<button type="button" id="player-speed-up" title="Aumentar velocidade">+</button>
+		<label><input type="checkbox" id="player-autoscroll" checked> Auto rolar</label>
+		<span id="player-time" class="muted">00:00 / 00:00</span>
+	</div>
+</div>
+{% else %}
+<div class="card">
+	<p class="muted">O áudio comprimido ainda não está disponível pra tocar (só a transcrição).</p>
+</div>
+{% endif %}
 
 <script src="/static/reading.js"></script>
 <script>
