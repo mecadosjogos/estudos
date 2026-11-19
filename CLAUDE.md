@@ -46,6 +46,8 @@ docker compose exec server python -m alembic upgrade head   # migração não ro
 
 **Guia Focado** (feature à parte da consolidação): dos guias de várias aulas sai um guia **só com o conteúdo do foco**, uma prova ou um tema. Abre com o bloco "Foco deste guia". Cria-se em "Criar guia focado" na tela da matéria, e o guia é escrito pela skill `/guia-focado <id>`. **Mudanças no guia focado não podem alterar a consolidação**: toda regra de foco fica atrás de `lesson.focado`, e `/consolidar-guia` não sabe de foco. Ver RUNBOOK.md, "Guia Focado".
 
+**Rótulos do guia** (passo final de `/consolidar-guia` e de cada aula em `/processar-aula`, ou sozinho com `/rotular-guia <id>`): acrescenta `Definição:` / `Exemplo:` / `Atenção:` no guia já gravado, **sem mudar nenhuma palavra** — o servidor confere seção por seção e recusa o resto. Roda sozinho, aplica só o que é claro e deixa o duvidoso de fora. Grava por seção (não reprocessa, mantém exercícios). Guia focado fica de fora. Vem antes de `/dominar-guia`. Ver RUNBOOK.md, "Rótulos do guia".
+
 ## Antes de mexer em qualquer coisa
 
 1. **Leia "Decisões fechadas — não reabrir"** no PLANO.md. Cada linha traz o motivo de uma alternativa já descartada — evita repropor o que foi discutido e rejeitado.

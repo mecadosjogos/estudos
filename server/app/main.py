@@ -25,6 +25,7 @@ from .routes import (
     materials,
     pages,
     review,
+    rotulos,
     search,
     subjects,
     uploads,
@@ -91,6 +92,7 @@ app.include_router(feynman.router)
 app.include_router(dissertativas.router)
 app.include_router(guia_exercicios.router)
 app.include_router(consolidacao.router)
+app.include_router(rotulos.router)
 app.include_router(exams.router)
 app.include_router(export.router)
 app.include_router(destaques.router)

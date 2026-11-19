@@ -227,6 +227,11 @@ Reprocessar a mesma aula depois é seguro — o `reconcile()` por `deriv_key`
 preserva o que você já editou/aceitou e só atualiza o que mudou
 (`server/app/ai/reconcile.py`).
 
+**6. Passo final — rótulos do guia.** Ainda na mesma aula, antes da
+próxima: a passada de rótulos (seção "Rótulos do guia", abaixo) no guia
+que acabou de ser gravado. Reprocessar a aula regrava o guia e apaga os
+rótulos da passada; rode-a de novo depois.
+
 ### Fase 7 — Revisão espaçada
 
 Não usa IA (SM-2 é determinístico, sem chamada nenhuma). Nada a fazer aqui.
@@ -893,6 +898,67 @@ ou marca de foco também.
 confere cada aspa em `/lessons/{n}/transcricao.txt`. A transcrição é a
 fonte, e a orientação pode ter sido reunida por outro chat. Aspa que não
 bate vira observação e é avisada no fim.
+
+### Rótulos do guia (passo final do guia, fora da numeração de fases)
+
+**Acrescenta os rótulos `Definição:`, `Exemplo:` e `Atenção:` no guia já
+gravado, sem mudar nenhuma palavra.** O renderizador
+(`markdown_render.py`, `_ROTULO_RE`) só monta o bloco com selo quando o
+parágrafo começa com o rótulo, e o guia sai com menos rótulos do que
+devia: definição e regra taxativa sem selo, regra ditada dentro de
+citação (`>`), onde o selo não funciona, e o rótulo grudado no título do
+caso (`**Exemplo: o caso X.** …`). Uma leitura à parte, só para isso,
+pega mais do que somar regras ao prompt da fase 6 (o commit `e7c9a0e`
+desfez um inchaço desse prompt que piorou o guia). Os exercícios do
+"Dominar o guia" usam `Definição:` e `Exemplo:`, então a passada vem
+antes de `/dominar-guia`.
+
+**Roda sozinha, sem lista para aprovar (decisão do usuário):** aplica o
+que é claro e deixa de fora o que é duvidoso, como na primeira rodada,
+aprovada na consolidação 66. As regras, os casos duvidosos e o formato
+moram em `INSTRUCTIONS` (`ai/rotulos.py`), que é a fonte única. A skill
+só orquestra.
+
+**Onde roda:**
+- passo final de `/consolidar-guia` (depois do relatório resolvido) e de
+  cada aula em `/processar-aula` (depois do `colar-resposta`);
+- sozinha, `/rotular-guia <id>` (Opus), em qualquer guia estruturado,
+  inclusive os antigos. Rodar de novo é seguro.
+
+**Fica de fora:** guia focado (o rótulo "Atenção da professora" é dele, e
+mexer no focado não pode mudar a consolidação) e guia antigo sem seções
+(`GuiaSecao`). As duas rotas devolvem 400.
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/rotulos/pacote.md" -o pacote.md
+# separar as seções em arquivos -> rotular com Edit (nunca redigitar) -> montar resposta.md
+WINPATH=$(cygpath -w resposta.md)
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/guia/rotulos/colar-resposta"   --data-urlencode "resposta@${WINPATH}"
+```
+
+A resposta traz só as seções que mudaram, cada uma aberta por
+`<<<SECAO id | título>>>` com o corpo inteiro, ou `NENHUMA`.
+
+**O servidor confere cada seção** (`ai/rotulos.py::validar`) e recusa a
+que mudou qualquer outra coisa. Só passam:
+- rótulo novo (Definição, Exemplo ou Atenção) no começo de parágrafo;
+- quebra de parágrafo;
+- `>` tirado de citação (menos `> **Material da aula:**`);
+- asteriscos;
+- sinal logo depois de `Atenção`/`Exemplo` trocado por dois-pontos.
+
+Lista, título e tabela têm que ficar idênticos, e "Pergunta de aluno" nova
+não passa. Uma seção recusada não segura as outras.
+
+**Resposta do POST (JSON):** `alteradas` (ganho de rótulos por seção),
+`rejeitadas` (com `motivo`), `sem_mudanca`, `rotulos_antes` e
+`rotulos_depois`, que é a contagem de blocos por tipo no guia todo. O POST
+exige admin.
+
+**Grava por seção**, como a correção manual (`edit_guia_secao`): não
+reprocessa nada, mantém o id das seções (e os exercícios do guia),
+remonta o cache `guia_md` e não refaz a narração. Não grava `AiCall`,
+porque é formatação, não conteúdo.
 
 ## Custo
 

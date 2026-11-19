@@ -83,6 +83,10 @@ Rodar de novo numa consolidação que já tem guia reescreve o guia inteiro.
    Reenviar é seguro: cada envio substitui o guia inteiro.
 7. **Confira o encoding** no banco (`repr()` de um trecho acentuado de
    `lesson.guia_md`, mesmo procedimento do RUNBOOK para `/processar-aula`).
+8. **Passo final — rótulos.** Só depois que o relatório está resolvido e
+   o guia não vai mais ser reenviado (reenviar o guia apaga os rótulos):
+   faça a passada de rótulos seguindo os passos 1–5 de
+   [rotular-guia](../rotular-guia/SKILL.md), com o mesmo id.
 
 ## Regras não-negociáveis
 
@@ -100,6 +104,7 @@ Devolva ao usuário:
 - uma linha de status:
   ```
   consolidação 40 "Consolidação aulas 01/07 até 28/09" — ok — 9 temas, 31 subtítulos, 74 conceitos — relatório: 0 perdidos, 0 externos
+  rótulos — +32 Definição, +9 Exemplo, +64 Atenção em 41 seções — 0 recusadas
   → leia em /lessons/40/guia
   ```
 - **o inventário final, compacto**: para cada aula-fonte, a lista dos

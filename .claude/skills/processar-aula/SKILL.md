@@ -91,6 +91,18 @@ no resumo final em vez de processar mesmo assim).
    `/aprovacao`. Sua tarefa termina quando a proposta está gravada e
    pendente de revisão.
 
+## Passo final de cada aula — rótulos
+
+Depois do `colar-resposta` de uma aula dar certo (e do encoding
+conferido), ainda dentro dela e antes de passar para a próxima, faça a
+passada de rótulos no guia que acabou de ser gravado: siga os passos 1–5
+de [rotular-guia](../rotular-guia/SKILL.md), com o id dessa aula. É uma
+passada à parte e roda sozinha, sem lista para aprovar. Se ela falhar, a
+aula continua processada: registre o erro na linha da aula e siga.
+
+Se a aula for reprocessada depois, o guia é regravado e os rótulos da
+passada se perdem — rode a passada de novo no fim.
+
 ## Ao terminar
 
 Devolva um resumo compacto, uma linha por aula tocada — nunca a
@@ -98,8 +110,8 @@ transcrição, o prompt ou o JSON completo:
 
 ```
 [etapa 0] aula 15 "Aula 3" — transcrita, aguardando sua revisão/aprovação
-[etapa 1] aula 12 "Posse e propriedade" — ok — 6 blocos, 4 cards, 1 data, guia gerado, encoding ok
-[etapa 1] aula 13 "Usucapião" — ok — 3 blocos, 2 cards, 0 datas, guia gerado, encoding ok
+[etapa 1] aula 12 "Posse e propriedade" — ok — 6 blocos, 4 cards, 1 data, guia gerado, encoding ok — rótulos +5 Def, +3 Ex, +8 Aten
+[etapa 1] aula 13 "Usucapião" — ok — 3 blocos, 2 cards, 0 datas, guia gerado, encoding ok — rótulos +2 Def, +1 Ex, +4 Aten (1 seção recusada)
 [etapa 1] aula 14 "Direitos reais" — ERRO — resposta não bateu com o schema (ver detalhe)
 ```
 
