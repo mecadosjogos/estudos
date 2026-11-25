@@ -491,6 +491,10 @@ def download_transcript_txt(lesson_id: int, session: Session = Depends(get_sessi
     )
 
 
+def _tem_sem_assunto(nos: list[dict]) -> bool:
+    return any(no.get("sem_assunto") or _tem_sem_assunto(no.get("filhos") or []) for no in nos)
+
+
 @router.get("/{lesson_id}/guia")
 def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_session)):
 
@@ -553,17 +557,15 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
         .order_by(GuiaTopico.ordem)
     ).all()
 
-    # Consolidação: subtítulos numerados (8.1, 8.1.1) e índice aninhado no
-    # lugar do sumário plano -- gerados aqui a cada request, pela posição
-    # (ai/guia_numeracao.py). Aula normal segue com o corpo cru.
+    # Consolidação: índice aninhado (8 / 8.1 / 8.1.1) no lugar do sumário
+    # plano. A numeração dos tópicos na tela (toda aula) é da página, em
+    # study/guia_pagina.py -- pela posição, a cada request.
+    marcados = frozenset(json.loads(lesson.foco_marcas_json or "[]"))
     if lesson.tipo == "consolidacao":
         from ..ai.consolidacao import fontes_de
         from ..ai.guia_numeracao import numerar_consolidado
 
-        marcados = frozenset(json.loads(lesson.foco_marcas_json or "[]"))
         numeradas = numerar_consolidado([(s.titulo, s.corpo) for s in secoes], marcados=marcados)
-        corpos = [n.corpo for n in numeradas]
-        focos = [n.foco for n in numeradas]
         indice = [
             {
                 "numero": str(n.numero),
@@ -576,24 +578,8 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
         ]
         fontes = fontes_de(session, lesson)
     else:
-        corpos = [s.corpo for s in secoes]
-        focos = [False] * len(secoes)
         indice = None
         fontes = []
-
-    secoes_view = [
-        {
-            "id": s.id,
-            "numero": i,
-            "titulo": s.titulo,
-            "corpo": s.corpo,
-            "html": render_markdown(corpo),
-            "foco": foco,
-            "audio_start_s": s.audio_start_s,
-            "audio_end_s": s.audio_end_s,
-        }
-        for i, (s, corpo, foco) in enumerate(zip(secoes, corpos, focos), start=1)
-    ]
 
     accepted_slugs = set(
         session.scalars(
@@ -638,19 +624,26 @@ def view_guia(request: Request, lesson_id: int, session: Session = Depends(get_s
         and (lesson.guia_audio_gerado_em is None or ultimo_job_audio.criado_em > lesson.guia_audio_gerado_em)
     )
 
+    from ..study.guia_pagina import montar as montar_pagina
+
+    eh_admin = bool(request.state.user and request.state.user.papel == "admin")
+    pagina = montar_pagina(secoes, arvore, marcados=marcados, audio_ok=audio_pronto, eh_admin=eh_admin)
+
     return templates.TemplateResponse(
         request,
         "guia.html",
         {
             "lesson": lesson,
-            "arvore": arvore,
+            **pagina,
+            "eh_admin": eh_admin,
+            "tem_sem_assunto": _tem_sem_assunto(arvore),
             "topicos": topicos,
             "topicos_perdidos": topicos_perdidos,
             "indice": indice,
             "consolidacao_fontes": fontes,
             "foco_html": render_markdown(lesson.foco_md) if lesson.focado and lesson.foco_md else None,
-            "foco_tem_marcas": bool(json.loads(lesson.foco_marcas_json or "[]")),
-            "secoes": secoes_view,
+            "foco_tem_marcas": bool(marcados),
+            "n_secoes": len(secoes),
             "trechos_incompletos": trechos_incompletos,
             "audio_pronto": audio_pronto,
             "audio_gerando": audio_gerando,

@@ -153,6 +153,7 @@ onScroll();
 
 /* ---------- search ---------- */
 var sp=$('#search'),qi=$('#q'),res=$('#sres'),info=$('#sinfo'),index=null;
+var HINT=info.textContent; /* a página do guia (guia.html) não tem "ver mais" */
 function normCh(c){
  var n=c.normalize?c.normalize('NFD').replace(/[̀-ͯ]/g,''):c;
  n=n.toLowerCase();
@@ -174,7 +175,7 @@ function build(){
   if(el.parentElement&&el.parentElement.closest('.sb')&&!el.classList.contains('tt'))return; // nested: outer already indexed
   var txt=el.textContent.replace(/\s+/g,' ').trim();if(!txt)return;
   var topic=el.closest('.topic');var id=topic?topic.getAttribute('data-id'):'';
-  var where=el.closest('details.full')?'texto completo':el.closest('details.qs')?'perguntas de aluno':el.closest('.exs')?'exemplo':el.closest('.vis')?'visual':el.classList.contains('tt')?'título':'resumo';
+  var where=el.closest('.gp-md')?'texto':el.closest('details.full')?'texto completo':el.closest('details.qs')?'perguntas de aluno':el.closest('.exs')?'exemplo':el.closest('.vis')?'visual':el.classList.contains('tt')?'título':'resumo';
   var nn=normalize(txt);
   index.push({el:el,id:id,txt:txt,n:nn.t,m:nn.m,w:where});
  });
@@ -183,7 +184,7 @@ function esc(s){return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&
 function run(){
  var q=qi.value;var nq=normalize(q).t.trim();
  res.innerHTML='';
- if(nq.length<2){info.textContent='Digite pelo menos 2 letras. A busca inclui o texto escondido nos “ver mais”.';return}
+ if(nq.length<2){info.textContent=HINT;return}
  if(!index)build();
  var out=[],count=0;
  for(var i=0;i<index.length;i++){

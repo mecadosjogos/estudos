@@ -1,0 +1,81 @@
+/* Página do guia (templates/guia.html) -- por cima de guia_interativo.css:
+   o texto renderizado do guia (markdown_render.py: .gp-md, blocos
+   .guia-bloco--*, selo .guia-rotulo) e o que a página tem além do layout
+   do guia interativo (narração, botões, sumário com correção, edição). */
+
+/* ---------- texto do guia ---------- */
+.gp-md{margin-top:8px}
+.gp-md>:first-child{margin-top:0}
+.gp-md>:last-child{margin-bottom:0}
+.gp-md p{margin:10px 0}
+.gp-md ul,.gp-md ol{margin:8px 0;padding-left:24px}
+.gp-md li{margin:4px 0}
+.gp-md li>ul,.gp-md li>ol{margin:4px 0}
+.gp-md h1,.gp-md h2,.gp-md h3,.gp-md h4,.gp-md h5,.gp-md h6{font-size:17px;margin:14px 0 6px;line-height:1.3}
+.gp-md blockquote{margin:10px 0;padding:8px 12px;border-left:4px solid var(--artl);background:var(--artb);border-radius:8px}
+.gp-md blockquote>:first-child{margin-top:0}.gp-md blockquote>:last-child{margin-bottom:0}
+.gp-md code{font-size:.9em;background:var(--soft);border-radius:4px;padding:0 4px}
+.gp-md pre{background:var(--soft);border-radius:8px;padding:10px;overflow-x:auto;white-space:pre-wrap}
+.gp-md pre code{background:none;padding:0}
+.gp-md hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+.gp-md table{border-collapse:collapse;width:100%;font-size:15px;margin:10px 0;display:block;overflow-x:auto}
+.gp-md th,.gp-md td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+.gp-md th{background:var(--soft);font-size:13.5px}
+
+/* blocos rotulados (Lei, Definição, Exemplo, Atenção, Pergunta de aluno,
+   Material da aula, Atenção da professora) -- mesmas cores do interativo */
+.guia-bloco{border-radius:10px;padding:10px 12px;border-left:5px solid var(--line);margin:10px 0;background:var(--soft)}
+.guia-bloco>:first-child{margin-top:0}.guia-bloco>:last-child{margin-bottom:0}
+.guia-rotulo{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:1px 7px;margin-right:4px;vertical-align:1px;white-space:nowrap;background:var(--mut);color:var(--card);font-style:normal}
+.guia-bloco--lei{background:var(--artb);border-color:var(--artl)}.guia-bloco--lei .guia-rotulo{background:var(--art)}
+.guia-bloco--definicao{background:var(--defb);border-color:var(--def)}.guia-bloco--definicao .guia-rotulo{background:var(--def)}
+.guia-bloco--exemplo{background:var(--exb);border-color:var(--ex)}.guia-bloco--exemplo .guia-rotulo{background:var(--ex)}
+.guia-bloco--atencao{background:var(--atenb);border-color:var(--atenl)}.guia-bloco--atencao .guia-rotulo{background:var(--aten)}
+.guia-bloco--foco{background:var(--atenb);border-color:var(--aten);border-left-width:7px}.guia-bloco--foco .guia-rotulo{background:var(--aten)}
+.guia-bloco--aluno{background:var(--soft);border-color:var(--line);font-size:.95em}.guia-bloco--aluno .guia-rotulo{background:var(--line);color:var(--fg)}
+.guia-bloco--material{background:var(--matb);border-color:var(--mat);font-size:.95em}.guia-bloco--material .guia-rotulo{background:var(--mat)}
+.gp-lg{display:inline-flex;background:none!important}
+.gp-lg .guia-rotulo{margin:0}
+
+.selo-foco{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.03em;border-radius:6px;padding:1px 7px;margin-left:8px;vertical-align:2px;background:var(--atenb);color:var(--aten);border:1px solid var(--atenl);white-space:nowrap}
+.gp-sem,.sem-assunto>.mrw .mlab,.mtile.sem-assunto .tt{text-decoration:underline dotted;text-decoration-color:var(--no);text-underline-offset:.2em}
+
+/* ---------- âncoras antigas (#secao-8-1) ---------- */
+.gp-anc{display:block;height:0}
+
+/* ---------- botões, narração, formulários ---------- */
+.gp-mut{color:var(--mut);font-size:14px}
+.gp-botoes{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.gp-botoes a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:20px;background:var(--card);text-decoration:none;font-size:14px;font-weight:600;color:var(--fg)}
+.gp-botoes a:hover{border-color:var(--acc)}
+.gp-btn{min-height:38px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:14px;font-weight:600;color:var(--fg)}
+.gp-btn:hover{border-color:var(--acc)}
+.gp-btn:disabled{opacity:.6;cursor:default}
+.gp-btn-pri{background:var(--acc);border-color:var(--acc);color:var(--card)}
+.gp-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 0}
+.gp-form{margin:6px 0 12px}
+.gp-player{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;box-shadow:var(--shadow)}
+.gp-player-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.guia-secao-atual{box-shadow:0 0 0 2px var(--acc),var(--shadow)}
+.gp-editor{display:block;width:100%;margin:10px 0 0;padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg)}
+.stale.gp-inline{display:inline-block;padding:2px 8px;font-size:13px}
+
+/* ---------- índice (consolidação) e sumário (aula) ---------- */
+.gp-indice,.gp-indice ul{list-style:none;margin:0;padding:0}
+.gp-indice ul{padding-left:16px;border-left:1.5px solid var(--line);margin-left:6px}
+.gp-indice li{margin:2px 0}
+.gp-indice a{display:inline-block;padding:4px 0;text-decoration:none;color:var(--fg);font-size:15px}
+.gp-indice>li>a{font-weight:700}
+.gp-indice a:hover{color:var(--acc)}
+.gp-sumario{margin:0;padding-left:26px}
+.gp-sumario li{margin:6px 0}
+.gp-sumario-item{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.gp-sumario-item>a{flex:1 1 220px;min-width:0;text-decoration:none;color:var(--fg)}
+.gp-sumario-item>a:hover{color:var(--acc)}
+.gp-sumario-alvo{display:inline-flex;align-items:center;gap:6px}
+.gp-sumario-input{width:4.2em;height:36px;padding:0 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit;font-size:14px}
+.gp-perdidos,.gp-incompletos{margin-top:20px}
+.gp-incompletos ul{margin:0;padding-left:22px}
+.mtx .mmd,.mhx .mmd{display:block}
+.tocc:has(ul:empty)>summary::after{content:none}
+@media print{.gp-botoes,.gp-player,.gp-acoes,.gp-form,.gp-sumario-alvo{display:none!important}}

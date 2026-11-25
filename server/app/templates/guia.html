@@ -1,315 +1,154 @@
-{% macro render_arvore_no(no) %}
-<li class="{{ 'guia-no-sem-assunto' if no.sem_assunto else '' }}">
-	{% set nome, _, complemento = no.rotulo.partition(' — ') %}
-	<strong>{{ nome }}</strong>{% if complemento %} <span class="guia-arvore-complemento">— {{ complemento }}</span>{% endif %}
-	{% if no.filhos %}<ul>{% for filho in no.filhos %}{{ render_arvore_no(filho) }}{% endfor %}</ul>{% endif %}
-</li>
-{% endmacro %}
+{#- Página do guia, no layout do guia interativo (study/guia_pagina.py).
+    Página independente: não estende base.html nem carrega style.css (os
+    nomes de classe dos dois colidem). Tudo o que a página tinha continua:
+    botões de baixar/praticar, narração com "ouvir esta seção", editar
+    seção (admin), foco, árvore (agora como mapa mental), índice ou
+    sumário com correção, correções perdidas e trechos incompletos. -#}
 {% macro render_indice_no(no) %}
-<li><a href="#{{ no.anchor }}"><span class="guia-indice-numero">{{ no.numero }}</span> {{ no.titulo }}</a>{% if no.foco %}<span class="selo-foco">★ foco</span>{% endif %}
+<li><a href="#t-{{ no.numero | replace('.', '-') }}" data-go="{{ no.numero }}"><span class="num">{{ no.numero }}</span> {{ no.titulo }}</a>{% if no.foco %}<span class="selo-foco">★ foco</span>{% endif %}
 	{% if no.filhos %}<ul>{% for filho in no.filhos %}{{ render_indice_no(filho) }}{% endfor %}</ul>{% endif %}
 </li>
 {% endmacro %}
-{% extends "base.html" %}
-{% block title %}Guia de aula — {{ lesson.titulo }}{% endblock %}
-{% block content %}
-<p><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
-<h1>{{ lesson.guia_titulo }}</h1>
-{% if indice is not none %}
-<p class="muted">
-	Guia {{ "focado" if lesson.focado else "consolidado" }} a partir dos guias das aulas{% if consolidacao_fontes %} de
-	{{ consolidacao_fontes[0].data.strftime("%d/%m") }} a {{ consolidacao_fontes[-1].data.strftime("%d/%m") }}{% endif %}.
-	Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}.
-</p>
-{% else %}
-<p class="muted">
-	Material de leitura organizado a partir da transcrição — não é fonte, a
-	transcrição bruta é. Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}.
-</p>
-{% endif %}
+<!DOCTYPE html>
+<html lang="pt-BR" data-gi-key="guia-{{ lesson.id }}-progresso">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guia de aula — {{ lesson.titulo }}</title>
+<meta name="color-scheme" content="light dark">
+<script>(function(){try{var t=localStorage.getItem('guia-interativo-tema');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<link rel="stylesheet" href="/static/guia_interativo.css">
+<link rel="stylesheet" href="/static/guia_pagina.css">
+</head>
+<body data-lesson-id="{{ lesson.id }}" data-guia-titulo="{{ lesson.guia_titulo }}">
+<a class="skip" href="#conteudo">Pular para o conteúdo</a>
+<header class="top" id="topbar">
+ <button class="ib" id="bMenu" aria-label="Abrir índice" aria-controls="side" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+ <div class="where" id="where"><span class="wch" id="wch">{{ lesson.subject.nome }}</span><span class="wtp" id="wtp">{{ lesson.guia_titulo }}</span></div>
+ <button class="ib" id="bSearch" aria-label="Buscar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
+ <button class="pill" id="bProg" aria-label="Progresso geral"><span id="pct">0%</span></button>
+ <button class="ib" id="bTheme" aria-label="Alternar modo claro/escuro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg></button>
+ <div class="pbar" aria-hidden="true"><i id="pbarI"></i></div>
+</header>
+<nav class="trail" id="trail" aria-label="Onde você está"></nav>
+<aside class="side" id="side" aria-label="Índice">
+ <div class="sidehead"><b>Índice</b><button class="ib" id="bClose" aria-label="Fechar índice"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="sideprog"><div>Progresso geral: <b id="sideN">0</b> de {{ total }} tópicos</div><div class="cpb big"><i id="sideBar" style="width:0%"></i></div></div>
+ <div class="sidelinks"><a href="/lessons/{{ lesson.id }}">← Voltar à aula</a>{% if mapa_html %}<a href="#mapa" data-go="mapa">Árvore de conhecimento</a>{% endif %}<a href="#sumario" data-go="sumario">{{ "Índice" if indice is not none else "Sumário" }}</a><a href="#legenda" data-go="legenda">Legenda</a></div>
+ {{ nav_html | safe }}
+ <div class="sidefoot"><button class="btn danger" id="bReset">Zerar progresso</button></div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+<main id="conteudo">
+ <div class="wrap">
+ <section class="intro" id="topo">
+  <p class="back"><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
+  <h1>{{ lesson.guia_titulo }}</h1>
+  {% if indice is not none %}
+  <p class="sub">Guia {{ "focado" if lesson.focado else "consolidado" }} a partir dos guias das aulas{% if consolidacao_fontes %} de {{ consolidacao_fontes[0].data.strftime("%d/%m") }} a {{ consolidacao_fontes[-1].data.strftime("%d/%m") }}{% endif %}. Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }} · {{ total }} tópicos.</p>
+  {% else %}
+  <p class="sub">Material de leitura organizado a partir da transcrição — não é fonte, a transcrição bruta é. Gerado em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }} · {{ total }} tópicos.</p>
+  {% endif %}
 
-<div class="button-row" style="margin-bottom: var(--space-4)">
-	<a class="button" href="/lessons/{{ lesson.id }}/guia.md">Baixar guia (.md)</a>
-	<a class="button" href="/lessons/{{ lesson.id }}/guia.pdf">Baixar guia (PDF)</a>
-	{% if tem_exercicios_de_guia %}<a class="button" href="/lessons/{{ lesson.id }}/guia/praticar">Praticar guia (memorização)</a>{% endif %}
-	<a class="button button-ghost" href="/lessons/{{ lesson.id }}">Ver a aula →</a>
+  <div class="gp-botoes">
+   <a href="/lessons/{{ lesson.id }}/guia.md">Baixar guia (.md)</a>
+   <a href="/lessons/{{ lesson.id }}/guia.pdf">Baixar guia (PDF)</a>
+   {% if tem_exercicios_de_guia %}<a href="/lessons/{{ lesson.id }}/guia/praticar">Praticar guia (memorização)</a>{% endif %}
+   <a href="/lessons/{{ lesson.id }}">Ver a aula →</a>
+  </div>
+
+  {% if audio_pronto %}
+  <div class="gp-player">
+   <audio id="guia-player" src="/lessons/{{ lesson.id }}/guia/audio.mp3" preload="metadata"></audio>
+   <div class="gp-player-controls">
+    <button type="button" class="gp-btn" id="guia-player-play">▸ tocar</button>
+    <button type="button" class="gp-btn" id="guia-player-back15">−15s</button>
+    <button type="button" class="gp-btn" id="guia-player-fwd15">+15s</button>
+    <span id="guia-player-status" class="gp-mut"></span>
+   </div>
+  </div>
+  {% if audio_atualizando %}
+  <p class="gp-mut">🔊 gerando narração atualizada...</p>
+  {% elif eh_admin %}
+  <form method="post" action="/lessons/{{ lesson.id }}/guia/renarrar" class="gp-form"><button type="submit" class="gp-btn">🔄 gerar narração de novo</button></form>
+  {% endif %}
+  {% elif audio_gerando %}
+  <p class="gp-mut">🔊 narração sendo gerada...</p>
+  {% elif audio_falhou %}
+  <p class="stale">⚠&#xFE0E; a narração deste guia falhou ao gerar{{ " (" + audio_erro + ")" if audio_erro }}.</p>
+  {% if eh_admin %}
+  <form method="post" action="/lessons/{{ lesson.id }}/guia/renarrar" class="gp-form"><button type="submit" class="gp-btn">🔊 tentar narrar de novo</button></form>
+  {% endif %}
+  {% endif %}
+
+  {% if foco_html %}
+  <div class="foco-guia" id="foco"><h2 class="h2s">Foco deste guia</h2><div class="gp-md sb">{{ foco_html | safe }}</div>
+   {% if foco_tem_marcas %}<p class="gp-mut"><span class="selo-foco">★ foco</span> marca no índice e no texto os temas do foco.</p>{% endif %}
+  </div>
+  {% endif %}
+
+  <div id="legenda"><h2 class="h2s">Legenda</h2>
+   <div class="legend" aria-label="Legenda">
+    <span class="gp-lg guia-bloco--lei"><span class="guia-rotulo">Lei</span></span>
+    <span class="gp-lg guia-bloco--definicao"><span class="guia-rotulo">Definição</span></span>
+    <span class="gp-lg guia-bloco--exemplo"><span class="guia-rotulo">Exemplo</span></span>
+    <span class="gp-lg guia-bloco--atencao"><span class="guia-rotulo">Atenção</span></span>
+    <span class="gp-lg guia-bloco--aluno"><span class="guia-rotulo">Pergunta de aluno</span></span>
+    <span class="gp-lg guia-bloco--material"><span class="guia-rotulo">Material da aula</span></span>
+    {% if foco_html %}<span class="gp-lg guia-bloco--foco"><span class="guia-rotulo">Atenção da professora</span></span><span class="lg"><span class="selo-foco">★ foco</span> tema do foco</span>{% endif %}
+    {% if tem_sem_assunto %}<span class="lg"><span class="gp-sem">assim</span> = item da árvore sem assunto aceito</span>{% endif %}
+   </div>
+  </div>
+
+  {% if mapa_html %}<div id="mapa" class="mapa"><h2 class="h2s">Árvore de conhecimento</h2><p class="mhint">Toque num cartão para abrir o ramo dele. Toque num item para abrir os sub-ramos e ver o botão “ir até o conteúdo →”. <span class="mdot ok"></span> = estudado</p>{{ mapa_html | safe }}</div>{% endif %}
+
+  <div id="sumario">
+  {% if indice is not none %}
+   <h2 class="h2s">Índice</h2>
+   <ul class="gp-indice">{% for no in indice %}{{ render_indice_no(no) }}{% endfor %}</ul>
+  {% else %}
+   <h2 class="h2s">Sumário</h2>
+   <ol class="gp-sumario">
+    {% for topico in topicos %}
+    <li id="topico-{{ topico.id }}">
+     <form method="post" action="/lessons/{{ lesson.id }}/guia/topicos/{{ topico.id }}/secao-alvo" class="gp-sumario-item">
+      <a href="#t-{{ topico.secao_numero }}" data-go="{{ topico.secao_numero }}">{{ topico.titulo }}</a>
+      <span class="gp-sumario-alvo"><span class="gp-mut">seção</span>
+       <input class="gp-sumario-input" type="number" name="secao_ordem" value="{{ topico.secao_numero }}" min="1" max="{{ n_secoes }}" aria-label="Seção de destino">
+       <button type="submit" class="gp-btn">Definir</button></span>
+      {% if topico.desatualizado %}<span class="stale gp-inline">seção-alvo desatualizada, confira</span>{% endif %}
+     </form>
+    </li>
+    {% endfor %}
+   </ol>
+  {% endif %}
+  </div>
+
+  {% if topicos_perdidos and indice is none %}
+  <div class="gp-perdidos"><h2 class="h2s">Correções não encontradas mais</h2>
+   <p class="gp-mut">Uma correção de sumário anterior não achou mais o tópico correspondente nesta aula (a IA reformulou o texto num reprocessamento) — confira se ainda faz sentido e refaça a correção se precisar.</p>
+   <ul>{% for t in topicos_perdidos %}<li>{{ t.titulo }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+ </section>
+
+ {{ secoes_html | safe }}
+
+ {% if trechos_incompletos %}
+ <section class="gp-incompletos" id="trechos-incompletos"><h2 class="h2s">Trechos incompletos/inaudíveis</h2>
+  <ul class="sb">{% for trecho in trechos_incompletos %}<li>{{ trecho }}</li>{% endfor %}</ul>
+ </section>
+ {% endif %}
+ <footer class="foot"><p>{{ lesson.guia_titulo }}</p></footer>
+ </div>
+</main>
+<div class="search" id="search" role="dialog" aria-modal="true" aria-label="Busca" hidden>
+ <div class="sbar"><input id="q" type="search" placeholder="Buscar em todo o guia" autocomplete="off" enterkeyhint="search"><button class="ib" id="bSClose" aria-label="Fechar busca"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="sinfo" id="sinfo">Digite pelo menos 2 letras.</div>
+ <ol class="sres" id="sres"></ol>
 </div>
-
-{% set eh_admin = request.state.user and request.state.user.papel == "admin" %}
-{% if audio_pronto %}
-<div class="card player-card">
-	<audio id="guia-player" src="/lessons/{{ lesson.id }}/guia/audio.mp3" preload="metadata"></audio>
-	<div class="player-controls">
-		<button type="button" id="guia-player-play">▸ tocar</button>
-		<button type="button" id="guia-player-back15">−15s</button>
-		<button type="button" id="guia-player-fwd15">+15s</button>
-		<span id="guia-player-status" class="muted"></span>
-	</div>
-</div>
-{% if audio_atualizando %}
-<p class="muted">🔊 gerando narração atualizada...</p>
-{% elif eh_admin %}
-<form method="post" action="/lessons/{{ lesson.id }}/guia/renarrar" class="button-row" style="margin-top: var(--space-2)">
-	<button type="submit" class="button-ghost">🔄 gerar narração de novo</button>
-</form>
-{% endif %}
-{% elif audio_gerando %}
-<p class="muted">🔊 narração sendo gerada...</p>
-{% elif audio_falhou %}
-<p class="guia-aviso-desatualizado">⚠️ a narração deste guia falhou ao gerar{{ " (" + audio_erro + ")" if audio_erro }}.</p>
-{% if eh_admin %}
-<form method="post" action="/lessons/{{ lesson.id }}/guia/renarrar" class="button-row">
-	<button type="submit" class="button-ghost">🔊 tentar narrar de novo</button>
-</form>
-{% endif %}
-{% endif %}
-
-{% if foco_html %}
-<div class="card guia-foco markdown-body" id="foco">
-	<h2>Foco deste guia</h2>
-	{{ foco_html | safe }}
-	{% if foco_tem_marcas %}<p class="muted"><span class="selo-foco">★ foco</span> marca no índice e no texto os temas do foco.</p>{% endif %}
-</div>
-{% endif %}
-
-{% if arvore %}
-<h2>Árvore de conhecimento</h2>
-<ul class="guia-arvore">
-	{% for no in arvore %}{{ render_arvore_no(no) }}{% endfor %}
-</ul>
-{% endif %}
-
-{% if indice is not none %}
-<h2 id="indice" class="guia-secao-titulo">Índice</h2>
-<ul class="guia-indice">
-	{% for no in indice %}{{ render_indice_no(no) }}{% endfor %}
-</ul>
-{% else %}
-<h2>Sumário</h2>
-<ol class="guia-sumario">
-	{% for topico in topicos %}
-	<li id="topico-{{ topico.id }}">
-		<form method="post" action="/lessons/{{ lesson.id }}/guia/topicos/{{ topico.id }}/secao-alvo" class="guia-sumario-item">
-			<input class="guia-sumario-input" type="number" name="secao_ordem" value="{{ topico.secao_numero }}" min="1" max="{{ secoes|length }}">
-			<button type="submit" class="button-ghost">Definir</button>
-			<a href="#secao-{{ topico.secao_numero }}">{{ topico.titulo }}</a>
-			{% if topico.desatualizado %}<span class="guia-aviso-desatualizado">seção-alvo desatualizada, confira</span>{% endif %}
-		</form>
-	</li>
-	{% endfor %}
-</ol>
-{% endif %}
-
-{% if topicos_perdidos and indice is none %}
-<h2>Correções não encontradas mais</h2>
-<p class="muted">
-	Uma correção de sumário anterior não achou mais o tópico correspondente
-	nesta aula (a IA reformulou o texto num reprocessamento) — confira se
-	ainda faz sentido e refaça a correção se precisar.
-</p>
-<ul>
-	{% for t in topicos_perdidos %}<li>{{ t.titulo }}</li>{% endfor %}
-</ul>
-{% endif %}
-
-{% for secao in secoes %}
-<h2 id="secao-{{ secao.numero }}" class="guia-secao-titulo"
-	{% if secao.audio_start_s is not none %}data-audio-start="{{ secao.audio_start_s }}" data-audio-end="{{ secao.audio_end_s }}" data-audio-titulo="{{ secao.titulo }}"{% endif %}>
-	{{ secao.numero }}. {{ secao.titulo }}{% if secao.foco %}<span class="selo-foco">★ foco</span>{% endif %}
-	{% if secao.audio_start_s is not none %}<button type="button" class="button-ghost guia-ouvir-secao">▸ ouvir esta seção</button>{% endif %}
-	{% if eh_admin %}<button type="button" class="button-ghost guia-editar-secao" data-secao-id="{{ secao.id }}">editar</button>{% endif %}
-</h2>
-<div class="card markdown-body guia-secao" id="guia-secao-{{ secao.id }}">
-	{{ secao.html | safe }}
-</div>
-{% if eh_admin %}<textarea class="guia-secao-fonte" data-secao-id="{{ secao.id }}" hidden>{{ secao.corpo }}</textarea>{% endif %}
-{% endfor %}
-
-{% if trechos_incompletos %}
-<h2>Trechos incompletos/inaudíveis</h2>
-<ul>
-	{% for trecho in trechos_incompletos %}<li>{{ trecho }}</li>{% endfor %}
-</ul>
-{% endif %}
-
-{% if eh_admin %}
-<script>
-	(function () {
-		// Edita o markdown cru da seção, não o HTML renderizado -- é o
-		// markdown que volta pro banco e remonta o guia_md.
-		const lessonId = {{ lesson.id }};
-		document.querySelectorAll(".guia-editar-secao").forEach((btn) => {
-			const secaoId = btn.dataset.secaoId;
-			const card = document.getElementById("guia-secao-" + secaoId);
-			const fonte = document.querySelector('.guia-secao-fonte[data-secao-id="' + secaoId + '"]');
-
-			btn.addEventListener("click", () => {
-				if (card.hidden) return; // já em edição
-
-				const textarea = document.createElement("textarea");
-				textarea.className = "guia-secao-editor";
-				textarea.value = fonte.value;
-				textarea.rows = Math.min(40, Math.max(8, fonte.value.split("\n").length + 2));
-
-				const salvar = document.createElement("button");
-				salvar.type = "button";
-				salvar.textContent = "Salvar";
-				const cancelar = document.createElement("button");
-				cancelar.type = "button";
-				cancelar.className = "button-ghost";
-				cancelar.textContent = "Cancelar";
-				const aviso = document.createElement("span");
-				aviso.className = "muted";
-
-				const actions = document.createElement("div");
-				actions.className = "button-row";
-				actions.append(salvar, cancelar, aviso);
-
-				card.hidden = true;
-				btn.hidden = true;
-				card.after(textarea, actions);
-				textarea.focus();
-
-				function fechar() {
-					textarea.remove();
-					actions.remove();
-					card.hidden = false;
-					btn.hidden = false;
-				}
-
-				cancelar.addEventListener("click", fechar);
-
-				salvar.addEventListener("click", async () => {
-					salvar.disabled = true;
-					aviso.textContent = "salvando...";
-					try {
-						const body = new FormData();
-						body.append("corpo", textarea.value);
-						const resp = await fetch("/lessons/" + lessonId + "/guia/secoes/" + secaoId, {
-							method: "POST",
-							body: body,
-						});
-						if (!resp.ok) throw new Error("HTTP " + resp.status);
-						const data = await resp.json();
-						card.innerHTML = data.html;
-						fonte.value = textarea.value.trim();
-						fechar();
-					} catch (e) {
-						// Sem fechar: fechar aqui perderia o texto digitado.
-						aviso.textContent = "não salvou (" + e.message + ") — o texto continua aí";
-						salvar.disabled = false;
-					}
-				});
-			});
-		});
-	})();
-</script>
-{% endif %}
-
-{% if audio_pronto %}
-<script>
-	(function () {
-		// Áudio único pra aula inteira (mesmo padrão de reading.js pro áudio
-		// real da aula: buscar por tempo, destacar por timeupdate) -- não é
-		// uma fila de faixas separadas, é um mp3 só com as seções em
-		// sequência.
-		const player = document.getElementById("guia-player");
-		const playBtn = document.getElementById("guia-player-play");
-		const back15Btn = document.getElementById("guia-player-back15");
-		const fwd15Btn = document.getElementById("guia-player-fwd15");
-		const statusEl = document.getElementById("guia-player-status");
-		const secoes = Array.from(document.querySelectorAll("h2[data-audio-start]")).map((el) => ({
-			el,
-			start: parseFloat(el.dataset.audioStart),
-			end: parseFloat(el.dataset.audioEnd),
-			titulo: el.dataset.audioTitulo,
-		}));
-
-		function seekTo(seconds) {
-			player.currentTime = seconds;
-			player.play();
-		}
-
-		playBtn.addEventListener("click", () => {
-			if (player.paused) player.play();
-			else player.pause();
-		});
-		back15Btn.addEventListener("click", () => {
-			player.currentTime = Math.max(0, player.currentTime - 15);
-		});
-		fwd15Btn.addEventListener("click", () => {
-			player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 15);
-		});
-
-		secoes.forEach((s) => {
-			const btn = s.el.querySelector(".guia-ouvir-secao");
-			if (btn) {
-				btn.addEventListener("click", (e) => {
-					e.stopPropagation();
-					seekTo(s.start);
-				});
-			}
-		});
-
-		player.addEventListener("play", () => { playBtn.textContent = "⏸ pausar"; });
-		player.addEventListener("pause", () => { playBtn.textContent = "▸ tocar"; });
-
-		let lastHighlighted = null;
-		function highlightCurrentSecao() {
-			const t = player.currentTime;
-			const current = secoes.find((s) => t >= s.start && t < s.end);
-			if (current === lastHighlighted) return;
-			if (lastHighlighted) lastHighlighted.el.classList.remove("guia-secao-atual");
-			if (current) {
-				current.el.classList.add("guia-secao-atual");
-				current.el.scrollIntoView({ behavior: "smooth", block: "center" });
-				statusEl.textContent = current.titulo;
-				if ("mediaSession" in navigator) {
-					navigator.mediaSession.metadata = new MediaMetadata({
-						title: current.titulo,
-						artist: {{ lesson.guia_titulo | tojson }},
-						album: "Guia narrado — Estudos",
-					});
-				}
-			}
-			lastHighlighted = current || null;
-		}
-		player.addEventListener("timeupdate", highlightCurrentSecao);
-
-		if ("mediaSession" in navigator) {
-			navigator.mediaSession.setActionHandler("play", () => player.play());
-			navigator.mediaSession.setActionHandler("pause", () => player.pause());
-			navigator.mediaSession.setActionHandler("seekbackward", () => {
-				player.currentTime = Math.max(0, player.currentTime - 15);
-			});
-			navigator.mediaSession.setActionHandler("seekforward", () => {
-				player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 15);
-			});
-			navigator.mediaSession.setActionHandler("previoustrack", () => {
-				const i = secoes.indexOf(lastHighlighted);
-				if (i > 0) seekTo(secoes[i - 1].start);
-			});
-			navigator.mediaSession.setActionHandler("nexttrack", () => {
-				const i = secoes.indexOf(lastHighlighted);
-				if (i !== -1 && i < secoes.length - 1) seekTo(secoes[i + 1].start);
-			});
-		}
-	})();
-</script>
-{% endif %}
-{% if indice is not none %}
-<a href="#indice" class="guia-voltar-indice" id="guia-voltar-indice" hidden aria-label="Voltar ao índice">↑ Índice</a>
-<script>
-	// Botão flutuante de volta ao índice (guia consolidado): só aparece
-	// depois que o índice sai da tela.
-	(function () {
-		const indice = document.getElementById("indice");
-		const botao = document.getElementById("guia-voltar-indice");
-		if (!indice || !botao || !("IntersectionObserver" in window)) { if (botao) botao.hidden = false; return; }
-		new IntersectionObserver(([e]) => {
-			botao.hidden = e.isIntersecting || e.boundingClientRect.top > 0;
-		}).observe(indice);
-	})();
-</script>
-{% endif %}
-{% endblock %}
+<button class="totop" id="totop" aria-label="Voltar ao topo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6"/></svg></button>
+<script src="/static/guia_interativo.js"></script>
+<script src="/static/guia_pagina.js"></script>
+</body>
+</html>
