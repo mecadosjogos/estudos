@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-gi-key="guia-interativo-{{ lesson.id }}-progresso">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ titulo }} — guia interativo</title>
+<meta name="color-scheme" content="light dark">
+<script>(function(){try{var t=localStorage.getItem('guia-interativo-tema');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<link rel="stylesheet" href="/static/guia_interativo.css">
+</head>
+<body>
+<a class="skip" href="#conteudo">Pular para o conteúdo</a>
+<header class="top" id="topbar">
+ <button class="ib" id="bMenu" aria-label="Abrir índice de capítulos" aria-controls="side" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+ <div class="where" id="where"><span class="wch" id="wch">{{ lesson.subject.nome }}</span><span class="wtp" id="wtp">{{ titulo }}</span></div>
+ <button class="ib" id="bSearch" aria-label="Buscar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
+ <button class="pill" id="bProg" aria-label="Progresso geral"><span id="pct">0%</span></button>
+ <button class="ib" id="bTheme" aria-label="Alternar modo claro/escuro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg></button>
+ <div class="pbar" aria-hidden="true"><i id="pbarI"></i></div>
+</header>
+<nav class="trail" id="trail" aria-label="Onde você está"></nav>
+<aside class="side" id="side" aria-label="Índice">
+ <div class="sidehead"><b>Índice</b><button class="ib" id="bClose" aria-label="Fechar índice"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="sideprog"><div>Progresso geral: <b id="sideN">0</b> de {{ total }} tópicos</div><div class="cpb big"><i id="sideBar" style="width:0%"></i></div></div>
+ <div class="sidelinks"><a href="/lessons/{{ lesson.id }}">← Voltar à aula</a>{% if mapa_html %}<a href="#mapa" data-go="mapa">Mapa mental</a>{% endif %}{% if tem_indice_artigos %}<a href="#indice-artigos" data-go="indice-artigos">Índice de artigos</a>{% endif %}<a href="#legenda" data-go="legenda">Legenda</a></div>
+ {{ nav_html | safe }}
+ <div class="sidefoot"><button class="btn danger" id="bReset">Zerar progresso</button></div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+<main id="conteudo">
+ <div class="wrap">
+ <section class="intro" id="topo">
+  <p class="back"><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
+  <h1>{{ titulo }}</h1>
+  <p class="sub">{% if periodo %}Aulas de {{ periodo[0].strftime("%d/%m") }} a {{ periodo[1].strftime("%d/%m") }} · {% endif %}capítulos {{ capitulos_faixa }} · {{ total }} tópicos. Na frente: título, visual, definições e atenções. Exemplos aparecem resumidos; o caso completo, as perguntas de aluno e o texto integral ficam nos “ver mais”.</p>
+  {% if ignorados %}<p class="stale" role="status">⚠&#xFE0E; {{ ignorados | length }} item{{ "s" if ignorados | length != 1 }} do guia interativo não bate{{ "m" if ignorados | length != 1 }} mais com o guia e ficou de fora (o texto literal continua aqui). Rode <code>/guia-interativo {{ lesson.id }}</code> de novo.</p>{% endif %}
+  {% if foco_html %}<div class="foco-guia" id="foco"><h2 class="h2s">Foco deste guia</h2>{{ foco_html | safe }}</div>{% endif %}
+  <div id="legenda"><h2 class="h2s">Legenda</h2>
+   <div class="legend" aria-label="Legenda de cores">
+    <span class="lg def"><span class="badge">ⓘ DEFINIÇÃO</span></span>
+    <span class="lg aten"><span class="badge">⚠&#xFE0E; ATENÇÃO / PEGADINHA</span></span>
+    <span class="lg ex"><span class="badge">▶&#xFE0E; EXEMPLO</span></span>
+    <span class="lg mat"><span class="badge">❝ MATERIAL DA AULA</span></span>
+    <span class="lg"><span class="art">art. 1º, CP</span> artigo de lei</span>
+    <span class="lg"><span class="seal ok">✔ PODE / ADOTADA</span></span>
+    <span class="lg"><span class="seal no">✘ NÃO PODE / NÃO ADOTADA</span></span>
+    <span class="lg"><span class="rz">resumo</span> texto condensado; o literal fica no “ver mais”</span>
+    <span class="lg"><span class="inaud demo" tabindex="0" data-t="[exemplo: trecho incompleto/inaudível na transcrição]"></span> trecho inaudível (toque para ver)</span>
+   </div>
+  </div>
+  {% if mapa_html %}<div id="mapa" class="mapa"><h2 class="h2s">Mapa mental da matéria</h2><p class="mhint">Toque num capítulo para abrir o mapa dele. Toque num item para abrir os ramos e ver o botão “ir até o conteúdo →”. <span class="mdot ok"></span> = estudado</p>{{ mapa_html | safe }}</div>{% endif %}
+ </section>
+ {{ secoes_html | safe }}
+ <footer class="foot"><p>Fonte: {{ titulo }}. O texto do guia entra literal; o que tem o selo “resumo” é condensado, e o texto literal fica nos “ver mais”.</p></footer>
+ </div>
+</main>
+<div class="search" id="search" role="dialog" aria-modal="true" aria-label="Busca" hidden>
+ <div class="sbar"><input id="q" type="search" placeholder="Buscar em todo o conteúdo, inclusive nos “ver mais”" autocomplete="off" enterkeyhint="search"><button class="ib" id="bSClose" aria-label="Fechar busca"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="sinfo" id="sinfo">Digite pelo menos 2 letras. A busca inclui o texto escondido nos “ver mais”.</div>
+ <ol class="sres" id="sres"></ol>
+</div>
+<button class="totop" id="totop" aria-label="Voltar ao topo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6"/></svg></button>
+<script src="/static/guia_interativo.js"></script>
+</body>
+</html>

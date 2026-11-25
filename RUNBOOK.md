@@ -960,6 +960,83 @@ reprocessa nada, mantém o id das seções (e os exercícios do guia),
 remonta o cache `guia_md` e não refaz a narração. Não grava `AiCall`,
 porque é formatação, não conteúdo.
 
+### Guia interativo (página de estudo da consolidação, fora da numeração de fases)
+
+**Uma página de estudo feita do guia de uma consolidação ou guia focado**
+(decisão do usuário: aula normal fica de fora). Botão "Guia interativo"
+na página da aula → `GET /lessons/{id}/guia/interativo`, logado. Traz:
+- resumo na frente (título, visual, definições, atenções, citações,
+  tabelas) e o texto completo de cada tópico em "ver mais";
+- mapa mental da árvore de conhecimento (tocar num item não navega);
+- trilha "onde estou" fixa;
+- progresso por tópico salvo no aparelho;
+- busca, inclusive nos "ver mais";
+- índice de artigos a partir da seção "Dispositivos legais".
+
+Veio de uma página feita à parte para a consolidação de Penal. As regras
+de comportamento e os erros já resolvidos estão nos comentários de
+`study/guia_interativo.py` e `static/guia_interativo.js`.
+
+**Duas camadas:**
+- **Código, sempre** (`study/guia_interativo.py`): a página é montada
+  do guia gravado (`GuiaSecao` + `guia_arvore_json`) a cada request, com
+  a mesma numeração da tela do guia. Nunca fica desatualizada. O texto
+  do guia entra literal; só o rótulo do começo do parágrafo vira selo.
+  Funciona sem a skill.
+- **Skill, opcional** (`/guia-interativo <id>`, Opus): o que o código não
+  tira sozinho, gravado em `GuiaInterativo` (uma linha por aula):
+  - resumos de 1–2 linhas dos exemplos;
+  - visuais em HTML/CSS;
+  - seções que ficam de fora (orientação de estudo, aviso de prova);
+  - correções do mapa (nó → tópico) e do regex do índice de artigos;
+  - tópicos sem nada escondido e tabelas substituídas por visual.
+
+  Resumos e visuais levam o selo "resumo" na página. O texto literal
+  continua a um toque.
+
+As regras e o formato da resposta moram em `INSTRUCTIONS`
+(`ai/guia_interativo.py`), que é a fonte única. A skill só orquestra.
+
+**Integridade:** cada item da skill é preso ao tópico (número + título
+normalizado) e ao hash do texto do bloco (`bloco_hash`: sem rótulo, sem
+asterisco, sem espaço extra — a passada de rótulos não o invalida), nunca
+à posição. Se o guia mudar e o trecho não existir mais, o item não entra.
+O texto literal continua lá, e a página avisa quantos itens ficaram de
+fora: rode a skill de novo. Cada envio substitui o anterior por inteiro.
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/interativo/pacote.md" -o pacote.md
+# seções de fora -> capítulo por capítulo: resumos, visuais -> mapa e artigos -> autoauditoria -> resposta.json
+WINPATH=$(cygpath -w resposta.json)
+curl -s -b "$COOKIEJAR" -X POST "$SERVER_URL/lessons/{id}/guia/interativo/colar-resposta" \
+  --data-urlencode "resposta@${WINPATH}"
+```
+
+**O servidor confere cada item** (`ai/guia_interativo.py::aplicar`) e
+recusa o que não bate:
+- tópico ou seção que não existe;
+- `de`/`ate` fora do tópico ou fora de ordem;
+- resumos sobrepostos;
+- mais de um visual por tópico;
+- tag ou atributo fora da lista no visual (sem script, estilo, link,
+  SVG);
+- entrada de artigo inexistente ou regex inválido.
+
+O item recusado não segura os outros.
+
+**Resposta do POST (JSON):** `aceitos` (por tipo), `rejeitados` (com
+`motivo`), `externos` (termos em negrito de resumo/visual que não estão
+no capítulo — aviso, não bloqueio), `excluidas`, `topicos`, `mapa` (nó →
+tópico final), `sem_topico_no_mapa`, `artigos_links` e `ignorados` (deve
+vir vazio). O POST exige admin. Não grava `AiCall` nem mexe no guia, na
+narração ou nos exercícios.
+
+**Validar:**
+
+```bash
+curl -s -b "$COOKIEJAR" "$SERVER_URL/lessons/{id}/guia/interativo" | grep -c '<article class="topic'
+```
+
 ## Custo
 
 Toda passada manual grava uma linha em `AiCall` com `via="manual"` e

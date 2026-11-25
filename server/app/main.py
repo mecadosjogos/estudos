@@ -17,6 +17,7 @@ from .routes import (
     feynman,
     glossary,
     guia_exercicios,
+    guia_interativo,
     ia_local,
     jobs,
     lessons,
@@ -91,6 +92,7 @@ app.include_router(glossary.router)
 app.include_router(feynman.router)
 app.include_router(dissertativas.router)
 app.include_router(guia_exercicios.router)
+app.include_router(guia_interativo.router)
 app.include_router(consolidacao.router)
 app.include_router(rotulos.router)
 app.include_router(exams.router)

@@ -26,6 +26,7 @@
 	<p><span class="badge">{{ "focado" if lesson.focado else "consolidado" }} ✓</span> <span class="muted">em {{ lesson.guia_gerado_em.strftime("%d/%m/%Y %H:%M") }}</span></p>
 	<div class="button-row">
 		<a class="button" href="/lessons/{{ lesson.id }}/guia">Ver guia {{ "focado" if lesson.focado else "consolidado" }}</a>
+		<a class="button" href="/lessons/{{ lesson.id }}/guia/interativo">Guia interativo</a>
 		{% if tem_exercicios_de_guia %}<a class="button" href="/lessons/{{ lesson.id }}/guia/praticar">Praticar guia (memorização)</a>{% endif %}
 		<a class="button" href="/lessons/{{ lesson.id }}/dissertativas">Treinar dissertativas →</a>
 	</div>

@@ -190,6 +190,9 @@ class Lesson(Base):
     guia_exercicios: Mapped[list["GuiaExercicio"]] = relationship(
         back_populates="lesson", cascade="all, delete-orphan"
     )
+    guia_interativo: Mapped["GuiaInterativo | None"] = relationship(
+        back_populates="lesson", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class AudioSegment(Base):
@@ -516,6 +519,26 @@ class GuiaTopico(Base):
     versao_nova_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class GuiaInterativo(Base):
+    """O que a skill /guia-interativo escreve para a página interativa de
+    uma consolidação ou guia focado (study/guia_interativo.py): resumos dos
+    exemplos, visuais, seções que ficam de fora, correções do mapa e do
+    índice de artigos. A página em si é montada do guia gravado a cada
+    request; isto é só o acréscimo. Uma linha por aula, substituída por
+    inteiro a cada envio (idempotente). Cada item do JSON carrega a
+    própria chave de derivação -- tópico (número + título normalizado) e
+    hash do texto do bloco --, então item cujo trecho mudou no guia deixa
+    de entrar na página em vez de apontar para o lugar errado."""
+
+    __tablename__ = "guia_interativo"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lesson.id"), nullable=False, unique=True)
+    lesson: Mapped["Lesson"] = relationship(back_populates="guia_interativo")
+    conteudo_json: Mapped[str] = mapped_column(Text, nullable=False)
+    gerado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 GUIA_EXERCICIO_TIPOS = (
