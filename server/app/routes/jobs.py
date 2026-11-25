@@ -248,6 +248,23 @@ def heartbeat(job_id: int, body: HeartbeatBody, session: Session = Depends(get_s
     return {"ok": True}
 
 
+def _store_segment_durations(audio_segments, durations: list[float] | None) -> None:
+    ordered = sorted(audio_segments, key=lambda s: s.ordem)
+    if durations is not None and len(durations) == len(ordered):
+        for seg, dur in zip(ordered, durations):
+            seg.duracao_s = float(dur)
+        return
+    from shared.audio import probe_duration_s
+
+    for seg in ordered:
+        original = Path(seg.storage_path)
+        if seg.duracao_s is None and original.exists():
+            try:
+                seg.duracao_s = probe_duration_s(original)
+            except (RuntimeError, OSError, ValueError):
+                pass  # sem duração a exportação estima o corte; não derruba a transcrição
+
+
 def ingest_result(
     session: Session,
     job: TranscriptionJob,
@@ -258,9 +275,15 @@ def ingest_result(
     full_text: str,
     segments: list[dict],
     mp3_bytes_iter,
+    segment_durations_s: list[float] | None = None,
 ) -> None:
     """Grava o resultado de uma transcrição. Chamado tanto pelo endpoint HTTP
-    (worker remoto) quanto pelo caminho de emergência (mesma máquina)."""
+    (worker remoto) quanto pelo caminho de emergência (mesma máquina).
+
+    `segment_durations_s`: duração de cada original, na ordem de
+    `AudioSegment.ordem` -- o worker mede antes de concatenar. Sem ela
+    (worker antigo, caminho de emergência), mede aqui o original que
+    ainda estiver no disco, antes de apagá-lo logo abaixo."""
     config.MEDIA_WEB_DIR.mkdir(parents=True, exist_ok=True)
     mp3_path = config.MEDIA_WEB_DIR / f"lesson-{job.lesson_id}.mp3"
     with mp3_path.open("wb") as out:
@@ -301,6 +324,8 @@ def ingest_result(
             ],
         )
         session.commit()
+
+    _store_segment_durations(job.lesson.audio_segments, segment_durations_s)
 
     job.status = "done"
     session.commit()
@@ -348,6 +373,7 @@ async def submit_result(
         full_text=data["full_text"],
         segments=data["segments"],
         mp3_bytes_iter=iter(lambda: audio.file.read(1024 * 1024), b""),
+        segment_durations_s=data.get("segment_durations_s"),
     )
     return JSONResponse({"ok": True, "already_received": False})
 

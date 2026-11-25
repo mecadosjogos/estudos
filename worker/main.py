@@ -62,7 +62,7 @@ class HeartbeatThread(threading.Thread):
 
 
 def process_one_job(job: dict) -> None:
-    from shared.audio import compress_to_mp3, concat_audio_files
+    from shared.audio import compress_to_mp3, concat_audio_files, probe_duration_s
     from shared.transcriber import WhisperTranscriber
 
     job_id = job["id"]
@@ -152,6 +152,16 @@ def process_one_job(job: dict) -> None:
         if not mp3_path.exists():
             _log("comprimindo mp3 32kbps...")
             compress_to_mp3(concatenated, mp3_path)
+
+        # Duração de cada original: na VPS só fica o mp3 concatenado, e é
+        # isto que diz onde a parte 1 termina (exportação de áudios do admin).
+        # Medido no envio, não junto do Whisper, pra valer também numa
+        # retomada com transcrição em cache. Falhou: segue sem -- é opcional.
+        if "segment_durations_s" not in payload and all(p.exists() for p in segment_paths):
+            try:
+                payload["segment_durations_s"] = [probe_duration_s(p) for p in segment_paths]
+            except (RuntimeError, OSError, ValueError) as exc:
+                _log(f"não consegui medir a duração dos segmentos ({exc}) — seguindo sem")
 
         _log("enviando resultado...")
         result = _send_result_with_retry(job_id, claim_token, duration_s, mp3_path, payload)

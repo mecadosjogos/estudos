@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Exportar áudios{% endblock %}
+{% block content %}
+<h1>Exportar áudios</h1>
+
+{% if request.query_params.get("erro") %}
+<div class="card error">{{ request.query_params.get("erro") }}</div>
+{% endif %}
+
+<div class="card">
+	<form method="get" action="/admin/exportar-audios" style="display:flex; gap:var(--space-2); align-items:center; flex-wrap:wrap">
+		<label for="materia">Matéria</label>
+		<select id="materia" name="materia" onchange="this.form.submit()">
+			<option value="">— escolha —</option>
+			{% for s in subjects %}
+			<option value="{{ s.id }}" {% if subject and subject.id == s.id %}selected{% endif %}>{{ s.nome }}</option>
+			{% endfor %}
+		</select>
+		<noscript><button type="submit">Ver aulas</button></noscript>
+	</form>
+	<p class="muted">Cada aula sai cortada nas gravações originais, com o mp3 leve da VPS, nomeada <code>{{ subject.nome if subject else "Matéria" }} - AAAA-MM-DD - parte X de Y.mp3</code>.</p>
+</div>
+
+{% if subject %}
+<div class="card">
+	<h2>Aulas com áudio ({{ aulas|length }})</h2>
+	{% if aulas %}
+	<form method="post" action="/admin/exportar-audios">
+		<input type="hidden" name="subject_id" value="{{ subject.id }}">
+		<label><input type="checkbox" checked onchange="document.querySelectorAll('input[name=lesson_ids]').forEach(c => c.checked = this.checked)"> <strong>Todas</strong></label>
+		<ul class="subject-list">
+			{% for a in aulas %}
+			<li>
+				<label style="display:flex; gap:var(--space-2); align-items:center; flex-wrap:wrap">
+					<input type="checkbox" name="lesson_ids" value="{{ a.lesson.id }}" checked>
+					<strong>{{ a.lesson.data.strftime("%d/%m/%Y") }}</strong>
+					<span>{{ a.lesson.titulo }}</span>
+					<span class="badge">{{ a.partes }} parte{{ "s" if a.partes != 1 else "" }}</span>
+					{% if a.corte_estimado %}<span class="badge" title="Aula anterior ao registro da duração de cada gravação: o ponto de corte é calculado pelo tamanho dos originais (erro de 1-2 s).">corte estimado</span>{% endif %}
+				</label>
+			</li>
+			{% endfor %}
+		</ul>
+		<button type="submit">Baixar .zip</button>
+		<p class="muted">Pode levar alguns segundos: o zip é montado na hora.</p>
+	</form>
+	{% else %}
+	<p class="muted">Nenhuma aula desta matéria tem áudio na VPS.</p>
+	{% endif %}
+</div>
+{% endif %}
+{% endblock %}

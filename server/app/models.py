@@ -212,6 +212,10 @@ class AudioSegment(Base):
     storage_path: Mapped[str] = mapped_column(String, nullable=False)  # caminho absoluto
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String, nullable=False, default="uploading")
+    # Duração do original, medida antes de ele ser apagado (worker ou
+    # transcrição na VPS). É o ponto de corte da parte N dentro do mp3
+    # concatenado da aula (export/audio_zip.py). Nula em aula antiga.
+    duracao_s: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

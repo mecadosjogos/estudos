@@ -374,3 +374,68 @@ def revogar_usuario(
     user.decidido_em = datetime.now(timezone.utc)
     session.commit()
     return RedirectResponse(url="/admin/seguranca", status_code=303)
+
+
+# --- Exportar áudios (export/audio_zip.py) ---------------------------------
+
+
+@router.get("/exportar-audios")
+def exportar_audios_page(request: Request, materia: int | None = None, session: Session = Depends(get_session)):
+    subjects = session.scalars(select(Subject).order_by(Subject.id)).all()
+    subject = session.get(Subject, materia) if materia else None
+    aulas = []
+    if subject is not None:
+        from ..export.audio_zip import mp3_da_aula, ordenar
+
+        lessons = session.scalars(select(Lesson).where(Lesson.subject_id == subject.id)).all()
+        for lesson in ordenar(list(lessons)):
+            if not mp3_da_aula(lesson.id).exists():
+                continue
+            segs = lesson.audio_segments
+            aulas.append(
+                {
+                    "lesson": lesson,
+                    "partes": max(len(segs), 1),
+                    "corte_estimado": len(segs) > 1 and not all(s.duracao_s for s in segs),
+                }
+            )
+    return templates.TemplateResponse(
+        request,
+        "admin_exportar_audios.html",
+        {"subjects": subjects, "subject": subject, "aulas": aulas},
+    )
+
+
+@router.post("/exportar-audios")
+def exportar_audios(
+    subject_id: int = Form(...),
+    lesson_ids: list[int] = Form(default=[]),
+    session: Session = Depends(get_session),
+):
+    from starlette.background import BackgroundTask
+
+    from ..export.audio_zip import montar_zip
+
+    subject = session.get(Subject, subject_id)
+    if subject is None:
+        return RedirectResponse(url="/admin/exportar-audios", status_code=303)
+    voltar = f"/admin/exportar-audios?materia={subject.id}"
+    lessons = (
+        session.scalars(
+            select(Lesson).where(Lesson.subject_id == subject.id, Lesson.id.in_(lesson_ids))
+        ).all()
+        if lesson_ids
+        else []
+    )
+    if not lessons:
+        return RedirectResponse(url=f"{voltar}&erro={_url_escape('Escolha ao menos uma aula.')}", status_code=303)
+    try:
+        zip_path, tmp_dir = montar_zip(list(lessons), subject.nome)
+    except ValueError as exc:
+        return RedirectResponse(url=f"{voltar}&erro={_url_escape(str(exc))}", status_code=303)
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=zip_path.name,
+        background=BackgroundTask(shutil.rmtree, tmp_dir, ignore_errors=True),
+    )
