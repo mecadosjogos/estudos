@@ -199,7 +199,8 @@ Estrutura do `guia_md`, nesta ordem:
      divide em explicativa ou permissiva" vira três níveis aninhados; se
      ele não dividiu, não divida).
 3. "## Sumário dos tópicos abordados" — lista dos tópicos.
-4. Corpo organizado por seções ("## <título da seção>").
+4. Corpo organizado por seções ("## <título da seção>") e, dentro delas,
+   sub-títulos de "###" a "######" (ver NÍVEIS DOS TÍTULOS abaixo).
 
    OBJETIVO DO CORPO: quem abre o guia tem que entender a matéria rápido e
    sem esforço, só de bater o olho na forma — o que é tema, o que é
@@ -219,25 +220,36 @@ Estrutura do `guia_md`, nesta ordem:
    o presidente em viagem oficial", "### Alínea b — patrimônio ou fé
    pública"), desde que descreva fielmente o que está embaixo. Ninguém
    deve precisar ler mais de uns poucos parágrafos sem um título indicando
-   onde está. Use o nível que corresponde ao lugar do assunto na
-   hierarquia (espécie dentro do gênero = um nível abaixo), quantos níveis
-   forem necessários. A cautela de "não inventar classificação" vale pra
+   onde está. A cautela de "não inventar classificação" vale pra
    ÁRVORE DE CONHECIMENTO (e pro conteúdo): não apresente como divisão
    feita pelo professor algo que ele não dividiu — mas isso não limita o
    uso de títulos pra organizar a leitura.
-   SUB-TÍTULO OU LISTA ANINHADA? Sub-título é pra subtema com conteúdo
-   próprio de verdade — vários parágrafos, exemplo, pergunta de aluno,
-   tabela. Quando as espécies de uma classificação são curtas (cada uma
-   cabe em uma ou duas frases, tipicamente só "o que ela é"), elas NÃO
-   viram sub-títulos: vão numa lista aninhada dentro do item/parágrafo do
-   gênero, com "**termo** — o que é". Ex. ruim: "### Nacionalidade" e,
-   dentro, "#### Nacionalidade ativa" + bloco Definição de uma frase e
-   "#### Nacionalidade passiva" + bloco Definição de uma frase. Ex. bom:
-   dentro de "### Nacionalidade", o parágrafo "Subdivide-se em dois:"
-   seguido de
-       - **Nacionalidade ativa** — diz respeito ao sujeito ativo, a quem
-         comete o crime.
-       - **Nacionalidade passiva** — diz respeito à vítima.
+
+   NÍVEIS DOS TÍTULOS (os mesmos do guia consolidado):
+       ## <Tema>                    (nível 1)
+       ### <Subtema>                (nível 2)
+       #### <Espécie/conceito>      (nível 3)
+       ##### <Subespécie>           (nível 4)
+       ###### <Detalhe>             (nível 5)
+   Os níveis acima são o LIMITE, não um molde. A profundidade segue a
+   matéria, não o formato:
+   - Os níveis espelham as classificações dadas em aula — gênero ->
+     espécie -> subespécie. Se o professor disse que retroatividade e
+     ultratividade são espécies de extratividade, elas ficam DENTRO de
+     extratividade; se costumes e princípios são fontes formais mediatas,
+     ficam dentro de "fontes formais mediatas", não ao lado de "fontes
+     formais". Não achate uma classificação para caber em menos níveis.
+   - Cada ramo desce só o que precisa. Um tema raso fica com dois
+     níveis; uma classificação com gênero, espécie e subespécie chega a
+     quatro ou cinco. Nada de forçar todos os ramos à mesma profundidade.
+   - Só abra um nível com pelo menos dois filhos. Um filho único vira
+     texto do pai.
+   - Todo assunto que alguém procuraria no sumário ganha título. Exemplo
+     que serve pra localizar ("o caso do feminicídio", "a enchente") pode
+     ser título, pendurado no conceito que ilustra.
+   - Detalhe de apoio fica no texto, não em título. "Como se escreve e
+     como se pronuncia", observação curta, frase solta: dentro do
+     conceito, sem título próprio.
    Título também não repete o que vem logo abaixo: no corpo, o título é o
    NOME do subtema ("### Nacionalidade", "### Alínea a) — vida ou
    liberdade do Presidente da República" quando o complemento é o assunto
@@ -248,7 +260,7 @@ Estrutura do `guia_md`, nesta ordem:
    complemento), na mesma ordem e na mesma hierarquia; o corpo só
    acrescenta títulos que não entram na árvore (exemplos, perguntas de
    aluno, transições, digressões), e a árvore pode ter nós que no corpo
-   são itens de lista aninhada (espécies curtas, como acima).
+   são itens de lista.
    Só o "##" de seção é numerado pelo código — os sub-títulos dentro do
    corpo, em qualquer nível, ficam como você escrever, sem numeração.
 
@@ -256,18 +268,17 @@ Estrutura do `guia_md`, nesta ordem:
    de cada trecho:
    - Parágrafos curtos, um por ideia, seguindo as viradas do raciocínio —
      nunca um bloco denso de texto.
-   - Lista com marcadores pra itens paralelos (princípios, espécies,
-     características, hipóteses).
+   - Lista com marcadores pra itens paralelos dentro de um conceito
+     (características, hipóteses, consequências). A classificação que o
+     professor deu em aula (gênero -> espécie -> subespécie) vai nos
+     níveis dos títulos (ver NÍVEIS DOS TÍTULOS acima), não numa lista.
    - Lista numerada pra sequência, etapas, requisitos/condições
      cumulativos, ou quando o professor contou ("são três...").
-   - Sublista ANINHADA quando um item se subdivide ("subdivide-se em
-     dois", "pode ser X ou Y", espécies de um gênero): os subitens vão
-     recuados dentro daquele item (4 espaços por nível), nunca como itens
-     irmãos no nível da lista de fora — pôr a espécie no mesmo nível do
-     gênero apaga a hierarquia e confunde. Ex.: "Princípio da
-     nacionalidade" com "Nacionalidade ativa"/"Nacionalidade passiva"
-     recuados dentro dele, e "Princípio da competência universal" de volta
-     no nível de fora.
+   - Sublista ANINHADA quando um item de lista se subdivide
+     ("pode ser X ou Y"): os subitens vão recuados dentro daquele item
+     (4 espaços por nível), nunca como itens irmãos no nível da lista de
+     fora — pôr o subitem no mesmo nível do item apaga a hierarquia e
+     confunde.
    - Tabela Markdown só quando ela deixa a comparação mais rápida de
      entender do que uma lista — cada célula com as palavras do professor.
      Os dois formatos que funcionam:
@@ -373,10 +384,11 @@ Estrutura do `guia_md`, nesta ordem:
    repete o material da aula ao lado do que o guia já explica? apague; o
    que o material acrescenta está integrado no lugar certo? (g) a árvore
    de conhecimento tem a mesma organização, ordem e nomes dos títulos de
-   matéria do corpo, com os dispositivos e o assunto de cada um? (h) tem
-   sub-título cujo conteúdo é só uma ou duas frases (espécie curta)?
-   troque por lista aninhada dentro do gênero; tem título repetindo a
-   definição logo abaixo? encurte pro nome.
+   matéria do corpo, com os dispositivos e o assunto de cada um? (h) os
+   níveis dos títulos espelham as classificações da aula (espécie dentro
+   do gênero, subespécie dentro da espécie), sem achatar? tem nível aberto
+   com um filho só? vira texto do pai; tem título repetindo a definição
+   logo abaixo? encurte pro nome.
    Última seção do corpo, sempre que a aula citar algum dispositivo:
    "## Dispositivos legais da aula" — lista de todos eles na forma
    completa, agrupados por artigo (incisos/alíneas/parágrafos aninhados
