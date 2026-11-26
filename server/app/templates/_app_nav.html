@@ -1,0 +1,28 @@
+{#- Links do app, num lugar só: a gaveta lateral do base.html e a das
+    páginas do guia (guia.html, guia_interativo.html) incluem este trecho.
+    O link da página atual sai marcado. -#}
+{% macro app_link(href, rotulo) -%}
+{%- set atual = request.url.path == href or request.url.path.startswith(href ~ "/") -%}
+<a class="app-link{{ ' atual' if atual }}" href="{{ href }}"{{ ' aria-current="page"' | safe if atual }}>{{ rotulo }}</a>
+{%- endmacro %}
+<nav class="app-nav" aria-label="Menu do app">
+	{{ app_link("/estudar", "Estudar") }}
+	{{ app_link("/revisao", "Revisão") }}
+	{{ app_link("/upload", "Subir aula") }}
+	{{ app_link("/assuntos", "Assuntos") }}
+	{{ app_link("/termos", "Termos") }}
+	{{ app_link("/materials", "Materiais") }}
+	{{ app_link("/works", "Biblioteca") }}
+	{{ app_link("/dissertativas", "Dissertativas") }}
+	{{ app_link("/destaques", "Destaques em áudio") }}
+	{{ app_link("/subjects", "Gerenciar matérias") }}
+	{% if request.state.user and request.state.user.papel == "admin" %}
+	<span class="app-nav-sep">Admin</span>
+	{{ app_link("/admin/seguranca", "Segurança") }}
+	{{ app_link("/admin/backups", "Backups") }}
+	{{ app_link("/admin/exportar-audios", "Exportar áudios") }}
+	{% endif %}
+	<span class="app-nav-sep">Conta</span>
+	{{ app_link("/conta/senha", "Trocar senha") }}
+	<form method="post" action="/logout" class="app-sair"><button type="submit" class="app-link">Sair</button></form>
+</nav>

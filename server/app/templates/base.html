@@ -9,28 +9,21 @@
 	<meta name="theme-color" content="#7c3aed">
 </head>
 <body>
+	{#- Menu do app: barra fina no topo com ☰ e o nome da página; os links
+	    ficam numa gaveta lateral (_app_nav.html), escondida no celular e
+	    sempre aberta no computador -- o mesmo desenho das páginas do guia.
+	    Login e cadastro sobrescrevem este bloco (sem menu). -#}
 	{% block nav %}
-	<nav class="global-nav">
-		<div class="global-nav-inner">
-			<a class="button button-ghost" href="/estudar">Estudar</a>
-			<a class="button button-ghost" href="/revisao">Revisão</a>
-			<a class="button button-ghost" href="/upload">Subir aula</a>
-			<a class="button button-ghost" href="/assuntos">Assuntos</a>
-			<a class="button button-ghost" href="/termos">Termos</a>
-			<a class="button button-ghost" href="/materials">Materiais</a>
-			<a class="button button-ghost" href="/works">Biblioteca</a>
-			<a class="button button-ghost" href="/dissertativas">Dissertativas</a>
-			<a class="button button-ghost" href="/destaques">Destaques em áudio</a>
-			<a class="button button-ghost" href="/subjects">Gerenciar matérias</a>
-			{% if request.state.user and request.state.user.papel == "admin" %}
-			<a class="button button-ghost" href="/admin/seguranca">Segurança</a>
-			<a class="button button-ghost" href="/admin/backups">Backups</a>
-			<a class="button button-ghost" href="/admin/exportar-audios">Exportar áudios</a>
-			{% endif %}
-			<a class="button button-ghost" href="/conta/senha">Trocar senha</a>
-			<form method="post" action="/logout" style="display:inline"><button type="submit" class="button-ghost">Sair</button></form>
-		</div>
-	</nav>
+	<header class="app-top">
+		<button type="button" class="app-top-menu" id="appMenu" aria-label="Abrir menu" aria-controls="appSide" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+		<span class="app-top-title">{{ self.title() }}</span>
+	</header>
+	<aside class="app-side" id="appSide" aria-label="Menu">
+		<div class="app-side-head"><a href="/estudar" class="app-side-marca">Estudos</a><button type="button" class="app-top-menu app-side-fechar" id="appClose" aria-label="Fechar menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+		{% include "_app_nav.html" %}
+	</aside>
+	<div class="app-scrim" id="appScrim" hidden></div>
+	<script src="/static/app_menu.js" defer></script>
 	{% endblock %}
 	<div class="layout">
 		{% block content %}{% endblock %}

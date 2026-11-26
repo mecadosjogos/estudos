@@ -24,7 +24,6 @@
 
 	--radius: 0.75rem;
 	--touch-target: 44px;
-	--nav-height: 61px;
 
 	color-scheme: light dark;
 }
@@ -98,26 +97,193 @@ a {
 	padding: var(--space-4);
 }
 
-.global-nav {
+/* Menu do app (base.html + _app_nav.html): barra fina no topo com ☰ e o
+   nome da página; links numa gaveta lateral, escondida no celular e
+   sempre aberta no computador -- mesmo desenho das páginas do guia
+   (guia_interativo.css). `--nav-height` é a altura da barra: o player e o
+   índice do guia ficam presos logo abaixo dela. */
+:root {
+	--nav-height: 56px;
+	--app-side: 280px;
+}
+
+.app-top {
 	position: sticky;
 	top: 0;
 	z-index: 20;
+	height: var(--nav-height);
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+	padding: 0 var(--space-1);
 	background: var(--bg);
 	border-bottom: 1px solid var(--border);
 }
 
-.global-nav-inner {
-	max-width: 60rem;
-	margin: 0 auto;
-	display: flex;
-	gap: var(--space-2);
-	padding: var(--space-2) var(--space-4);
-	overflow-x: auto;
-	-webkit-overflow-scrolling: touch;
+.app-top-menu {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--touch-target);
+	height: var(--touch-target);
+	min-width: 0;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 10px;
+	background: none;
+	color: var(--text);
 }
 
-.global-nav-inner a {
-	flex: 0 0 auto;
+.app-top-menu:hover,
+.app-top-menu:focus-visible {
+	background: var(--bg-elevated);
+}
+
+.app-top-menu svg {
+	width: 22px;
+	height: 22px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.app-top-title {
+	flex: 1;
+	min-width: 0;
+	font-weight: 700;
+	font-size: 0.95rem;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.app-side {
+	position: fixed;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 60;
+	width: min(85vw, var(--app-side));
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	background: var(--bg-elevated);
+	border-right: 1px solid var(--border);
+	transform: translateX(-102%);
+	transition: transform 0.22s ease;
+	padding-bottom: var(--space-4);
+}
+
+.app-side.aberto {
+	transform: none;
+	box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+}
+
+.app-scrim {
+	position: fixed;
+	inset: 0;
+	z-index: 55;
+	background: rgba(0, 0, 0, 0.35);
+}
+
+.app-side-head {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: var(--nav-height);
+	padding: 0 var(--space-1) 0 var(--space-3);
+	background: var(--bg-elevated);
+	border-bottom: 1px solid var(--border);
+}
+
+.app-side-marca {
+	font-weight: 800;
+	font-size: 1.05rem;
+	color: var(--text);
+	text-decoration: none;
+}
+
+/* Lista de links -- vale também dentro da gaveta das páginas do guia,
+   que não carregam este arquivo (lá o estilo está em guia_interativo.css). */
+.app-nav {
+	display: flex;
+	flex-direction: column;
+	padding: var(--space-2);
+}
+
+.app-nav-sep {
+	margin: var(--space-3) var(--space-2) var(--space-1);
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.app-nav .app-link {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: var(--touch-target);
+	min-width: 0;
+	padding: 0 var(--space-3);
+	border: 0;
+	border-radius: 10px;
+	background: none;
+	color: var(--text);
+	font: inherit;
+	font-size: 0.98rem;
+	text-align: left;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.app-nav .app-link:hover,
+.app-nav .app-link:focus-visible {
+	background: var(--bg);
+}
+
+.app-nav .app-link.atual {
+	background: var(--accent);
+	color: var(--accent-text);
+	font-weight: 700;
+}
+
+.app-sair {
+	margin: 0;
+}
+
+@media (min-width: 1100px) {
+	:root {
+		--nav-height: 0px;
+	}
+
+	.app-top,
+	.app-side-fechar,
+	.app-scrim {
+		display: none !important;
+	}
+
+	.app-side {
+		transform: none;
+		box-shadow: none;
+		z-index: 30;
+	}
+
+	body:has(.app-side) {
+		padding-left: var(--app-side);
+	}
+
+	.app-side-head {
+		height: auto;
+		min-height: 56px;
+	}
 }
 
 .card {

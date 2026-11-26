@@ -32,7 +32,9 @@
 </header>
 <nav class="trail" id="trail" aria-label="Onde você está"></nav>
 <aside class="side" id="side" aria-label="Índice">
- <div class="sidehead"><b>Índice</b><button class="ib" id="bClose" aria-label="Fechar índice"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="sidehead"><a class="app-side-marca" href="/estudar">Estudos</a><button class="ib" id="bClose" aria-label="Fechar menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <details class="side-app"><summary>Menu do app</summary>{% include "_app_nav.html" %}</details>
+ <div class="side-sec">Índice do guia</div>
  <div class="sideprog"><div>Progresso geral: <b id="sideN">0</b> de {{ total }} tópicos</div><div class="cpb big"><i id="sideBar" style="width:0%"></i></div></div>
  <div class="sidelinks"><a href="/lessons/{{ lesson.id }}">← Voltar à aula</a>{% if mapa_html %}<a href="#mapa" data-go="mapa">Árvore de conhecimento</a>{% endif %}<a href="#sumario" data-go="sumario">{{ "Índice" if indice is not none else "Sumário" }}</a><a href="#legenda" data-go="legenda">Legenda</a></div>
  {{ nav_html | safe }}

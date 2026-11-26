@@ -385,6 +385,20 @@ mark{background:#ffe27a;color:#1c1d20;border-radius:3px;padding:0 1px}
 .mgo.mgoc{display:inline-flex;margin:0;font-size:12.5px;min-height:34px}
 
 /* ---------- acréscimos do app ---------- */
+/* menu do app na gaveta (_app_nav.html; nas outras páginas, style.css) */
+.app-side-marca{font-weight:800;font-size:17px;color:var(--fg);text-decoration:none}
+.side-app{border-bottom:1px solid var(--line)}
+.side-app>summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:48px;padding:0 16px;cursor:pointer;font-weight:700;font-size:15px}
+.side-app>summary::-webkit-details-marker{display:none}
+.side-app>summary::before{content:"▸";display:inline-block;width:12px;color:var(--mut);transition:transform .15s}
+.side-app[open]>summary::before{transform:rotate(90deg)}
+.app-nav{display:flex;flex-direction:column;padding:0 8px 10px}
+.app-nav-sep{margin:12px 8px 4px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+.app-nav .app-link{display:flex;align-items:center;width:100%;min-height:42px;padding:0 12px;border:0;border-radius:8px;background:none;color:var(--fg);font:inherit;font-size:14.5px;text-align:left;text-decoration:none;cursor:pointer}
+.app-nav .app-link:hover,.app-nav .app-link:focus-visible{background:var(--soft)}
+.app-nav .app-link.atual{background:var(--defb);color:var(--acc);font-weight:700}
+.app-sair{margin:0}
+.side-sec{padding:14px 16px 0;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
 .back{margin:12px 0 0;font-size:14px}
 .back a{text-decoration:none}
 .rz{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);border:1px dashed var(--mut);border-radius:5px;padding:0 5px;vertical-align:1px;white-space:nowrap;font-style:normal}

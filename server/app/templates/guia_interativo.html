@@ -20,7 +20,9 @@
 </header>
 <nav class="trail" id="trail" aria-label="Onde você está"></nav>
 <aside class="side" id="side" aria-label="Índice">
- <div class="sidehead"><b>Índice</b><button class="ib" id="bClose" aria-label="Fechar índice"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <div class="sidehead"><a class="app-side-marca" href="/estudar">Estudos</a><button class="ib" id="bClose" aria-label="Fechar menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+ <details class="side-app"><summary>Menu do app</summary>{% include "_app_nav.html" %}</details>
+ <div class="side-sec">Índice do resumo</div>
  <div class="sideprog"><div>Progresso geral: <b id="sideN">0</b> de {{ total }} tópicos</div><div class="cpb big"><i id="sideBar" style="width:0%"></i></div></div>
  <div class="sidelinks"><a href="/lessons/{{ lesson.id }}">← Voltar à aula</a>{% if mapa_html %}<a href="#mapa" data-go="mapa">Mapa mental</a>{% endif %}{% if tem_indice_artigos %}<a href="#indice-artigos" data-go="indice-artigos">Índice de artigos</a>{% endif %}<a href="#legenda" data-go="legenda">Legenda</a></div>
  {{ nav_html | safe }}
