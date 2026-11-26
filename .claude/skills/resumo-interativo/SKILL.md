@@ -1,6 +1,6 @@
 ---
-name: Guia Interativo
-description: Escreve o acréscimo da página "Guia interativo" de uma consolidação ou guia focado — resumos de 1–2 linhas dos exemplos, visuais em HTML/CSS, seções que ficam de fora, correções do mapa mental e do índice de artigos —, sem tocar no texto do guia nem trazer conteúdo externo, seguindo o RUNBOOK.md do projeto Estudos — só chamada explicitamente pelo usuário via /guia-interativo.
+name: Resumo Interativo
+description: Escreve o acréscimo da página "Resumo interativo" de uma consolidação ou guia focado — resumos de 1–2 linhas dos exemplos, visuais em HTML/CSS, seções que ficam de fora, correções do mapa mental e do índice de artigos —, sem tocar no texto do guia nem trazer conteúdo externo, seguindo o RUNBOOK.md do projeto Estudos — só chamada explicitamente pelo usuário via /resumo-interativo.
 argument-hint: [id-da-consolidacao]
 disable-model-invocation: false
 context: fork
@@ -8,7 +8,7 @@ background: true
 model: opus
 ---
 
-Você está escrevendo o acréscimo do **Guia interativo** de uma
+Você está escrevendo o acréscimo do **Resumo interativo** de uma
 consolidação (ou guia focado) do app "Estudos" (curso de Direito). A
 página interativa já existe e é montada por código, direto do guia
 gravado: o texto do guia entra literal, com definições e atenções na
@@ -19,7 +19,7 @@ de fora e correções do mapa e do índice de artigos.
 
 **Primeiro passo, sempre:** leia [RUNBOOK.md](../../../RUNBOOK.md) na
 raiz do repo, as seções "Ambiente" (pra `$SERVER_URL`/`$COOKIEJAR`) e
-"Guia interativo". As regras e o formato estão no próprio pacote
+"Resumo interativo". As regras e o formato estão no próprio pacote
 (baixado abaixo) — siga o pacote, não duplique aqui.
 
 ## Alvo
@@ -96,7 +96,7 @@ Devolva ao usuário:
 
 - uma linha de status:
   ```
-  guia interativo 66 — ok — 125 resumos, 35 visuais, 19 correções do mapa, 72 artigos — 1 seção de fora — 0 rejeitados
+  resumo interativo 66 — ok — 125 resumos, 35 visuais, 19 correções do mapa, 72 artigos — 1 seção de fora — 0 rejeitados
   → abra em /lessons/66/guia/interativo
   ```
 - as seções que ficaram de fora e por quê;

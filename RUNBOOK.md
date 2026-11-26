@@ -960,10 +960,13 @@ reprocessa nada, mantém o id das seções (e os exercícios do guia),
 remonta o cache `guia_md` e não refaz a narração. Não grava `AiCall`,
 porque é formatação, não conteúdo.
 
-### Guia interativo (página de estudo da consolidação, fora da numeração de fases)
+### Resumo interativo (página de estudo da consolidação, fora da numeração de fases)
 
 **Uma página de estudo feita do guia de uma consolidação ou guia focado**
-(decisão do usuário: aula normal fica de fora). Botão "Guia interativo"
+(decisão do usuário: aula normal fica de fora). Chamava "Guia
+interativo" (comando `/guia-interativo`, hoje `/resumo-interativo`); o
+endereço e os nomes no código continuam com o nome antigo. Botão
+"Resumo interativo"
 na página da aula → `GET /lessons/{id}/guia/interativo`, logado. Traz:
 - resumo na frente (título, visual, definições, atenções, citações,
   tabelas) e o texto completo de cada tópico em "ver mais";
@@ -983,7 +986,7 @@ de comportamento e os erros já resolvidos estão nos comentários de
   a mesma numeração da tela do guia. Nunca fica desatualizada. O texto
   do guia entra literal; só o rótulo do começo do parágrafo vira selo.
   Funciona sem a skill.
-- **Skill, opcional** (`/guia-interativo <id>`, Opus): o que o código não
+- **Skill, opcional** (`/resumo-interativo <id>`, Opus): o que o código não
   tira sozinho, gravado em `GuiaInterativo` (uma linha por aula):
   - resumos de 1–2 linhas dos exemplos;
   - visuais em HTML/CSS;

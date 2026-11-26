@@ -1,6 +1,6 @@
-"""Guia interativo (RUNBOOK.md, "Guia interativo"): a página de estudo de
+"""Resumo interativo (RUNBOOK.md, "Resumo interativo"; antes "Guia interativo"): a página de estudo de
 uma consolidação ou guia focado, montada do guia gravado a cada request
-(study/guia_interativo.py), e o pacote/colar da skill /guia-interativo
+(study/guia_interativo.py), e o pacote/colar da skill /resumo-interativo
 (ai/guia_interativo.py). Só consolidação e guia focado."""
 
 import json
@@ -26,7 +26,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 def _consolidacao(session: Session, lesson_id: int) -> Lesson:
     lesson = session.get(Lesson, lesson_id)
     if lesson is None or lesson.tipo != "consolidacao":
-        raise HTTPException(status_code=404, detail="guia interativo só existe para consolidação e guia focado")
+        raise HTTPException(status_code=404, detail="resumo interativo só existe para consolidação e guia focado")
     return lesson
 
 
@@ -66,7 +66,7 @@ def guia_interativo_pacote(lesson_id: int, session: Session = Depends(get_sessio
     return PlainTextResponse(
         content,
         media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="guia-interativo-{lesson_id}.md"'},
+        headers={"Content-Disposition": f'attachment; filename="resumo-interativo-{lesson_id}.md"'},
     )
 
 

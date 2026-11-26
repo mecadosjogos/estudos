@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{{ titulo }} — guia interativo</title>
+<title>{{ titulo }} — resumo interativo</title>
 <meta name="color-scheme" content="light dark">
 <script>(function(){try{var t=localStorage.getItem('guia-interativo-tema');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <link rel="stylesheet" href="/static/guia_interativo.css">
@@ -33,7 +33,7 @@
   <p class="back"><a href="/lessons/{{ lesson.id }}">← {{ lesson.titulo }}</a></p>
   <h1>{{ titulo }}</h1>
   <p class="sub">{% if periodo %}Aulas de {{ periodo[0].strftime("%d/%m") }} a {{ periodo[1].strftime("%d/%m") }} · {% endif %}capítulos {{ capitulos_faixa }} · {{ total }} tópicos. Na frente: título, visual, definições e atenções. Exemplos aparecem resumidos; o caso completo, as perguntas de aluno e o texto integral ficam nos “ver mais”.</p>
-  {% if ignorados %}<p class="stale" role="status">⚠&#xFE0E; {{ ignorados | length }} item{{ "s" if ignorados | length != 1 }} do guia interativo não bate{{ "m" if ignorados | length != 1 }} mais com o guia e ficou de fora (o texto literal continua aqui). Rode <code>/guia-interativo {{ lesson.id }}</code> de novo.</p>{% endif %}
+  {% if ignorados %}<p class="stale" role="status">⚠&#xFE0E; {{ ignorados | length }} item{{ "s" if ignorados | length != 1 }} do resumo interativo não bate{{ "m" if ignorados | length != 1 }} mais com o guia e ficou de fora (o texto literal continua aqui). Rode <code>/resumo-interativo {{ lesson.id }}</code> de novo.</p>{% endif %}
   {% if foco_html %}<div class="foco-guia" id="foco"><h2 class="h2s">Foco deste guia</h2>{{ foco_html | safe }}</div>{% endif %}
   <div id="legenda"><h2 class="h2s">Legenda</h2>
    <div class="legend" aria-label="Legenda de cores">

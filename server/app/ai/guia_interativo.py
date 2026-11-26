@@ -1,5 +1,5 @@
-"""Guia interativo (RUNBOOK.md, "Guia interativo"): pacote e colar da skill
-/guia-interativo, que escreve o que a página interativa não tira sozinha
+"""Resumo interativo (RUNBOOK.md, "Resumo interativo"; antes "Guia interativo"): pacote e colar da skill
+/resumo-interativo, que escreve o que a página interativa não tira sozinha
 do guia -- resumos de 1-2 linhas dos exemplos, visuais, seções que ficam
 de fora, correções do mapa mental e do índice de artigos. A página é
 montada por study/guia_interativo.py a cada request, do guia gravado;
@@ -27,7 +27,7 @@ from .guia_numeracao import norm_titulo
 from .pipeline import ProcessingError
 
 INSTRUCTIONS = """\
-# Guia interativo — o que a página não tira sozinha do guia
+# Resumo interativo — o que a página não tira sozinha do guia
 
 A página interativa deste guia já existe e é montada **por código** a cada
 abertura, direto do guia gravado: título, definições, atenções, citações e
@@ -102,7 +102,8 @@ Você devolve **só o acréscimo**, num JSON (formato no fim):
    demais ou de menos (`\\b` no fim: `art\\. 28\\b`, senão casa 288), e
    limite a capítulos (`capitulos`) quando o mesmo número vale para
    outra lei. `regex: null` = entrada sem links. Tire (`artigos_remover`)
-   as entradas que só vêm de seção excluída.
+   as entradas que só vêm de seção excluída -- saem só do índice; o texto
+   completo do tópico continua com a lista inteira.
 6. **Mostrar tudo** (`mostrar_tudo`): tópicos curtos em que o texto todo
    é o conteúdo (cartões simples), e nada deve ficar escondido.
 
@@ -134,7 +135,7 @@ em negrito dos resumos e visuais que não aparecem no tópico
 
 def _lesson_ok(session: Session, lesson: Lesson) -> list[tuple[str, str]]:
     if lesson.tipo != "consolidacao":
-        raise ProcessingError("guia interativo só existe para consolidação e guia focado")
+        raise ProcessingError("resumo interativo só existe para consolidação e guia focado")
     secoes = session.scalars(
         select(GuiaSecao).where(GuiaSecao.lesson_id == lesson.id).order_by(GuiaSecao.ordem)
     ).all()

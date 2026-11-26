@@ -12,7 +12,7 @@ Duas camadas:
   visível, "ver texto completo", perguntas de aluno, ícone de inaudível,
   etiqueta de artigo, mapa mental com correspondência automática nó ->
   tópico, índice de artigos com regex derivado da própria entrada;
-- **skill** `/guia-interativo` (opcional, `GuiaInterativo.conteudo_json`,
+- **skill** `/resumo-interativo` (opcional, `GuiaInterativo.conteudo_json`,
   regras em ai/guia_interativo.py): resumos dos exemplos, visuais,
   seções que ficam de fora, correções do mapa e dos artigos. Cada item
   fica preso ao tópico (número + título normalizado) e ao hash do texto
@@ -722,7 +722,9 @@ class Pagina:
             full = []
             for i, b in enumerate(B):
                 if is_disp and b["type"] == "list" and b["data"] is self.disp_list:
-                    full.append(f'<div class="blk lst">{render_list(self.filtered_disp)}</div>')
+                    # A lista inteira, como está no guia: `artigos_remover`
+                    # tira a entrada só do índice de artigos, nunca do texto.
+                    full.append(f'<div class="blk lst">{render_list(self.disp_list)}</div>')
                     continue
                 dup = (i in vis) or (i in qset) or (i in exset)
                 full.append(render_block(b, sb=not dup))

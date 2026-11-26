@@ -522,7 +522,7 @@ class GuiaTopico(Base):
 
 
 class GuiaInterativo(Base):
-    """O que a skill /guia-interativo escreve para a página interativa de
+    """O que a skill /resumo-interativo escreve para a página interativa de
     uma consolidação ou guia focado (study/guia_interativo.py): resumos dos
     exemplos, visuais, seções que ficam de fora, correções do mapa e do
     índice de artigos. A página em si é montada do guia gravado a cada
